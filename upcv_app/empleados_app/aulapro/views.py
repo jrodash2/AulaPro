@@ -14,7 +14,7 @@ ALLOW_MULTI_GRADE_PER_CYCLE = False
 
 
 def _can_manage(user):
-    return user.is_superuser or user.groups.filter(name="Admin_gafetes").exists()
+    return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
 
 def _get_establecimiento(est_id):

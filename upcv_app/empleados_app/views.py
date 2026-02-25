@@ -21,7 +21,7 @@ from .models import Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Gr
 
 
 def _can_manage_design(user):
-    return user.is_superuser or user.groups.filter(name="Admin_gafetes").exists()
+    return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
 
 def _validate_layout_payload(payload):
