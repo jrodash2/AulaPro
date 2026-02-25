@@ -7,12 +7,14 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import CarreraForm, EstablecimientoForm, GradoForm
 from empleados_app.models import Carrera, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatricularPorCodigoForm, MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_YEAR = False
+
+
+ESTADOS_MATRICULA = {'activo', 'inactivo'}
 
 
 def _can_manage(user):
@@ -56,7 +58,7 @@ def establecimiento_detail(request, est_id):
 @login_required
 def carrera_detail(request, est_id, car_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = get_object_or_404(Carrera, pk=car_id, establecimiento_id=est_id)
+    carrera = _get_carrera(est_id, car_id)
     grados = Grado.objects.filter(carrera=carrera).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
@@ -68,8 +70,8 @@ def carrera_detail(request, est_id, car_id):
 @login_required
 def grado_detail(request, est_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = get_object_or_404(Carrera, pk=car_id, establecimiento_id=est_id)
-    grado = get_object_or_404(Grado, pk=grado_id, carrera_id=car_id)
+    carrera = _get_carrera(est_id, car_id)
+    grado = _get_grado(est_id, car_id, grado_id)
 
     filtro_form = MatriculaFiltroForm(request.GET or None)
     matriculas = Matricula.objects.select_related('alumno').filter(grado=grado)
@@ -81,7 +83,24 @@ def grado_detail(request, est_id, car_id, grado_id):
         if estado:
             matriculas = matriculas.filter(estado=estado)
 
-    matricular_form = MatricularPorCodigoForm(initial={'ciclo': date.today().year, 'estado': 'activo'})
+    codigo_personal = (request.GET.get('codigo_personal') or '').strip()
+    ciclo_matricula_raw = (request.GET.get('ciclo_matricula') or '').strip()
+    estado_matricula = (request.GET.get('estado_matricula') or 'activo').strip().lower()
+
+    try:
+        ciclo_matricula = int(ciclo_matricula_raw) if ciclo_matricula_raw else date.today().year
+    except ValueError:
+        ciclo_matricula = date.today().year
+
+    if estado_matricula not in ESTADOS_MATRICULA:
+        estado_matricula = 'activo'
+
+    alumno_encontrado = None
+    if codigo_personal:
+        alumno_encontrado = Empleado.objects.filter(codigo_personal__iexact=codigo_personal).first()
+        if not alumno_encontrado:
+            alumno_encontrado = Empleado.objects.filter(codigo_personal__icontains=codigo_personal).order_by('apellidos', 'nombres').first()
+
 
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
@@ -89,8 +108,67 @@ def grado_detail(request, est_id, car_id, grado_id):
         'grado': grado,
         'matriculas': matriculas.order_by('-ciclo', 'alumno__apellidos'),
         'filtro_form': filtro_form,
-        'matricular_form': matricular_form,
+        'codigo_personal': codigo_personal,
+        'ciclo_matricula': ciclo_matricula,
+        'estado_matricula': estado_matricula,
+        'alumno_encontrado': alumno_encontrado,
     })
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_POST
+def grado_matricular(request, est_id, car_id, grado_id):
+    grado = _get_grado(est_id, car_id, grado_id)
+
+    alumno_id = (request.POST.get('alumno_id') or '').strip()
+    ciclo_raw = (request.POST.get('ciclo') or '').strip()
+    estado = (request.POST.get('estado') or 'activo').strip().lower()
+
+    if not alumno_id or not ciclo_raw:
+        messages.error(request, 'Formulario inválido: faltan datos para matricular.')
+        return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    try:
+        ciclo = int(ciclo_raw)
+    except ValueError:
+        messages.error(request, 'El ciclo debe ser un número válido.')
+        return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    if estado not in ESTADOS_MATRICULA:
+        estado = 'activo'
+
+    alumno = Empleado.objects.filter(pk=alumno_id).first()
+    if not alumno:
+        messages.error(request, 'No se encontró el alumno seleccionado.')
+        return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    if not ALLOW_MULTI_GRADE_PER_YEAR:
+        other = Matricula.objects.filter(alumno=alumno, ciclo=ciclo).exclude(grado=grado).exists()
+        if other:
+            messages.warning(request, 'El alumno ya está matriculado en otro grado para este ciclo.')
+            return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    try:
+        matricula, created = Matricula.objects.get_or_create(
+            alumno=alumno,
+            grado=grado,
+            ciclo=ciclo,
+            defaults={'estado': estado},
+        )
+    except IntegrityError:
+        messages.warning(request, 'El alumno ya está matriculado en este grado y ciclo.')
+        return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    if not created:
+        if matricula.estado != estado:
+            matricula.estado = estado
+            matricula.save(update_fields=['estado'])
+        messages.warning(request, 'El alumno ya estaba matriculado en este grado y ciclo.')
+        return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
+
+    messages.success(request, 'Alumno matriculado correctamente.')
+    return redirect('empleados:grado_detail', est_id=est_id, car_id=car_id, grado_id=grado_id)
 
 
 @login_required

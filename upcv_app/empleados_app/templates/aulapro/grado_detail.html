@@ -1,5 +1,4 @@
 {% extends 'empleados/base.html' %}
-{% load static %}
 {% block content %}
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item">Grados</li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
 <div class="container-fluid">
@@ -14,19 +13,50 @@
         <div class="table-responsive"><table class="table table-striped"><thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th></th></tr></thead><tbody>{% for m in matriculas %}<tr><td>{{ m.alumno.codigo_personal|default:'-' }}</td><td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td><td>{{ m.alumno.cui|default:'-' }}</td><td>{{ m.ciclo }}</td><td>{% if m.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td><td><form method="post" action="{% url 'empleados:desmatricular_alumno' m.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-outline-danger btn-sm" type="submit">Desmatricular</button></form></td></tr>{% empty %}<tr><td colspan="6">Sin matrículas.</td></tr>{% endfor %}</tbody></table></div>
       </div>
       <div class="tab-pane fade" id="tab-matricular">
-        <div id="matricula-alert"></div>
-        <form id="buscar-form" class="row g-3 mb-3"><div class="col-md-6"><label class="form-label">Buscar por código personal</label><div class="input-group"><input id="codigo-input" class="form-control" placeholder="Código personal"><button class="btn btn-primary" type="submit">Buscar</button></div></div><div class="col-md-3"><label class="form-label">Ciclo</label>{{ matricular_form.ciclo }}</div><div class="col-md-3"><label class="form-label">Estado</label>{{ matricular_form.estado }}</div></form>
-        <div id="alumno-result" class="d-none"></div>
+        <form method="get" class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Buscar por código personal</label>
+            <div class="input-group">
+              <input name="codigo_personal" class="form-control" placeholder="Código personal" value="{{ codigo_personal }}">
+              <button class="btn btn-primary" type="submit">Buscar</button>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Ciclo</label>
+            <input name="ciclo_matricula" class="form-control" type="number" value="{{ ciclo_matricula }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select name="estado_matricula" class="form-control">
+              <option value="activo" {% if estado_matricula == 'activo' %}selected{% endif %}>Activo</option>
+              <option value="inactivo" {% if estado_matricula == 'inactivo' %}selected{% endif %}>Inactivo</option>
+            </select>
+          </div>
+        </form>
+
+        {% if codigo_personal and not alumno_encontrado %}
+        <div class="alert alert-warning">No se encontró un alumno con ese código personal.</div>
+        {% endif %}
+
+        {% if alumno_encontrado %}
+        <div class="card">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="mb-1">{{ alumno_encontrado.apellidos }}, {{ alumno_encontrado.nombres }}</h6>
+              <div class="text-muted">Código: {{ alumno_encontrado.codigo_personal|default:'-' }} · CUI: {{ alumno_encontrado.cui|default:'-' }}</div>
+            </div>
+            <form method="post" action="{% url 'empleados:grado_matricular' establecimiento.id carrera.id grado.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="alumno_id" value="{{ alumno_encontrado.id }}">
+              <input type="hidden" name="ciclo" value="{{ ciclo_matricula }}">
+              <input type="hidden" name="estado" value="{{ estado_matricula }}">
+              <button class="btn btn-primary btn-sm" type="submit">Matricular</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div></div>
 </div></div>
-<script>
-window.matriculaConfig = {
-  buscarUrl: "{% url 'empleados:buscar_alumno' grado.id %}",
-  matricularUrl: "{% url 'empleados:matricular_alumno' grado.id %}",
-  csrfToken: "{{ csrf_token }}"
-};
-</script>
-<script src="{% static 'aulapro/js/matricula.js' %}"></script>
 {% endblock %}
