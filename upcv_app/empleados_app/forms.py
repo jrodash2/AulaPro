@@ -19,11 +19,6 @@ class ConfiguracionGeneralForm(BaseRihoForm):
         model = ConfiguracionGeneral
         fields = ["nombre_institucion", "nombre_institucion2", "direccion", "logotipo", "tel", "sitio_web", "correo"]
 
-class ConfiguracionGeneralForm(BootstrapModelForm):
-    class Meta:
-        model = ConfiguracionGeneral
-        fields = ["nombre_institucion", "nombre_institucion2", "direccion", "logotipo", "tel", "sitio_web", "correo"]
-
 
 class EmpleadoForm(BaseRihoForm):
     class Meta:

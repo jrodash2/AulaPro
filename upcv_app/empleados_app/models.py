@@ -123,3 +123,7 @@ class ConfiguracionGeneral(models.Model):
 
     def __str__(self):
         return self.nombre_institucion
+
+
+# Alias de compatibilidad para evitar rupturas en imports antiguos
+Alumno = Empleado
