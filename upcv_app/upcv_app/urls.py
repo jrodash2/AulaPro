@@ -10,5 +10,6 @@ urlpatterns = [
     path('signin/', empleados_views.signin),
     path('logout/', empleados_views.signout),
     path('aulapro/', include('empleados_app.urls')),
+    path('aulapro/', include(('empleados_app.urls', 'alumnos'), namespace='alumnos')),
     path('', RedirectView.as_view(url='/aulapro/signin/', permanent=False)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
