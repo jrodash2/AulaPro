@@ -71,6 +71,12 @@ class CicloEscolarForm(BaseRihoForm):
             "fecha_fin": forms.DateInput(attrs={"type": "date"}),
         }
 
+    def clean_nombre(self):
+        nombre = (self.cleaned_data.get("nombre") or "").strip()
+        if not nombre:
+            raise forms.ValidationError("El nombre del ciclo escolar es obligatorio.")
+        return nombre
+
 
 class MatriculaForm(BaseRihoForm):
     class Meta:

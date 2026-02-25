@@ -4,13 +4,14 @@
   <div class="container-fluid">
     <div class="page-title">
       <div class="row">
-        <div class="col-6"><h4>Nuevo ciclo escolar</h4></div>
+        <div class="col-6"><h4>{{ titulo|default:'Nuevo ciclo escolar' }}</h4></div>
         <div class="col-6">
           <ol class="breadcrumb">
             <li class="breadcrumb-item">AulaPro</li>
             <li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
             <li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li>
-            <li class="breadcrumb-item active">Nuevo ciclo</li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:ciclos_list' establecimiento.id %}">Ciclos escolares</a></li>
+            <li class="breadcrumb-item active">{{ titulo|default:'Nuevo ciclo escolar' }}</li>
           </ol>
         </div>
       </div>
@@ -18,7 +19,7 @@
   </div>
   <div class="container-fluid">
     <div class="card">
-      <div class="card-header card-no-border pb-0"><h5>Registrar ciclo escolar</h5></div>
+      <div class="card-header card-no-border pb-0"><h5>{{ titulo|default:'Registrar ciclo escolar' }}</h5></div>
       <div class="card-body">
         <form method="post" class="row g-3">
           {% csrf_token %}
@@ -27,10 +28,12 @@
           <div class="col-md-3"><label class="form-label">Estado</label>{{ form.estado }}</div>
           <div class="col-md-3"><label class="form-label">Fecha inicio</label>{{ form.fecha_inicio }}</div>
           <div class="col-md-3"><label class="form-label">Fecha fin</label>{{ form.fecha_fin }}</div>
-          <div class="col-md-3 d-flex align-items-center"><div class="form-check mt-4">{{ form.es_activo }}<label class="form-check-label ms-2" for="{{ form.es_activo.id_for_label }}">Marcar como ciclo activo</label></div></div>
+          <div class="col-md-3 d-flex align-items-center">
+            <div class="form-check mt-4">{{ form.es_activo }}<label class="form-check-label ms-2" for="{{ form.es_activo.id_for_label }}">Marcar como ciclo activo</label></div>
+          </div>
           <div class="col-12 d-flex gap-2">
-            <button class="btn btn-primary" type="submit">Guardar ciclo</button>
-            <a class="btn btn-outline-secondary" href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">Cancelar</a>
+            <button class="btn btn-primary" type="submit">{{ accion|default:'Guardar ciclo' }}</button>
+            <a class="btn btn-outline-secondary" href="{% url 'empleados:ciclos_list' establecimiento.id %}">Cancelar</a>
           </div>
         </form>
       </div>

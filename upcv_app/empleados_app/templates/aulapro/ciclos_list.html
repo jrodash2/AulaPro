@@ -24,20 +24,29 @@
       </div>
       <div class="card-body table-responsive">
         <table class="table table-striped">
-          <thead><tr><th>Nombre</th><th>Año</th><th>Estado</th><th>Activo</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Año</th><th>Estado</th><th>Activo</th><th>Acciones</th></tr></thead>
           <tbody>
             {% for c in ciclos %}
             <tr>
               <td>{{ c.nombre }}</td>
               <td>{{ c.anio|default:'-' }}</td>
               <td>{% if c.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-warning">Inactivo</span>{% endif %}</td>
-              <td>{% if c.es_activo %}<span class="badge badge-light-success">Sí</span>{% else %}<span class="badge badge-light-secondary">No</span>{% endif %}</td>
+              <td>{% if c.es_activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-secondary">No activo</span>{% endif %}</td>
               <td>
-                {% if not c.es_activo %}
-                <form method="post" action="{% url 'empleados:ciclo_activar' establecimiento.id c.id %}">{% csrf_token %}
-                  <button class="btn btn-outline-primary btn-sm" type="submit">Activar</button>
-                </form>
-                {% endif %}
+                <div class="d-flex gap-2 flex-wrap">
+                  <a class="btn btn-outline-info btn-sm" href="{% url 'empleados:ciclo_update' establecimiento.id c.id %}">Editar</a>
+
+                  {% if not c.es_activo %}
+                  <form method="post" action="{% url 'empleados:ciclo_activar' establecimiento.id c.id %}">{% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button class="btn btn-outline-primary btn-sm" type="submit">Activar</button>
+                  </form>
+                  {% endif %}
+
+                  <form method="post" action="{% url 'empleados:ciclo_delete' establecimiento.id c.id %}" onsubmit="return confirm('¿Desea eliminar este ciclo escolar?');">{% csrf_token %}
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
+                  </form>
+                </div>
               </td>
             </tr>
             {% empty %}

@@ -72,15 +72,69 @@ def ciclo_create(request, est_id):
     if request.method == 'POST' and form.is_valid():
         ciclo = form.save(commit=False)
         ciclo.establecimiento = establecimiento
-        ciclo.save()
-        if ciclo.es_activo:
-            establecimiento.ciclos_escolares.exclude(pk=ciclo.pk).update(es_activo=False)
+        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+
+        try:
+            with transaction.atomic():
+                if ciclo.es_activo:
+                    establecimiento.ciclos_escolares.filter(es_activo=True).update(es_activo=False)
+                ciclo.save()
+        except IntegrityError:
+            messages.error(request, 'No se pudo crear el ciclo: ya existe un ciclo activo para este establecimiento.')
+            return render(request, 'aulapro/ciclos_form.html', {
+                'establecimiento': establecimiento,
+                'form': form,
+                'titulo': 'Nuevo ciclo escolar',
+                'accion': 'Guardar ciclo',
+            })
+
         messages.success(request, 'Ciclo escolar creado correctamente.')
-        return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
+        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
     return render(request, 'aulapro/ciclos_form.html', {
         'establecimiento': establecimiento,
         'form': form,
+        'titulo': 'Nuevo ciclo escolar',
+        'accion': 'Guardar ciclo',
+    })
+
+
+@login_required
+@user_passes_test(_can_manage)
+def ciclo_update(request, est_id, ciclo_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
+    form = CicloEscolarForm(request.POST or None, instance=ciclo)
+
+    if request.method == 'POST' and form.is_valid():
+        ciclo = form.save(commit=False)
+        ciclo.establecimiento = establecimiento
+        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+
+        try:
+            with transaction.atomic():
+                if ciclo.es_activo:
+                    establecimiento.ciclos_escolares.filter(es_activo=True).exclude(pk=ciclo.pk).update(es_activo=False)
+                ciclo.save()
+        except IntegrityError:
+            messages.error(request, 'No se pudo actualizar: ya existe otro ciclo activo para este establecimiento.')
+            return render(request, 'aulapro/ciclos_form.html', {
+                'establecimiento': establecimiento,
+                'form': form,
+                'ciclo': ciclo,
+                'titulo': 'Editar ciclo escolar',
+                'accion': 'Guardar cambios',
+            })
+
+        messages.success(request, 'Ciclo escolar actualizado correctamente.')
+        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+
+    return render(request, 'aulapro/ciclos_form.html', {
+        'establecimiento': establecimiento,
+        'form': form,
+        'ciclo': ciclo,
+        'titulo': 'Editar ciclo escolar',
+        'accion': 'Guardar cambios',
     })
 
 
@@ -90,13 +144,38 @@ def ciclo_create(request, est_id):
 def ciclo_activar(request, est_id, ciclo_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
-    with transaction.atomic():
-        establecimiento.ciclos_escolares.update(es_activo=False)
-        ciclo.es_activo = True
-        ciclo.estado = 'activo'
-        ciclo.save(update_fields=['es_activo', 'estado'])
+    try:
+        with transaction.atomic():
+            establecimiento.ciclos_escolares.update(es_activo=False)
+            ciclo.es_activo = True
+            ciclo.estado = 'activo'
+            ciclo.save(update_fields=['es_activo', 'estado'])
+    except IntegrityError:
+        messages.error(request, 'No se pudo activar el ciclo por un conflicto de integridad. Intente nuevamente.')
+        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+
     messages.success(request, f'El ciclo {ciclo.nombre} ahora está activo.')
-    return redirect(request.POST.get('next') or 'empleados:establecimiento_detail', est_id=establecimiento.id)
+    return redirect(request.POST.get('next') or 'empleados:ciclos_list', est_id=establecimiento.id)
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_POST
+def ciclo_delete(request, est_id, ciclo_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
+
+    if ciclo.matriculas.exists():
+        messages.warning(request, 'No se puede eliminar el ciclo porque tiene matrículas asociadas.')
+        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+
+    if ciclo.es_activo:
+        messages.warning(request, 'No se puede eliminar el ciclo activo. Active otro ciclo primero.')
+        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+
+    ciclo.delete()
+    messages.success(request, 'Ciclo escolar eliminado correctamente.')
+    return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
 
 @login_required
