@@ -45,7 +45,7 @@
             <div>
               <div><a class="logo text-start" href="#"> <img class="img-fluid for-dark" src="{% static 'assets/images/logo/logo.png' %}" alt="looginpage"><img class="img-fluid for-light" src="{% static 'assets/images/logo/upcv2.png' %}" alt="looginpage"></a></div>
               <div class="login-main"> 
-                <form action="/signin/" method="POST" class="theme-form">
+                <form action="{% url 'empleados:signin' %}" method="POST" class="theme-form">
                     {% csrf_token %}
                   <h4>Iniciar Sesión </h4>
                   <p>Ingresa Usuario y Contraseña</p>
