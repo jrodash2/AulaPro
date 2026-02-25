@@ -90,6 +90,8 @@ class Empleado(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        # Compatibilidad con bases ya migradas con RenameModel(Empleado -> Alumno)
+        db_table = "empleados_app_alumno"
 
     def __str__(self):
         return f"{self.nombres} {self.apellidos}"
