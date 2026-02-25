@@ -1,0 +1,5 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h4>Carreras</h4><a class="btn btn-primary" href="{% url 'empleados:crear_carrera' %}">Nueva</a></div>
+<table class="table table-striped bg-white"><thead><tr><th>Carrera</th><th>Establecimiento</th><th></th></tr></thead><tbody>{% for c in carreras %}<tr><td>{{ c.nombre }}</td><td>{{ c.establecimiento }}</td><td><a href="{% url 'empleados:editar_carrera' c.id %}">Editar</a></td></tr>{% empty %}<tr><td colspan="3">Sin carreras.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}
