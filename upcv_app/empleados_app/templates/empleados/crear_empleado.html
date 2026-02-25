@@ -1,151 +1,16 @@
 {% extends 'empleados/base.html' %}
-
 {% block content %}
-<div class="page-body">
-  <div class="container-fluid">
-    <div class="page-title">
-      <div class="row">
-        <div class="col-6">
-          <h4 class="card-title mb-0">Crear Estudiante</h4>
-        </div>
-        <div class="col-6"> 
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="#">                                       
-                <svg class="stroke-icon">
-                  <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
-                </svg></a></li>
-            <li class="breadcrumb-item">Dashboard</li>
-            <li class="breadcrumb-item active">Editar Estudiante</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Container-fluid starts-->
-  <div class="container-fluid">
-    <div class="edit-profile">
-      <div class="row">
-        <!-- Formulario de edición de empleado -->
-        <div class="col-xl-12">
-          <div class="card">
-            <div class="card-body">
-              <!-- Mostrar los mensajes de éxito o error si existen -->
-              {% if messages %}
-                <ul>
-                  {% for message in messages %}
-                    <li class="message">{{ message }}</li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-
-              <!-- Formulario para editar un empleado -->
-              <form method="POST" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="row">
-                  <!-- Nombres -->
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label for="id_nombres" class="form-label">Nombres</label>
-                      {{ form.nombres }}
-                    </div>
-                  </div>
-
-                  <!-- Apellidos -->
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label for="id_apellidos" class="form-label">Apellidos</label>
-                      {{ form.apellidos }}
-                    </div>
-                  </div>
-
-                  <!-- Teléfono -->
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label for="id_tel" class="form-label">Teléfono</label>
-                      {{ form.tel }}
-                    </div>
-                  </div>
-
-                  <!-- Grado -->
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label for="id_grado" class="form-label">Grado</label>
-                      <select id="id_grado" name="grado" class="form-control">
-                        <option value="">Seleccione un grado</option>
-                        {% for grado in grados %}
-                          <option value="{{ grado.id }}" data-descripcion="{{ grado.descripcion }}" {% if form.grado.value == grado.id %}selected{% endif %}>
-                            {{ grado.nombre }}
-                          </option>
-                        {% endfor %}
-                      </select>
-                    </div>
-                  </div>
-
-                  <!-- Imagen -->
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label for="id_imagen" class="form-label">Imagen</label>
-                      {{ form.imagen }}
-                    </div>
-                  </div>
-
-                  <!-- Mostrar la descripción del grado seleccionado -->
-                  <div class="col-md-6" id="grado-descripcion-container" style="display: none;">
-                    <div class="mb-3">
-                      <label class="form-label">Descripción del Grado</label>
-                      <h2 id="grado-descripcion"></h2>
-                    </div>
-                  </div>
-
-                </div>
-                <div class="form-footer text-end">
-                  <button class="btn btn-primary" type="submit">Guardar Cambios</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!-- Container-fluid Ends--> 
-
-  <style>
-    .descripcion-grado {
-      font-size: 30px;
-      color: #0a0000;
-      margin-top: 5px;
-    }
-  </style>
-
-  <!-- JavaScript para mostrar la descripción del grado seleccionado -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const gradoSelect = document.querySelector('#id_grado');
-      const gradoDescripcionContainer = document.querySelector('#grado-descripcion-container');
-      const gradoDescripcionText = document.querySelector('#grado-descripcion');
-      
-      gradoSelect.addEventListener('change', function() {
-        const selectedGrado = gradoSelect.options[gradoSelect.selectedIndex];
-        const descripcion = selectedGrado.getAttribute('data-descripcion');
-        
-        if (descripcion) {
-          gradoDescripcionContainer.style.display = 'block';
-          gradoDescripcionText.textContent = descripcion;
-        } else {
-          gradoDescripcionContainer.style.display = 'none';
-        }
-      });
-
-      // Mostrar la descripción al cargar la página si ya hay un grado seleccionado
-      const selectedGrado = gradoSelect.options[gradoSelect.selectedIndex];
-      const descripcion = selectedGrado.getAttribute('data-descripcion');
-      if (descripcion) {
-        gradoDescripcionContainer.style.display = 'block';
-        gradoDescripcionText.textContent = descripcion;
-      }
-    });
-  </script>
-
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Crear Alumno</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'empleados:dahsboard' %}"><svg class="stroke-icon"><use href="../assets/svg/icon-sprite.svg#stroke-home"></use></svg></a></li><li class="breadcrumb-item">Alumnos</li><li class="breadcrumb-item active">Crear</li></ol></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Datos del alumno</h5></div><div class="card-body"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3">
+<div class="col-md-4"><label class="form-label">Código personal</label>{{ form.codigo_personal }}</div>
+<div class="col-md-4"><label class="form-label">Nombres</label>{{ form.nombres }}</div>
+<div class="col-md-4"><label class="form-label">Apellidos</label>{{ form.apellidos }}</div>
+<div class="col-md-4"><label class="form-label">Fecha de nacimiento</label>{{ form.fecha_nacimiento }}</div>
+<div class="col-md-4"><label class="form-label">CUI</label>{{ form.cui }}</div>
+<div class="col-md-4"><label class="form-label">Teléfono</label>{{ form.tel }}</div>
+<div class="col-md-6"><label class="form-label">Establecimiento</label>{{ form.establecimiento }}</div>
+<div class="col-md-6"><label class="form-label">Grado</label>{{ form.grado }}</div>
+<div class="col-md-6"><label class="form-label">Imagen</label>{{ form.imagen }}</div>
+<div class="col-md-6 d-flex align-items-center gap-2 mt-4">{{ form.activo }}<label class="form-label mb-0">Activo</label></div>
+</div><div class="form-footer text-end mt-4"><button class="btn btn-primary" type="submit">Guardar</button></div></form></div></div></div></div>
 {% endblock %}

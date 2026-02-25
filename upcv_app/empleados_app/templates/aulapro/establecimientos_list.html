@@ -1,0 +1,40 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Establecimientos</h4></div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">AulaPro</li>
+            <li class="breadcrumb-item active">Establecimientos</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0"><h5>Listado general</h5></div>
+      <div class="card-body table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>Nombre</th><th>Dirección</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {% for e in establecimientos %}
+            <tr>
+              <td>{{ e.nombre }}</td>
+              <td>{{ e.direccion|default:'-' }}</td>
+              <td>{% if e.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
+              <td><a class="btn btn-primary btn-sm" href="{% url 'empleados:establecimiento_detail' e.id %}">Entrar</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">Sin establecimientos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
