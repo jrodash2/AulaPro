@@ -1,0 +1,8 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h4>Alumnos</h4><a class="btn btn-primary" href="{% url 'empleados:crear_alumno' %}">Nuevo alumno</a></div>
+<table class="table table-striped bg-white">
+<thead><tr><th>Código</th><th>Nombres</th><th>Apellidos</th><th>Grado</th><th>Activo</th><th></th></tr></thead>
+<tbody>{% for alumno in alumnos %}<tr><td>{{ alumno.codigo_personal }}</td><td>{{ alumno.nombres }}</td><td>{{ alumno.apellidos }}</td><td>{{ alumno.grado }}</td><td>{{ alumno.activo|yesno:'Sí,No' }}</td><td><a href="{% url 'empleados:editar_alumno' alumno.id %}">Editar</a> · <a href="{% url 'empleados:alumno_detalle' alumno.id %}">Gafete</a></td></tr>{% empty %}<tr><td colspan="6">Sin registros.</td></tr>{% endfor %}</tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<h4>Editor de Gafete - {{ establecimiento.nombre }}</h4>
+<div class="row">
+  <div class="col-md-9">
+    <div id="canvas" style="position:relative;width:{{ establecimiento.gafete_ancho }}px;height:{{ establecimiento.gafete_alto }}px;max-width:100%;border:1px solid #ddd;background:#fff;overflow:hidden;">
+      {% if establecimiento.fondo_gafete %}<img src="{{ establecimiento.fondo_gafete.url }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">{% endif %}
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-body">
+      <label>Capa</label><select id="layer-select" class="form-control mb-2"></select>
+      <label>Tamaño</label><input id="font-size" type="number" class="form-control mb-2" min="10" max="96">
+      <label>Color</label><input id="font-color" type="color" class="form-control form-control-color mb-2">
+      <label>Alineación</label><select id="font-align" class="form-control mb-2"><option>left</option><option>center</option><option>right</option></select>
+      <button id="save-design" class="btn btn-primary mb-2">Guardar diseño</button>
+      <a class="btn btn-outline-secondary" href="{% url 'empleados:resetear_diseno_gafete' establecimiento.id %}">Restablecer</a>
+    </div>
+  </div>
+</div>
+<script>
+window.editorConfig = {
+  capas: {{ capas|safe }},
+  example: {
+    nombres: "{{ ejemplo.nombres|default:'Nombre' }}",
+    apellidos: "{{ ejemplo.apellidos|default:'Apellido' }}",
+    codigo_personal: "{{ ejemplo.codigo_personal|default:'COD-001' }}",
+    cui: "{{ ejemplo.cui|default:'0000 00000 0000' }}",
+    establecimiento: "{{ establecimiento.nombre }}"
+  },
+  saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'js/editor_gafete.js' %}"></script>
+{% endblock %}

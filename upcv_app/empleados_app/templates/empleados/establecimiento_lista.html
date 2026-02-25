@@ -1,0 +1,5 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h4>Establecimientos</h4><a class="btn btn-primary" href="{% url 'empleados:crear_establecimiento' %}">Nuevo</a></div>
+<table class="table table-striped bg-white"><thead><tr><th>Nombre</th><th>Dirección</th><th>Diseño</th><th></th></tr></thead><tbody>{% for e in establecimientos %}<tr><td>{{ e.nombre }}</td><td>{{ e.direccion }}</td><td><a href="{% url 'empleados:editor_gafete' e.id %}">Editor de gafete</a></td><td><a href="{% url 'empleados:editar_establecimiento' e.id %}">Editar</a></td></tr>{% empty %}<tr><td colspan="4">Sin establecimientos.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}
