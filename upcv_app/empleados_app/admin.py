@@ -23,6 +23,7 @@ class CarreraAdmin(admin.ModelAdmin):
     list_filter = ("establecimiento", "activo")
     search_fields = ("nombre", "establecimiento__nombre")
 
+from .models import Alumno, Carrera, ConfiguracionGeneral, Establecimiento, Grado, Matricula
 
 @admin.register(Grado)
 class GradoAdmin(admin.ModelAdmin):
