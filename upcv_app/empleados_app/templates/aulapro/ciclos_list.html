@@ -1,0 +1,61 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Ciclos escolares</h4></div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">AulaPro</li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li>
+            <li class="breadcrumb-item active">Ciclos escolares</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0 d-flex justify-content-between align-items-center">
+        <h5>Listado de ciclos</h5>
+        <a class="btn btn-primary btn-sm" href="{% url 'empleados:ciclo_create' establecimiento.id %}"><i class="fa fa-plus"></i> Nuevo ciclo</a>
+      </div>
+      <div class="card-body table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>Nombre</th><th>Año</th><th>Estado</th><th>Activo</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {% for c in ciclos %}
+            <tr>
+              <td>{{ c.nombre }}</td>
+              <td>{{ c.anio|default:'-' }}</td>
+              <td>{% if c.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-warning">Inactivo</span>{% endif %}</td>
+              <td>{% if c.es_activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-secondary">No activo</span>{% endif %}</td>
+              <td>
+                <div class="d-flex gap-2 flex-wrap">
+                  <a class="btn btn-outline-info btn-sm" href="{% url 'empleados:ciclo_update' establecimiento.id c.id %}">Editar</a>
+
+                  {% if not c.es_activo %}
+                  <form method="post" action="{% url 'empleados:ciclo_activar' establecimiento.id c.id %}">{% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button class="btn btn-outline-primary btn-sm" type="submit">Activar</button>
+                  </form>
+                  {% endif %}
+
+                  <form method="post" action="{% url 'empleados:ciclo_delete' establecimiento.id c.id %}" onsubmit="return confirm('¿Desea eliminar este ciclo escolar?');">{% csrf_token %}
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">No hay ciclos registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
