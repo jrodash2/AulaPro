@@ -1,0 +1,56 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+{% include 'empleados/partials_gafete_estilos.html' %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title"><div class="row"><div class="col-6"><h4>Editor de Gafete</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">Académico</li><li class="breadcrumb-item">Establecimientos</li><li class="breadcrumb-item active">Editor</li></ol></div></div></div>
+  </div>
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xxl-9">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Vista previa (estilo original)</h5></div>
+          <div class="card-body">
+            <div class="gafete" style="margin:0 auto; width:880px; max-width:100%;">
+              <div class="card" style="width: 880px; height: 565px; max-width:100%;">
+                <div class="card-body gafete-card editor-canvas" id="editor-canvas" style="width: 880px; height: 565px; max-width:100%; position:relative; background: url('{% if layout_preview.background and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}') no-repeat center center; background-size:cover;">
+                  <text class="t3">{{ alumno.nombres|default:'' }}</text>
+                  <text class="t4">{{ alumno.apellidos|default:'' }}</text>
+                  <text class="layer-item t5" data-layer="nombres">{{ alumno.nombres|default:'Nombre' }}</text>
+                  <text class="layer-item t6" data-layer="apellidos">{{ alumno.apellidos|default:'Apellidos' }}</text>
+                  <text class="layer-item t7" data-layer="grado">{{ alumno.grado|default:'Grado' }}</text>
+                  <text class="layer-item t8" data-layer="grado_descripcion">{{ alumno.grado.descripcion|default:'' }}</text>
+                  <text class="layer-item t10" data-layer="sitio_web">{{ establecimiento.nombre }}</text>
+                  <text class="layer-item t11" data-layer="telefono">{{ alumno.tel|default:'-' }}</text>
+                  {% if alumno.imagen %}<img src="{{ alumno.imagen.url }}" class="gafete-img" alt="foto">{% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xxl-3">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Herramientas</h5></div>
+          <div class="card-body">
+            <div class="mb-3"><label class="form-label">Texto</label><select id="layer-select" class="form-control"></select></div>
+            <div class="mb-3"><label class="form-label">Clase CSS del tema</label><input id="layer-class" class="form-control" placeholder="Ej: t5"></div>
+            <button id="save-layout" class="btn btn-primary w-100 mb-2">Guardar diseño</button>
+            <a class="btn btn-outline-secondary w-100" href="{% url 'empleados:resetear_diseno_gafete' establecimiento.id %}">Restablecer</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>.layer-item{cursor:move; position:absolute;}</style>
+<script>
+window.gafeteEditorData = {
+  layout: {{ layout|safe }},
+  saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'js/editor_gafete.js' %}"></script>
+{% endblock %}

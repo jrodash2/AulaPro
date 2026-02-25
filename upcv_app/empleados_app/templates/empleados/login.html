@@ -11,7 +11,7 @@
     <meta name="author" content="pixelstrap">
     <link rel="icon" href="{% static 'assets/images/favicon.svg' %}" type="image/x-icon">
     <link rel="shortcut icon" href="{% static 'assets/images/favicon.svg' %}" type="image/x-icon">
-    <title>UPCV</title>
+    <title>AulaPro</title>
     <!-- Google font-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -45,7 +45,7 @@
             <div>
               <div><a class="logo text-start" href="#"> <img class="img-fluid for-dark" src="{% static 'assets/images/logo/logo.png' %}" alt="looginpage"><img class="img-fluid for-light" src="{% static 'assets/images/logo/upcv2.png' %}" alt="looginpage"></a></div>
               <div class="login-main"> 
-                <form action="/signin/" method="POST" class="theme-form">
+                <form action="{% url 'empleados:signin' %}" method="POST" class="theme-form">
                     {% csrf_token %}
                   <h4>Iniciar Sesión </h4>
                   <p>Ingresa Usuario y Contraseña</p>
