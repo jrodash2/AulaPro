@@ -10,7 +10,7 @@
         <meta name="author" content="pixelstrap">
         <link rel="icon" href="{% static 'assets/images/favicon.svg' %}" type="image/x-icon">
         <link rel="shortcut icon" href="{% static 'assets/images/favicon.svg' %}" type="image/x-icon">
-        <title>UPCV</title>
+        <title>AulaPro</title>
     
         <!-- Google font-->
         <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -178,7 +178,7 @@
                 </li>
                 <li class="sidebar-main-title">
                   <div>
-                    <h6 >Sistema Gafetes</h6>
+                    <h6 >AulaPro Escolar</h6>
                   </div>
                 </li>
                 {% if user.is_authenticated %}
@@ -188,13 +188,11 @@
                     </svg>
                     <svg class="fill-icon">
                       <use href="../assets/svg/icon-sprite.svg#fill-home"></use>
-                    </svg><span>Empleados</span></a>
+                    </svg><span>Alumnos</span></a>
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:crear_empleado' %}">Agregar </a></li>
                     <li><a href="{% url 'empleados:empleado_lista' %}">Listar </a></li>
-                    <li><a href="#">Historial</a></li>
-                    <li><a href="{% url 'empleados:empleado_credencial' %}">Credenciales</a></li>
-                    <li><a href="#">Búsqueda avanzada</a></li>
+                    <li><a href="{% url 'empleados:empleado_credencial' %}">Gafetes</a></li>
                   </ul>
                 </li>
  
@@ -213,7 +211,18 @@
                   <li><a href="{% url 'empleados:configuracion_general' %}">Config.General</a></li>
                 </ul>
               </li>
-              {% endif %}
+              
+                <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
+                    <svg class="stroke-icon"><use href="../assets/svg/icon-sprite.svg#stroke-task"></use></svg>
+                    <svg class="fill-icon"><use href="../assets/svg/icon-sprite.svg#fill-task"></use></svg><span>Académico</span></a>
+                  <ul class="sidebar-submenu">
+                    <li><a href="{% url 'empleados:establecimiento_lista' %}">Establecimientos</a></li>
+                    <li><a href="{% url 'empleados:carrera_lista' %}">Carreras</a></li>
+                    <li><a href="{% url 'empleados:grado_lista' %}">Grados</a></li>
+                    <li><a href="{% url 'empleados:matricula' %}">Matrícula</a></li>
+                  </ul>
+                </li>
+{% endif %}
                               </ul>
               <div class="right-arrow" id="right-arrow"><i data-feather="arrow-right"></i></div>
             </div>
