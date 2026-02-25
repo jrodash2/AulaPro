@@ -1,0 +1,362 @@
+{% extends 'tickets/base.html' %}
+{% load static %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+
+
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6">
+          <h4>Todos los Tickets</h4>
+        </div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="index.html">
+              <svg class="stroke-icon">
+                <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
+              </svg></a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+            <div class="row" style="margin: 20px;">
+    <!-- Fila 1: Total Tickets, Tickets Abiertos, Tickets Cerrados, Tickets En Proceso -->
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-black">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#activity"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Total de Tickets</span>
+                            <h2 class="f-w-600">{{ total_tickets }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos un total de {{ total_tickets }} tickets.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-primary">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#people"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Abiertos</span>
+                            <h2 class="f-w-600">{{ tickets_abiertos }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_abiertos }} tickets abiertos.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-warning">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#tasks"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets En Proceso</span>
+                            <h2 class="f-w-600">{{ tickets_en_proceso }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_en_proceso }} tickets en proceso.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-success">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#task-square"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Cerrados</span>
+                            <h2 class="f-w-600">{{ tickets_cerrados }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos un total de {{ tickets_cerrados }} tickets cerrados esta semana.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    
+</div>
+
+<div class="row" style="margin: 20px;">
+    <!-- Fila 2: Tickets Pendientes, Tickets Alta Prioridad, Tickets Media Prioridad, Tickets Baja Prioridad -->
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-danger">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#clock"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Pendientes</span>
+                            <h2 class="f-w-600">{{ tickets_pendientes }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_pendientes }} tickets pendientes.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-primary">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#money-recive"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Alta Prioridad</span>
+                            <h2 class="f-w-600">{{ tickets_alta_prioridad }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_alta_prioridad }} tickets con alta prioridad.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-warning">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#clock"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Media Prioridad</span>
+                            <h2 class="f-w-600">{{ tickets_media_prioridad }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_media_prioridad }} tickets con prioridad media.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6 dashboard-card">
+        <div class="card height-equal">
+            <div class="card-body">
+                <ul class="product-costing">
+                    <li class="product-cost">
+                        <div class="product-icon bg-success">
+                            <svg>
+                                <use href="../assets/svg/icon-sprite.svg#check-circle"></use>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="f-w-500 f-14 mb-0">Tickets Baja Prioridad</span>
+                            <h2 class="f-w-600">{{ tickets_baja_prioridad }}</h2>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="f-light f-14 f-w-500">Tenemos {{ tickets_baja_prioridad }} tickets con baja prioridad.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Tickets por Prioridad -->
+<script>
+    var prioridadCtx = document.getElementById('prioridadChart').getContext('2d');
+    var prioridadChart = new Chart(prioridadCtx, {
+        type: 'bar', 
+        data: {
+            labels: {{ prioridad_labels|safe }},
+            datasets: [{
+                data: {{ prioridad_data|safe }},
+                backgroundColor: ['#FF5733', '#33FF57', '#3357FF'],
+            }]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+</script>
+
+  <div class="col-xl-12 col-md-9 box-col-9">
+    <div class="email-right-aside bookmark-tabcontent">
+      <div class="card email-body radius-left">
+        <div class="ps-0">
+          <div class="tab-content">
+            <div class="tab-pane fade active show" id="pills-created" role="tabpanel" aria-labelledby="pills-created-tab">
+              <div class="card mb-0">
+                <div class="card-body pb-0">
+                  <div class="details-bookmark text-center">
+                    {% if tickets %}
+                    <div class="row" id="bookmarkData">
+                      {% for ticket in tickets %}
+                      <div class="col-sm-12 col-xl-3">
+                        <div class="card card-absolute">
+                          {% if ticket.estado == 'abierto' %}
+                          <div class="card-header bg-primary">
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% elif ticket.estado == 'en_proceso' %}
+                          <div class="card-header bg-warning">
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% elif ticket.estado == 'cerrado' %}
+                          <div class="card-header bg-danger">
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% elif ticket.estado == 'pendiente' %}
+                          <div class="card-header bg-success">
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% endif %}
+
+                          <div class="card-body">
+                            <div class="d-flex list-behavior-1 align-items-center">
+                              <div class="flex-grow-1">
+                                <div class="blog-details">
+                                  <div class="blog-date">
+                                    <span>UPCV-IT-{{ ticket.id|stringformat:"03d" }}</span>
+                                    <p>Creacion: {{ ticket.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                                    <h6>{{ ticket.responsable }}</h6>
+                                    <p class="mt-0">{{ ticket.tipo_equipo }}</p>
+                                    <h6>{{ ticket.oficina }}</h6>
+                                  </div>
+
+                                  <details>
+                                    <summary>Más detalles</summary>
+                                    <div class="blog-bottom-content"><br>
+                                      <ul class="blog-social">
+                                        <li><a href="{% url 'tickets:update_adm' ticket.id %}"><i data-feather="edit"></i></a></li>
+                                        <li><a href="{% url 'tickets:ticket_detail' ticket.id %}"><i data-feather="eye"></i></a></li>
+                                      </ul>
+                                      <hr>
+                                    </div>
+                                    <div class="text-right">
+                                      <p>Técnico: {{ ticket.tecnico_asignado.first_name }} {{ ticket.tecnico_asignado.last_name }}</p>
+                                      {% if ticket.prioridad == 'alta' %}
+                                      Prioridad :
+                                      <button type="button" class="btn btn-primary btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+                                      {% elif ticket.prioridad == 'media' %}
+                                      Prioridad :
+                                      <button type="button" class="btn btn-warning btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+                                      {% elif ticket.prioridad == 'baja' %}
+                                      Prioridad :
+                                      <button type="button" class="btn btn-success btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+                                      {% endif %}
+                                    </div>
+                                  </details>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                    {% else %}
+                      <p>No hay tickets disponibles.</p>  <!-- Mensaje en caso de no encontrar tickets -->
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+console.log('Prioridad Labels:', {{ prioridad_labels|safe }});
+console.log('Prioridad Data:', {{ prioridad_data|safe }});
+
+var prioridadCtx = document.getElementById('prioridadChart').getContext('2d');
+var prioridadChart = new Chart(prioridadCtx, {
+    type: 'bar', 
+    data: {
+        labels: {{ prioridad_labels|safe }},
+        datasets: [{
+            data: {{ prioridad_data|safe }},
+            backgroundColor: ['#FF5733', '#33FF57', '#3357FF'],
+        }]
+    },
+    options: {
+        responsive: true,
+        indexAxis: 'y',
+        scales: {
+            x: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}

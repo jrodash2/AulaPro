@@ -1,0 +1,131 @@
+{% extends 'tickets/base.html' %}
+{% load static %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+
+
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6">
+          <h4>Todos los Tickets</h4>
+        </div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="index.html">
+                <svg class="stroke-icon">
+                  <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
+                </svg></a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-12 col-md-9 box-col-9">
+    <div class="email-right-aside bookmark-tabcontent">
+      <div class="card email-body radius-left">
+        <div class="ps-0">
+          <div class="tab-content">
+            <div class="tab-pane fade active show" id="pills-created" role="tabpanel"
+              aria-labelledby="pills-created-tab">
+              <div class="card mb-0">
+                <div class="card-body pb-0">
+                  <div class="details-bookmark text-center">
+                    <div class="row" id="bookmarkData">
+                      {% for ticket in tickets %}
+                      <div class="col-sm-12 col-xl-3">
+                        <div class="card card-absolute">
+                          {% if ticket.estado == 'abierto' %}
+                          <div class="card-header bg-primary">
+
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+
+                          </div>
+                          {% elif ticket.estado == 'en_proceso' %}
+                          <div class="card-header bg-warning">
+
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% elif ticket.estado == 'cerrado' %}
+                          <div class="card-header bg-danger">
+
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% elif ticket.estado == 'pendiente' %}
+                          <div class="card-header bg-success">
+
+                            <h5 class="txt-light">{{ ticket.get_estado_display|capfirst }}</h5>
+                          </div>
+                          {% endif %}
+
+                          <div class="card-body">
+                            <div class="d-flex list-behavior-1 align-items-center">
+
+                              <div class="flex-grow-1">
+
+                                <div class="blog-details">
+                                  <div class="blog-date">
+                                    <span>UPCV-IT-{{ ticket.id|stringformat:"03d" }}</span>
+
+                                    <p>Creacion: {{ ticket.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                                    <h6>{{ ticket.responsable }}</h6>
+                                    <p class="mt-0">{{ ticket.tipo_equipo }}</p>
+                                    <h6>{{ ticket.oficina }}</h6>
+                                  </div>
+
+
+                                  <details>
+                                    <summary>Más detalles</summary>
+                                 
+                           
+                                    <div class="blog-bottom-content"> <br>
+                                      <ul class="blog-social">
+  
+                                        <li><a href="{% url 'tickets:update_adm' ticket.id %}"><i
+                                              data-feather="edit"></i></a></li>
+                                        <li><a href="{% url 'tickets:ticket_detail' ticket.id %}"><i
+                                              data-feather="eye"></i></a></li>
+                                      </ul>
+                                      <hr>
+  
+                                    </div>
+                                  <div class="text-right">
+                                    <p>Técnico: {{ ticket.tecnico_asignado.first_name }} {{ ticket.tecnico_asignado.last_name }}</p>
+                                    {% if ticket.prioridad == 'alta' %}
+                                    Prioridad :
+                                    <button type="button" class="btn btn-primary btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+
+                                    {% elif ticket.prioridad == 'media' %}
+                                    Prioridad :
+                                    <button type="button" class="btn btn-warning btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+                                    {% elif ticket.prioridad == 'baja' %}
+                                    Prioridad :
+                                    <button type="button" class="btn btn-success btn-xs">{{ ticket.get_prioridad_display|capfirst }}</button>
+                                    {% endif %}
+                                  </div>
+                                </details>
+                                
+                                </div>
+                              </div>
+                            </div>
+
+
+                          </div>
+                        </div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

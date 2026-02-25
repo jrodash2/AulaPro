@@ -1,0 +1,82 @@
+{% extends 'tickets/base.html' %}
+
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="edit-profile">
+      <div class="row">
+        <div class="col-xl-4">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h4 class="text-center" style="font-size:30px; font-weight: 600; margin:0;">Ticket : UPCV-IT-{{ ticket.id|stringformat:"03d" }}</h4>
+
+  <!-- Container-fluid Ends-->
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-12">
+        <ul class="list-unstyled d-flex gap-3 my-3">
+          <li class="invoice-text">
+            <span style="font-weight:600;font-size: 18px; display: block; margin-bottom: 8px;">{{ ticket.responsable  }}</span>
+            <span style="display:block; line-height: 1.5; font-size: 18px; font-weight: 400;opacity: 0.8;">{{ ticket.oficina }}</span>
+            <span style="line-height:1.9; font-size: 18px; font-weight: 400;opacity: 0.8; display:block;">Telefono: {{  ticket.telefono }}</span>
+            <span style="line-height:1.7; font-size: 18px; font-weight: 400;opacity: 0.8; display:block;">Correo : {{  ticket.correo }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <p style="font-size:18px; font-weight:400; opacity:0.8; word-wrap: break-word;"><strong>Tipo de Equipo:
+              </strong>{{ ticket.tipo_equipo }}</p>
+            <p style="font-size:18px; font-weight:400; opacity:0.8; word-wrap: break-word;"><strong>Problema:
+              </strong>{{ ticket.problema }}</p>
+            <p style="font-size:18px; font-weight:400; opacity:0.8; word-wrap: break-word;"><strong>Detalle del
+                Problema:</strong> {{ ticket.detalle_problema }}</p>
+            <p style="font-size:18px; font-weight:400; opacity:0.8; word-wrap: break-word;"><strong>Solución:
+              </strong>{{ ticket.solucion_problema }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row my-3">
+      <div class="col-md-3">
+
+
+        <p style="font-size:16px; font-weight:500; opacity:0.8;">Estado:</p>
+        <span style="font-size: 18px; font-weight: 600;">
+          {% if ticket.estado == 'abierto' %}
+          <button type="button" class="btn btn-pill btn-primary btn-air-primary btn-xs">{{ ticket.get_estado_display|capfirst }}</button>
+          {% elif ticket.estado == 'en_proceso' %}
+          <button type="button" class="btn btn-pill btn-warning btn-air-warning btn-xs">{{ ticket.get_estado_display|capfirst }}</button>
+          {% elif ticket.estado == 'cerrado' %}
+          <button type="button" class="btn btn-pill btn-danger btn-air-danger btn-xs">{{  ticket.get_estado_display|capfirst }}</button>
+          {% elif ticket.estado == 'pendiente' %}
+          <button type="button" class="btn btn-pill btn-success btn-air-success btn-xs">{{ ticket.get_estado_display|capfirst }}</button>
+          {% endif %}
+        </span>
+      </div>
+      <div class="col-md-3">
+        <p style="font-size:16px; font-weight:500; opacity:0.8;">Creación:</p>
+        <span style="font-size: 18px; font-weight: 600;">{{ ticket.fecha_creacion|date:"d/m/Y H:i" }}</span>
+      </div>
+      <div class="col-md-3">
+        <p style="font-size:16px; font-weight:500; opacity:0.8;">Actualización:</p>
+        <span style="font-size: 18px; font-weight: 600;">{{ ticket.fecha_actualizacion|date:"d/m/Y H:i" }}</span>
+      </div>
+      <div class="col-md-3">
+        <p style="font-size:16px; font-weight:500; opacity:0.8;">Técnico:</p>
+        <span style="font-size: 18px; font-weight: 600;">{{ ticket.tecnico_asignado }}</span>
+      </div>
+    </div>
+    <h5>Via de Contacto: {{ ticket.via_contacto }}</h5>
+    <br>
+    <a href="{% url 'tickets:update_adm' ticket.id %}" class="btn btn-primary">Editar</a>
+  </div>
+</div>
+
+{% endblock %}

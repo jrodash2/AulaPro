@@ -1,0 +1,121 @@
+{% extends 'tickets/base.html' %}
+
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6">
+          <h4 class="card-title mb-0">{% if form.instance.pk %}Editar Ticket{% else %}Crear Ticket{% endif %}</h4>
+        </div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="index.html">
+                <svg class="stroke-icon">
+                  <use href="../assets/svg/icon-sprite.svg#stroke-home"></use>
+                </svg></a></li>
+
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container-fluid starts-->
+  <div class="container-fluid">
+    <div class="edit-profile">
+      <div class="row">
+        <!-- Formulario de creación de ticket -->
+        <div class="col-xl-12">
+          <div class="card">
+            <div class="card-header">
+              <!-- Puedes agregar un título aquí si lo deseas -->
+            </div>
+            <div class="card-body">
+              <!-- Mostramos los mensajes de éxito o error si existen -->
+              {% if messages %}
+              <ul>
+                {% for message in messages %}
+                <li class="message">{{ message }}</li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+
+              <!-- Formulario para crear o editar un ticket -->
+              <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_oficina" class="form-label">Ubicación</label>
+                      {{ form.oficina }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_via_contacto" class="form-label">Medio de Reporte</label>
+                      {{ form.via_contacto }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_tipo_equipo" class="form-label">Categoria del Problema</label>
+                      {{ form.tipo_equipo }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_problema" class="form-label">Problema</label>
+                      {{ form.problema }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_responsable" class="form-label">Solicitante</label>
+                      {{ form.responsable }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_telefono" class="form-label">Telefono</label>
+                      {{ form.telefono }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_tecnico_asignado" class="form-label">Técnico Asignado</label>
+                      {{ form.tecnico_asignado }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_estado" class="form-label">Estado</label>
+                      {{ form.estado }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_correo" class="form-label">Correo</label>
+                      {{ form.correo }}
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label for="id_prioridad" class="form-label">Prioridad</label>
+                      {{ form.prioridad }}
+                    </div>
+                  </div>
+                </div>
+                <div class="form-footer text-end">
+                  <button class="btn btn-primary" type="submit">{% if form.instance.pk %}Actualizar Ticket{% else %}Crear Ticket{% endif %}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Container-fluid Ends-->
+</div>
+{% endblock %}
