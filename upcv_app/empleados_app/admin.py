@@ -1,53 +1,51 @@
 from django.contrib import admin
-from .models import Empleado, ConfiguracionGeneral, Grado
 
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+
+
+@admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):
-    # Campos a mostrar en la lista del admin
-    list_display = ('nombres', 'apellidos', 'grado', 'tel', 'activo', 'created_at', 'updated_at', 'user')
-    
-    # Filtros disponibles para la vista de lista
-    list_filter = ('activo', 'grado', 'created_at')
-    
-    # Campos por los que se puede buscar
-    search_fields = ('nombres', 'apellidos', 'tel', 'user__username')
-    
-    # Jerarquía de fechas para facilitar la navegación por fecha
-    date_hierarchy = 'created_at'
-    
-    # Campos a mostrar en el formulario de edición del admin
-    fields = ('nombres', 'apellidos', 'grado', 'imagen', 'tel', 'user', 'activo')
-
-    # Configuración para mostrar los campos en el formulario de manera adecuada
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        # Podemos agregar lógica adicional para modificar el formulario si es necesario
-        return form
+    list_display = ("codigo_personal", "nombres", "apellidos", "establecimiento", "grado", "tel", "activo", "created_at")
+    list_filter = ("activo", "establecimiento", "grado", "created_at")
+    search_fields = ("codigo_personal", "nombres", "apellidos", "cui", "tel")
 
 
+@admin.register(Establecimiento)
+class EstablecimientoAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "direccion", "activo", "gafete_ancho", "gafete_alto")
+    list_filter = ("activo",)
+    search_fields = ("nombre", "direccion")
+
+
+@admin.register(Carrera)
+class CarreraAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "establecimiento", "activo")
+    list_filter = ("establecimiento", "activo")
+    search_fields = ("nombre", "establecimiento__nombre")
+
+
+@admin.register(Grado)
+class GradoAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "carrera", "jornada", "seccion", "activo")
+    list_filter = ("carrera", "activo")
+    search_fields = ("nombre", "descripcion")
+
+
+@admin.register(Matricula)
+class MatriculaAdmin(admin.ModelAdmin):
+    list_display = ("alumno", "grado", "ciclo_escolar", "estado", "created_at")
+    list_filter = ("estado", "ciclo_escolar", "grado")
+    search_fields = ("alumno__nombres", "alumno__apellidos")
+
+
+@admin.register(ConfiguracionGeneral)
 class ConfiguracionGeneralAdmin(admin.ModelAdmin):
-    # Campos a mostrar en la lista del admin
-    list_display = ('nombre_institucion', 'direccion', 'tel', 'sitio_web', 'correo', 'logotipo')
-    
-    # Campos por los que se puede buscar
-    search_fields = ('nombre_institucion', 'direccion', 'sitio_web', 'correo')
-    
-    # Filtros disponibles para la vista de lista
-    list_filter = ('nombre_institucion',)
-    
-    # Campos solo de lectura
-    readonly_fields = ('id',)  # Solo lectura para el campo ID (si es un campo automático)
-    
-    # Definimos los campos que aparecerán en el formulario de edición
-    fields = ('nombre_institucion', 'direccion', 'logotipo', 'tel', 'sitio_web', 'correo')
-
-    # Configuración para mostrar los campos en el formulario de manera adecuada
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        # Podemos agregar lógica adicional para modificar el formulario si es necesario
-        return form
+    list_display = ("nombre_institucion", "direccion", "tel", "sitio_web", "correo")
+    search_fields = ("nombre_institucion", "direccion", "correo")
 
 
-# Registro del modelo, solo una vez
-admin.site.register(Empleado, EmpleadoAdmin)
-admin.site.register(ConfiguracionGeneral, ConfiguracionGeneralAdmin)
-admin.site.register(Grado)  # Registramos el modelo Grado también, ya que lo estamos utilizando en el formulario de Empleado
+@admin.register(CicloEscolar)
+class CicloEscolarAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "establecimiento", "anio", "estado", "es_activo")
+    list_filter = ("establecimiento", "estado", "es_activo")
+    search_fields = ("nombre", "establecimiento__nombre")
