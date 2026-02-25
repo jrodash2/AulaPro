@@ -37,6 +37,7 @@ class MatriculaAdmin(admin.ModelAdmin):
     list_filter = ("estado", "ciclo", "grado")
     search_fields = ("alumno__nombres", "alumno__apellidos")
 
+from .models import Alumno, Carrera, ConfiguracionGeneral, Establecimiento, Grado, Matricula
 
 @admin.register(ConfiguracionGeneral)
 class ConfiguracionGeneralAdmin(admin.ModelAdmin):
