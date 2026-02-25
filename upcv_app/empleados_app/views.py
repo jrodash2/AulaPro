@@ -45,6 +45,8 @@ def _validate_layout_payload(payload):
 def home(request):
     return render(request, "empleados/login.html")
 
+def home(request):
+    return render(request, "empleados/login.html")
 
 def signin(request):
     if request.method == "GET":
