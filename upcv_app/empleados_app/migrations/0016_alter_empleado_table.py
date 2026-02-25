@@ -8,55 +8,45 @@ class Migration(migrations.Migration):
     dependencies = [
         (
             "empleados_app",
-            "0018_alter_matricula_options_and_more",
+            "0015_carrera_establecimiento_alter_empleado_options_and_more",
         ),
     ]
 
     operations = [
-        migrations.SeparateDatabaseAndState(
-            database_operations=[
-                migrations.RunSQL(
-                    sql="""
-                    DO $$
-                    BEGIN
-                        IF EXISTS (
-                            SELECT 1
-                            FROM information_schema.tables
-                            WHERE table_name = 'empleados_app_empleado'
-                        ) AND NOT EXISTS (
-                            SELECT 1
-                            FROM information_schema.tables
-                            WHERE table_name = 'empleados_app_alumno'
-                        ) THEN
-                            ALTER TABLE empleados_app_empleado RENAME TO empleados_app_alumno;
-                        END IF;
-                    END
-                    $$;
-                    """,
-                    reverse_sql="""
-                    DO $$
-                    BEGIN
-                        IF EXISTS (
-                            SELECT 1
-                            FROM information_schema.tables
-                            WHERE table_name = 'empleados_app_alumno'
-                        ) AND NOT EXISTS (
-                            SELECT 1
-                            FROM information_schema.tables
-                            WHERE table_name = 'empleados_app_empleado'
-                        ) THEN
-                            ALTER TABLE empleados_app_alumno RENAME TO empleados_app_empleado;
-                        END IF;
-                    END
-                    $$;
-                    """,
-                )
-            ],
-            state_operations=[
-                migrations.AlterModelTable(
-                    name="empleado",
-                    table="empleados_app_alumno",
-                ),
-            ],
+        migrations.RunSQL(
+            sql="""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'empleados_app_empleado'
+                ) AND NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'empleados_app_alumno'
+                ) THEN
+                    ALTER TABLE empleados_app_empleado RENAME TO empleados_app_alumno;
+                END IF;
+            END
+            $$;
+            """,
+            reverse_sql="""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'empleados_app_alumno'
+                ) AND NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'empleados_app_empleado'
+                ) THEN
+                    ALTER TABLE empleados_app_alumno RENAME TO empleados_app_empleado;
+                END IF;
+            END
+            $$;
+            """,
         ),
     ]

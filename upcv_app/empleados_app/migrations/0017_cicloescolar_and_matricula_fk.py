@@ -40,7 +40,7 @@ def migrate_ciclos_from_matricula(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('empleados_app', '0015_carrera_establecimiento_alter_empleado_options_and_more'),
+        ('empleados_app', '0016_alter_empleado_table'),
     ]
 
     operations = [
