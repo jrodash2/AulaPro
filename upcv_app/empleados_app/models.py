@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 
 DEFAULT_GAFETE_LAYOUT = {
@@ -43,6 +45,39 @@ class Establecimiento(models.Model):
                     merged_layers[key] = {**merged_layers[key], **value}
             layout["layers"] = merged_layers
         return layout
+
+    def get_ciclo_activo(self):
+        return self.ciclos_escolares.filter(es_activo=True).order_by("-anio", "-id").first()
+
+
+class CicloEscolar(models.Model):
+    ESTADOS = (("activo", "Activo"), ("inactivo", "Inactivo"))
+
+    establecimiento = models.ForeignKey(Establecimiento, on_delete=models.CASCADE, related_name="ciclos_escolares")
+    nombre = models.CharField(max_length=50)
+    anio = models.PositiveIntegerField(null=True, blank=True)
+    fecha_inicio = models.DateField(null=True, blank=True)
+    fecha_fin = models.DateField(null=True, blank=True)
+    es_activo = models.BooleanField(default=False)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default="activo")
+
+    class Meta:
+        ordering = ["-anio", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["establecimiento", "nombre"], name="uq_ciclo_nombre_establecimiento"),
+            models.UniqueConstraint(
+                fields=["establecimiento"],
+                condition=Q(es_activo=True),
+                name="uq_ciclo_activo_por_establecimiento",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["establecimiento", "es_activo"]),
+            models.Index(fields=["establecimiento", "anio"]),
+        ]
+
+    def __str__(self):
+        return f"{self.nombre} - {self.establecimiento.nombre}"
 
 
 class Carrera(models.Model):
@@ -102,16 +137,38 @@ class Matricula(models.Model):
 
     alumno = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name="matriculas")
     grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name="matriculas")
-    ciclo = models.PositiveIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2200)])
+    ciclo = models.PositiveIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2200)], null=True, blank=True)
+    ciclo_escolar = models.ForeignKey(CicloEscolar, on_delete=models.PROTECT, null=True, blank=True, related_name="matriculas")
     estado = models.CharField(max_length=10, choices=ESTADOS, default="activo")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-ciclo", "alumno__apellidos", "alumno__nombres"]
-        unique_together = ("alumno", "grado", "ciclo")
+        ordering = ["-created_at", "alumno__apellidos", "alumno__nombres"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["alumno", "grado", "ciclo_escolar"],
+                condition=Q(ciclo_escolar__isnull=False),
+                name="uq_matricula_alumno_grado_ciclo_escolar",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["grado", "estado"]),
+            models.Index(fields=["grado", "ciclo_escolar"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.ciclo_escolar_id or not self.grado_id:
+            return
+        grado_establecimiento_id = None
+        if self.grado and self.grado.carrera:
+            grado_establecimiento_id = self.grado.carrera.establecimiento_id
+        if grado_establecimiento_id and self.ciclo_escolar.establecimiento_id != grado_establecimiento_id:
+            raise ValidationError("El ciclo escolar no pertenece al establecimiento del grado.")
 
     def __str__(self):
-        return f"{self.alumno} / {self.grado} / {self.ciclo}"
+        ciclo_nombre = self.ciclo_escolar.nombre if self.ciclo_escolar_id else (self.ciclo or "-")
+        return f"{self.alumno} / {self.grado} / {ciclo_nombre}"
 
 
 class ConfiguracionGeneral(models.Model):

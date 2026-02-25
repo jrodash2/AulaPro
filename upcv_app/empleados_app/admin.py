@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 
 @admin.register(Empleado)
@@ -23,6 +23,7 @@ class CarreraAdmin(admin.ModelAdmin):
     list_filter = ("establecimiento", "activo")
     search_fields = ("nombre", "establecimiento__nombre")
 
+from .models import Alumno, Carrera, ConfiguracionGeneral, Establecimiento, Grado, Matricula
 
 @admin.register(Grado)
 class GradoAdmin(admin.ModelAdmin):
@@ -33,13 +34,19 @@ class GradoAdmin(admin.ModelAdmin):
 
 @admin.register(Matricula)
 class MatriculaAdmin(admin.ModelAdmin):
-    list_display = ("alumno", "grado", "ciclo", "estado", "created_at")
-    list_filter = ("estado", "ciclo", "grado")
+    list_display = ("alumno", "grado", "ciclo_escolar", "estado", "created_at")
+    list_filter = ("estado", "ciclo_escolar", "grado")
     search_fields = ("alumno__nombres", "alumno__apellidos")
 
-from .models import Alumno, Carrera, ConfiguracionGeneral, Establecimiento, Grado, Matricula
 
 @admin.register(ConfiguracionGeneral)
 class ConfiguracionGeneralAdmin(admin.ModelAdmin):
     list_display = ("nombre_institucion", "direccion", "tel", "sitio_web", "correo")
     search_fields = ("nombre_institucion", "direccion", "correo")
+
+
+@admin.register(CicloEscolar)
+class CicloEscolarAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "establecimiento", "anio", "estado", "es_activo")
+    list_filter = ("establecimiento", "estado", "es_activo")
+    search_fields = ("nombre", "establecimiento__nombre")

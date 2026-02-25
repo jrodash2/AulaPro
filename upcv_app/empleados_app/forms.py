@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 
 class BaseRihoForm(forms.ModelForm):
@@ -62,10 +62,20 @@ class GradoForm(BaseRihoForm):
         fields = ["carrera", "nombre", "descripcion", "jornada", "seccion", "activo"]
 
 
+class CicloEscolarForm(BaseRihoForm):
+    class Meta:
+        model = CicloEscolar
+        fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "estado", "es_activo"]
+        widgets = {
+            "fecha_inicio": forms.DateInput(attrs={"type": "date"}),
+            "fecha_fin": forms.DateInput(attrs={"type": "date"}),
+        }
+
+
 class MatriculaForm(BaseRihoForm):
     class Meta:
         model = Matricula
-        fields = ["alumno", "grado", "ciclo", "estado"]
+        fields = ["alumno", "grado", "ciclo_escolar", "estado"]
 
     def __init__(self, *args, **kwargs):
         establecimiento_id = kwargs.pop("establecimiento_id", None)
@@ -73,10 +83,13 @@ class MatriculaForm(BaseRihoForm):
         super().__init__(*args, **kwargs)
         alumnos = Empleado.objects.all()
         grados = Grado.objects.select_related("carrera", "carrera__establecimiento")
+        ciclos = CicloEscolar.objects.select_related("establecimiento")
         if establecimiento_id:
             alumnos = alumnos.filter(establecimiento_id=establecimiento_id)
             grados = grados.filter(carrera__establecimiento_id=establecimiento_id)
+            ciclos = ciclos.filter(establecimiento_id=establecimiento_id)
         if carrera_id:
             grados = grados.filter(carrera_id=carrera_id)
         self.fields["alumno"].queryset = alumnos.order_by("apellidos", "nombres")
         self.fields["grado"].queryset = grados.order_by("nombre")
+        self.fields["ciclo_escolar"].queryset = ciclos.order_by("-anio", "-id")

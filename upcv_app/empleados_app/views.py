@@ -238,6 +238,7 @@ def matricula_view(request):
     matriculas = Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento")
     grado_id = request.GET.get("grado")
     ciclo = request.GET.get("ciclo")
+    ciclo_escolar_id = request.GET.get("ciclo_escolar")
     estado = request.GET.get("estado")
     if establecimiento_id:
         matriculas = matriculas.filter(grado__carrera__establecimiento_id=establecimiento_id)
@@ -245,7 +246,9 @@ def matricula_view(request):
         matriculas = matriculas.filter(grado__carrera_id=carrera_id)
     if grado_id:
         matriculas = matriculas.filter(grado_id=grado_id)
-    if ciclo:
+    if ciclo_escolar_id:
+        matriculas = matriculas.filter(ciclo_escolar_id=ciclo_escolar_id)
+    elif ciclo:
         matriculas = matriculas.filter(ciclo=ciclo)
     if estado:
         matriculas = matriculas.filter(estado=estado)
