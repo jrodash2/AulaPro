@@ -3,38 +3,51 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
-DEFAULT_GAFETE_LAYERS = [
-    {"key": "nombres", "x": 120, "y": 130, "font_size": 26, "font_family": "Arial", "font_weight": "700", "color": "#1f2937", "align": "left", "max_width": 360},
-    {"key": "apellidos", "x": 120, "y": 170, "font_size": 26, "font_family": "Arial", "font_weight": "700", "color": "#1f2937", "align": "left", "max_width": 360},
-    {"key": "codigo_personal", "x": 120, "y": 220, "font_size": 18, "font_family": "Helvetica", "font_weight": "600", "color": "#374151", "align": "left", "max_width": 300},
-    {"key": "cui", "x": 120, "y": 255, "font_size": 16, "font_family": "Helvetica", "font_weight": "500", "color": "#374151", "align": "left", "max_width": 320},
-]
+DEFAULT_GAFETE_LAYOUT = {
+    "background": "",
+    "layers": {
+        "nombres": {"class": "t5"},
+        "apellidos": {"class": "t6"},
+        "grado": {"class": "t7"},
+        "grado_descripcion": {"class": "t8"},
+        "sitio_web": {"class": "t10"},
+        "telefono": {"class": "t11"},
+    },
+}
 
 
 class Establecimiento(models.Model):
-    nombre = models.CharField(max_length=180, unique=True)
+    nombre = models.CharField(max_length=160, unique=True)
     direccion = models.CharField(max_length=255, blank=True)
-    fondo_gafete = models.ImageField(upload_to="logotipos2/", null=True, blank=True)
-    gafete_ancho = models.PositiveIntegerField(default=1012, validators=[MinValueValidator(300), MaxValueValidator(3000)])
-    gafete_alto = models.PositiveIntegerField(default=638, validators=[MinValueValidator(180), MaxValueValidator(2200)])
-    gafete_capas = models.JSONField(default=list)
+    background_gafete = models.ImageField(upload_to="logotipos2/", null=True, blank=True)
+    gafete_ancho = models.PositiveIntegerField(default=880, validators=[MinValueValidator(500), MaxValueValidator(1800)])
+    gafete_alto = models.PositiveIntegerField(default=565, validators=[MinValueValidator(300), MaxValueValidator(1200)])
+    gafete_layout_json = models.JSONField(default=dict, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["nombre"]
-        verbose_name = "Establecimiento"
-        verbose_name_plural = "Establecimientos"
 
     def __str__(self):
         return self.nombre
 
-    def capas_por_defecto(self):
-        return self.gafete_capas if self.gafete_capas else DEFAULT_GAFETE_LAYERS
+    def get_layout(self):
+        layout = DEFAULT_GAFETE_LAYOUT.copy()
+        custom = self.gafete_layout_json or {}
+        if custom.get("background"):
+            layout["background"] = custom.get("background")
+        if isinstance(custom.get("layers"), dict):
+            merged_layers = layout["layers"].copy()
+            for key, value in custom["layers"].items():
+                if key in merged_layers and isinstance(value, dict):
+                    merged_layers[key] = {**merged_layers[key], **value}
+            layout["layers"] = merged_layers
+        return layout
 
 
 class Carrera(models.Model):
     establecimiento = models.ForeignKey(Establecimiento, on_delete=models.CASCADE, related_name="carreras")
-    nombre = models.CharField(max_length=180)
+    nombre = models.CharField(max_length=120)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -42,15 +55,15 @@ class Carrera(models.Model):
         unique_together = ("establecimiento", "nombre")
 
     def __str__(self):
-        return f"{self.nombre} ({self.establecimiento})"
+        return f"{self.nombre} - {self.establecimiento.nombre}"
 
 
 class Grado(models.Model):
     nombre = models.CharField(max_length=100)
     descripcion = models.CharField(max_length=100, null=True, blank=True)
-    carrera = models.ForeignKey(Carrera, on_delete=models.CASCADE, null=True, blank=True, related_name="grados")
-    jornada = models.CharField(max_length=50, blank=True)
-    seccion = models.CharField(max_length=50, blank=True)
+    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, null=True, blank=True, related_name="grados")
+    jornada = models.CharField(max_length=30, blank=True)
+    seccion = models.CharField(max_length=30, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -60,19 +73,20 @@ class Grado(models.Model):
         return self.nombre
 
 
-class Alumno(models.Model):
+class Empleado(models.Model):
     nombres = models.CharField(max_length=100)
     apellidos = models.CharField(max_length=100)
-    codigo_personal = models.CharField(max_length=32, blank=True, null=True, db_index=True)
-    fecha_nacimiento = models.DateField(null=True, blank=True)
-    cui = models.CharField(max_length=32, blank=True, null=True, db_index=True)
+    codigo_personal = models.CharField(max_length=30, blank=True, null=True, db_index=True)
+    fecha_nacimiento = models.DateField(blank=True, null=True)
+    cui = models.CharField(max_length=25, blank=True, null=True, db_index=True)
     grado = models.ForeignKey(Grado, on_delete=models.SET_NULL, null=True, blank=True)
+    establecimiento = models.ForeignKey(Establecimiento, on_delete=models.SET_NULL, null=True, blank=True, related_name="alumnos")
     imagen = models.ImageField(upload_to="card_images/", null=True, blank=True)
     tel = models.CharField(max_length=15, null=False, blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     activo = models.BooleanField(default=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="alumnos")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="empleados")
 
     class Meta:
         ordering = ["-created_at"]
@@ -82,18 +96,20 @@ class Alumno(models.Model):
 
 
 class Matricula(models.Model):
-    alumno = models.ForeignKey(Alumno, on_delete=models.CASCADE, related_name="matriculas")
+    ESTADOS = (("activo", "Activo"), ("inactivo", "Inactivo"))
+
+    alumno = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name="matriculas")
     grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name="matriculas")
     ciclo = models.PositiveIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2200)])
-    activo = models.BooleanField(default=True)
-    creado_en = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default="activo")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-ciclo", "alumno__apellidos"]
+        ordering = ["-ciclo", "alumno__apellidos", "alumno__nombres"]
         unique_together = ("alumno", "grado", "ciclo")
 
     def __str__(self):
-        return f"{self.alumno} - {self.grado} ({self.ciclo})"
+        return f"{self.alumno} / {self.grado} / {self.ciclo}"
 
 
 class ConfiguracionGeneral(models.Model):

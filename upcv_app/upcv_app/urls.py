@@ -7,5 +7,5 @@ from django.views.generic import RedirectView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('aulapro/', include('empleados_app.urls')),
-    path('', RedirectView.as_view(pattern_name='empleados:signin', permanent=False)),
+    path('', RedirectView.as_view(url='/aulapro/signin/', permanent=False)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

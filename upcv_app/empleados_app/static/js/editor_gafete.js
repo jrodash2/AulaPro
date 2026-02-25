@@ -1,74 +1,71 @@
-(function () {
-  const cfg = window.editorConfig;
-  if (!cfg) return;
-  const canvas = document.getElementById('canvas');
+(function(){
+  const cfg = window.gafeteEditorData;
+  if(!cfg) return;
+  const items = Array.from(document.querySelectorAll('.layer-item'));
   const select = document.getElementById('layer-select');
-  const sizeInput = document.getElementById('font-size');
-  const colorInput = document.getElementById('font-color');
-  const alignInput = document.getElementById('font-align');
-  let layers = cfg.capas || [];
-  let active = 0;
+  const classInput = document.getElementById('layer-class');
+  const layers = (cfg.layout && cfg.layout.layers) ? cfg.layout.layers : {};
+  let active = null;
 
-  function render() {
-    canvas.querySelectorAll('.layer-text').forEach((n) => n.remove());
-    select.innerHTML = '';
-    layers.forEach((l, i) => {
-      const text = document.createElement('div');
-      text.className = 'layer-text';
-      text.dataset.i = i;
-      text.textContent = cfg.example[l.key] || l.key;
-      text.style.cssText = `position:absolute;left:${l.x}px;top:${l.y}px;font-size:${l.font_size}px;font-family:${l.font_family};font-weight:${l.font_weight};color:${l.color};cursor:move;user-select:none;text-align:${l.align};`;
-      text.addEventListener('mousedown', startDrag);
-      canvas.appendChild(text);
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = l.key;
-      select.appendChild(opt);
+  items.forEach((el, idx) => {
+    const key = el.dataset.layer;
+    const layerCfg = layers[key] || {};
+    if(layerCfg.class){ el.className = `layer-item ${layerCfg.class}`; }
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = key;
+    select.appendChild(opt);
+
+    let startX=0,startY=0,baseX=0,baseY=0;
+    const style = window.getComputedStyle(el);
+    baseX = parseInt(style.left || 0, 10) || 0;
+    baseY = parseInt(style.top || 0, 10) || 0;
+    el.addEventListener('mousedown', function(e){
+      active = key;
+      select.value = key;
+      classInput.value = (layers[key] && layers[key].class) || el.className.replace('layer-item','').trim();
+      startX = e.clientX; startY = e.clientY;
+      const initialX = parseInt(window.getComputedStyle(el).left || 0,10) || 0;
+      const initialY = parseInt(window.getComputedStyle(el).top || 0,10) || 0;
+      function move(ev){
+        el.style.left = `${initialX + (ev.clientX - startX)}px`;
+        el.style.top = `${initialY + (ev.clientY - startY)}px`;
+      }
+      function up(){
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+      }
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
     });
-    select.value = active;
-    syncInputs();
-  }
-
-  function syncInputs() {
-    const l = layers[active];
-    if (!l) return;
-    sizeInput.value = l.font_size;
-    colorInput.value = l.color;
-    alignInput.value = l.align;
-  }
-
-  function startDrag(e) {
-    active = Number(e.target.dataset.i);
-    const layer = layers[active];
-    const rect = canvas.getBoundingClientRect();
-    const startX = e.clientX - layer.x;
-    const startY = e.clientY - layer.y;
-    function move(ev) {
-      layer.x = Math.max(0, Math.min(Math.round(ev.clientX - rect.left - startX), rect.width));
-      layer.y = Math.max(0, Math.min(Math.round(ev.clientY - rect.top - startY), rect.height));
-      render();
-    }
-    function up() {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', up);
-    }
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-  }
-
-  select.addEventListener('change', () => { active = Number(select.value); syncInputs(); });
-  sizeInput.addEventListener('input', () => { layers[active].font_size = Number(sizeInput.value || 18); render(); });
-  colorInput.addEventListener('input', () => { layers[active].color = colorInput.value; render(); });
-  alignInput.addEventListener('change', () => { layers[active].align = alignInput.value; render(); });
-
-  document.getElementById('save-design').addEventListener('click', async () => {
-    const res = await fetch(cfg.saveUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrf },
-      body: JSON.stringify({ capas: layers })
-    });
-    if (res.ok) alert('Diseño guardado correctamente'); else alert('No se pudo guardar el diseño');
+    if(idx===0){active=key;}
   });
 
-  render();
+  select.addEventListener('change', function(){
+    active = this.value;
+    const el = document.querySelector(`.layer-item[data-layer='${active}']`);
+    classInput.value = (layers[active] && layers[active].class) || (el ? el.className.replace('layer-item','').trim() : '');
+  });
+
+  classInput.addEventListener('input', function(){
+    if(!active) return;
+    layers[active] = layers[active] || {};
+    layers[active].class = this.value.trim();
+    const el = document.querySelector(`.layer-item[data-layer='${active}']`);
+    if(el) el.className = `layer-item ${this.value.trim()}`;
+  });
+
+  document.getElementById('save-layout').addEventListener('click', async function(){
+    items.forEach((el)=>{
+      const key = el.dataset.layer;
+      layers[key] = layers[key] || {};
+      layers[key].class = el.className.replace('layer-item','').trim();
+    });
+    const res = await fetch(cfg.saveUrl, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':cfg.csrf},
+      body: JSON.stringify({layers})
+    });
+    if(res.ok){ alert('Diseño guardado'); } else { alert('Error al guardar'); }
+  });
 })();

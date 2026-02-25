@@ -9,12 +9,12 @@ urlpatterns = [
     path("logout/", views.signout, name="logout"),
     path("dahsboard/", views.dahsboard, name="dahsboard"),
     path("config_general/", views.configuracion_general, name="configuracion_general"),
-    path("", views.home, name="home"),
 
-    path("alumnos/", views.lista_alumnos, name="alumno_lista"),
-    path("alumnos/crear/", views.crear_alumno, name="crear_alumno"),
-    path("alumnos/<int:e_id>/editar/", views.editar_alumno, name="editar_alumno"),
-    path("alumnos/<int:id>/gafete/", views.alumno_detalle, name="alumno_detalle"),
+    path("alumnos/crear/", views.crear_empleado, name="crear_empleado"),
+    path("alumnos/lista/", views.lista_empleados, name="empleado_lista"),
+    path("alumnos/lista/<int:e_id>/", views.editar_empleado, name="editar_empleado"),
+    path("alumnos/credencial/", views.credencial_empleados, name="empleado_credencial"),
+    path("alumnos/<int:id>/", views.empleado_detalle, name="empleado_detalle"),
 
     path("establecimientos/", views.lista_establecimientos, name="establecimiento_lista"),
     path("establecimientos/crear/", views.crear_establecimiento, name="crear_establecimiento"),
@@ -34,10 +34,12 @@ urlpatterns = [
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/guardar/", views.guardar_diseno_gafete, name="guardar_diseno_gafete"),
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/reset/", views.resetear_diseno_gafete, name="resetear_diseno_gafete"),
 
-    # alias temporal para no romper rutas antiguas
-    path("crear/", views.crear_alumno, name="crear_empleado"),
-    path("lista/", views.lista_alumnos, name="empleado_lista"),
-    path("lista/<int:e_id>/", views.editar_alumno, name="editar_empleado"),
-    path("credencial/", views.lista_alumnos, name="empleado_credencial"),
-    path("empleado/<int:id>/", views.alumno_detalle, name="empleado_detalle"),
+    # Rutas legacy para compatibilidad
+    path("crear/", views.crear_empleado, name="legacy_crear"),
+    path("lista/", views.lista_empleados, name="legacy_lista"),
+    path("lista/<int:e_id>/", views.editar_empleado, name="legacy_editar"),
+    path("credencial/", views.credencial_empleados, name="legacy_credencial"),
+    path("empleado/<int:id>/", views.empleado_detalle, name="legacy_detalle"),
+
+    path("", views.home, name="home"),
 ]
