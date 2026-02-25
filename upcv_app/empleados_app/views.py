@@ -41,10 +41,15 @@ def _validate_layout_payload(payload):
         result["layers"][key] = {"class": klass[:20]}
     return result
 
+    if not sanitized:
+        raise ValueError("Debe incluir al menos una capa de texto.")
+    return sanitized
 
 def home(request):
     return render(request, "empleados/login.html")
 
+def home(request):
+    return render(request, "empleados/login.html")
 
 def signin(request):
     if request.method == "GET":
