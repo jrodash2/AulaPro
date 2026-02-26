@@ -6,14 +6,26 @@ from django.db.models import Q
 
 
 DEFAULT_GAFETE_LAYOUT = {
-    "background": "",
-    "layers": {
-        "nombres": {"class": "t5"},
-        "apellidos": {"class": "t6"},
-        "grado": {"class": "t7"},
-        "grado_descripcion": {"class": "t8"},
-        "sitio_web": {"class": "t10"},
-        "telefono": {"class": "t11"},
+    "canvas": {"width": 880, "height": 565},
+    "items": {
+        "photo": {
+            "x": 20,
+            "y": 40,
+            "w": 250,
+            "h": 350,
+            "shape": "rounded",
+            "radius": 20,
+            "border": True,
+            "border_width": 4,
+            "border_color": "#ffffff",
+        },
+        "nombres": {"x": 300, "y": 120, "font_size": 45, "font_weight": "700", "color": "#090909", "align": "left", "visible": True},
+        "apellidos": {"x": 300, "y": 180, "font_size": 50, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
+        "codigo_alumno": {"x": 300, "y": 235, "font_size": 22, "font_weight": "700", "color": "#111111", "align": "left", "visible": True},
+        "grado": {"x": 350, "y": 260, "font_size": 25, "font_weight": "400", "color": "#090909", "align": "left", "visible": True},
+        "grado_descripcion": {"x": 350, "y": 290, "font_size": 25, "font_weight": "400", "color": "#0f0f0f", "align": "left", "visible": True},
+        "sitio_web": {"x": 580, "y": 430, "font_size": 28, "font_weight": "400", "color": "#275393", "align": "left", "visible": True},
+        "telefono": {"x": 520, "y": 500, "font_size": 35, "font_weight": "700", "color": "#030303", "align": "left", "visible": True},
     },
 }
 
@@ -34,17 +46,32 @@ class Establecimiento(models.Model):
         return self.nombre
 
     def get_layout(self):
-        layout = DEFAULT_GAFETE_LAYOUT.copy()
+        base = {
+            "canvas": DEFAULT_GAFETE_LAYOUT["canvas"].copy(),
+            "items": {key: value.copy() for key, value in DEFAULT_GAFETE_LAYOUT["items"].items()},
+        }
         custom = self.gafete_layout_json or {}
-        if custom.get("background"):
-            layout["background"] = custom.get("background")
-        if isinstance(custom.get("layers"), dict):
-            merged_layers = layout["layers"].copy()
-            for key, value in custom["layers"].items():
-                if key in merged_layers and isinstance(value, dict):
-                    merged_layers[key] = {**merged_layers[key], **value}
-            layout["layers"] = merged_layers
-        return layout
+
+        if isinstance(custom.get("canvas"), dict):
+            base["canvas"]["width"] = int(custom["canvas"].get("width") or base["canvas"]["width"])
+            base["canvas"]["height"] = int(custom["canvas"].get("height") or base["canvas"]["height"])
+
+        if isinstance(custom.get("items"), dict):
+            for key, cfg in custom["items"].items():
+                if key in base["items"] and isinstance(cfg, dict):
+                    base["items"][key].update(cfg)
+        elif isinstance(custom.get("fields"), list):
+            for field in custom["fields"]:
+                if not isinstance(field, dict):
+                    continue
+                key = field.get("key")
+                if key == "telefono_emergencia":
+                    key = "telefono"
+                if key in base["items"]:
+                    mapped = {k: field[k] for k in ["x", "y", "font_size", "font_weight", "color", "align", "visible"] if k in field}
+                    base["items"][key].update(mapped)
+
+        return base
 
     def get_ciclo_activo(self):
         return self.ciclos_escolares.filter(es_activo=True).order_by("-anio", "-id").first()
