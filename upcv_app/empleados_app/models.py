@@ -7,80 +7,14 @@ from django.db.models import Q
 
 DEFAULT_GAFETE_LAYOUT = {
     "canvas": {"width": 880, "height": 565},
-    "fields": [
-        {
-            "key": "nombres",
-            "label": "Nombres",
-            "x": 300,
-            "y": 120,
-            "font_size": 45,
-            "font_weight": "700",
-            "color": "#090909",
-            "align": "left",
-            "class_css": "t5",
-            "visible": True,
-        },
-        {
-            "key": "apellidos",
-            "label": "Apellidos",
-            "x": 300,
-            "y": 180,
-            "font_size": 50,
-            "font_weight": "400",
-            "color": "#111111",
-            "align": "left",
-            "class_css": "t6",
-            "visible": True,
-        },
-        {
-            "key": "grado",
-            "label": "Grado",
-            "x": 350,
-            "y": 260,
-            "font_size": 25,
-            "font_weight": "400",
-            "color": "#090909",
-            "align": "left",
-            "class_css": "t7",
-            "visible": True,
-        },
-        {
-            "key": "grado_descripcion",
-            "label": "Descripción grado",
-            "x": 350,
-            "y": 290,
-            "font_size": 25,
-            "font_weight": "400",
-            "color": "#0f0f0f",
-            "align": "left",
-            "class_css": "t8",
-            "visible": True,
-        },
-        {
-            "key": "sitio_web",
-            "label": "Sitio web",
-            "x": 580,
-            "y": 430,
-            "font_size": 28,
-            "font_weight": "400",
-            "color": "#275393",
-            "align": "left",
-            "class_css": "t10",
-            "visible": True,
-        },
-        {
-            "key": "telefono_emergencia",
-            "label": "Teléfono",
-            "x": 520,
-            "y": 500,
-            "font_size": 35,
-            "font_weight": "700",
-            "color": "#030303",
-            "align": "left",
-            "class_css": "t11",
-            "visible": True,
-        },
-    ],
+    "items": {
+        "nombres": {"x": 300, "y": 120, "font_size": 45, "font_weight": "700", "color": "#090909", "align": "left", "visible": True},
+        "apellidos": {"x": 300, "y": 180, "font_size": 50, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
+        "grado": {"x": 350, "y": 260, "font_size": 25, "font_weight": "400", "color": "#090909", "align": "left", "visible": True},
+        "grado_descripcion": {"x": 350, "y": 290, "font_size": 25, "font_weight": "400", "color": "#0f0f0f", "align": "left", "visible": True},
+        "sitio_web": {"x": 580, "y": 430, "font_size": 28, "font_weight": "400", "color": "#275393", "align": "left", "visible": True},
+        "telefono": {"x": 520, "y": 500, "font_size": 35, "font_weight": "700", "color": "#030303", "align": "left", "visible": True},
+    },
 }
 
 
@@ -101,33 +35,33 @@ class Establecimiento(models.Model):
         return self.nombre
 
     def get_layout(self):
-        base = {"canvas": DEFAULT_GAFETE_LAYOUT["canvas"].copy(), "fields": [item.copy() for item in DEFAULT_GAFETE_LAYOUT["fields"]]}
+        base = {
+            "canvas": DEFAULT_GAFETE_LAYOUT["canvas"].copy(),
+            "items": {key: value.copy() for key, value in DEFAULT_GAFETE_LAYOUT["items"].items()},
+        }
         custom = self.gafete_layout_json or {}
 
         if isinstance(custom.get("canvas"), dict):
             base["canvas"]["width"] = int(custom["canvas"].get("width") or base["canvas"]["width"])
             base["canvas"]["height"] = int(custom["canvas"].get("height") or base["canvas"]["height"])
 
-        if isinstance(custom.get("fields"), list):
-            by_key = {f["key"]: f for f in base["fields"]}
+        if isinstance(custom.get("items"), dict):
+            for key, cfg in custom["items"].items():
+                if key in base["items"] and isinstance(cfg, dict):
+                    base["items"][key].update(cfg)
+        elif isinstance(custom.get("fields"), list):
             for field in custom["fields"]:
                 if not isinstance(field, dict):
                     continue
                 key = field.get("key")
-                if key in by_key:
-                    by_key[key].update(field)
-            base["fields"] = [by_key[k] for k in by_key]
+                if key == "telefono_emergencia":
+                    key = "telefono"
+                if key in base["items"]:
+                    mapped = {k: field[k] for k in ["x", "y", "font_size", "font_weight", "color", "align", "visible"] if k in field}
+                    base["items"][key].update(mapped)
         elif isinstance(custom.get("layers"), dict):
-            # Compatibilidad hacia atrás con layouts antiguos por clases
-            by_key = {f["key"]: f for f in base["fields"]}
-            alias = {"telefono": "telefono_emergencia"}
-            for key, cfg in custom["layers"].items():
-                if not isinstance(cfg, dict):
-                    continue
-                target = alias.get(key, key)
-                if target in by_key and cfg.get("class"):
-                    by_key[target]["class_css"] = cfg.get("class")
-            base["fields"] = [by_key[k] for k in by_key]
+            # Compatibilidad con layouts muy antiguos por clases únicamente
+            pass
 
         return base
 

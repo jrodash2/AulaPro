@@ -1,0 +1,75 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+{% include 'empleados/partials_gafete_estilos.html' %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Editor de Gafete</h4></div>
+        <div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">Académico</li><li class="breadcrumb-item">Establecimientos</li><li class="breadcrumb-item active">Editor</li></ol></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xl-9">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Arrastra directamente los textos</h5></div>
+          <div class="card-body">
+            <div style="overflow:auto;">
+              {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-canvas' %}
+            </div>
+            <small id="coords-hint" class="text-muted d-block mt-2"></small>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Propiedades</h5></div>
+          <div class="card-body">
+            <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
+            <div class="mb-3">
+              <label class="form-label">Color</label>
+              <div class="d-flex gap-2">
+                <input id="prop-color" type="color" class="form-control form-control-color" style="width: 64px;">
+                <input id="prop-color-text" type="text" class="form-control" placeholder="#111111">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tamaño</label>
+              <input id="prop-size" type="number" min="10" max="120" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Peso</label>
+              <select id="prop-weight" class="form-control">
+                <option value="400">Normal (400)</option>
+                <option value="700">Negrita (700)</option>
+              </select>
+            </div>
+            <button id="save-layout" class="btn btn-primary w-100">Guardar</button>
+            <button id="reset-layout" class="btn btn-outline-secondary w-100 mt-2" type="button">Restablecer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #editor-canvas .gafete-item { cursor: move; border: 1px dashed transparent; padding: 1px 3px; border-radius: 4px; user-select: none; }
+  #editor-canvas .gafete-item:hover { border-color: #7A70BA; }
+  #editor-canvas .gafete-item.is-active { border: 2px solid #7366FF; }
+</style>
+
+<script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
+<script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
+<script>
+window.gafeteEditorSimple = {
+  saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'aulapro/js/gafete_editor_simple.js' %}"></script>
+{% endblock %}

@@ -34,63 +34,48 @@ def _validate_layout_payload(payload):
         raise ValueError("Layout inválido")
 
     canvas = layout.get("canvas") or {"width": 880, "height": 565}
-    if not isinstance(canvas, dict):
-        raise ValueError("Canvas inválido")
+    items = layout.get("items")
+    if not isinstance(canvas, dict) or not isinstance(items, dict):
+        raise ValueError("El layout debe incluir canvas e items")
 
-    fields = layout.get("fields")
-    if not isinstance(fields, list):
-        raise ValueError("El layout debe incluir una lista de fields")
-
-    allowed_keys = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono_emergencia"}
+    allowed_keys = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono"}
     allowed_align = {"left", "center", "right"}
-    allowed_weight = {"300", "400", "600", "700", "800"}
+    allowed_weight = {"400", "700"}
 
     result = {
         "canvas": {
             "width": max(500, min(1800, int(canvas.get("width") or 880))),
             "height": max(300, min(1200, int(canvas.get("height") or 565))),
         },
-        "fields": [],
+        "items": {},
     }
 
-    for field in fields:
-        if not isinstance(field, dict):
+    for key, cfg in items.items():
+        if key not in allowed_keys or not isinstance(cfg, dict):
             continue
-        key = (field.get("key") or "").strip()
-        if key not in allowed_keys:
-            continue
-
-        color = (field.get("color") or "#111111").strip()
+        color = (cfg.get("color") or "#111111").strip()
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
             raise ValueError(f"Color inválido para {key}")
-
-        align = (field.get("align") or "left").strip().lower()
+        align = (cfg.get("align") or "left").strip().lower()
         if align not in allowed_align:
             align = "left"
+        weight = str(cfg.get("font_weight") or "400")
+        if weight not in allowed_weight:
+            weight = "400"
+        result["items"][key] = {
+            "x": int(cfg.get("x") or 0),
+            "y": int(cfg.get("y") or 0),
+            "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
+            "font_weight": weight,
+            "color": color,
+            "align": align,
+            "visible": bool(cfg.get("visible", True)),
+        }
 
-        font_weight = str(field.get("font_weight") or "400")
-        if font_weight not in allowed_weight:
-            font_weight = "400"
-
-        result["fields"].append(
-            {
-                "key": key,
-                "label": (field.get("label") or key).strip()[:60],
-                "x": int(field.get("x") or 0),
-                "y": int(field.get("y") or 0),
-                "font_size": max(10, min(120, int(field.get("font_size") or 24))),
-                "font_weight": font_weight,
-                "color": color,
-                "align": align,
-                "class_css": (field.get("class_css") or "").strip()[:40],
-                "visible": bool(field.get("visible", True)),
-            }
-        )
-
-    if not result["fields"]:
-        raise ValueError("No se recibieron fields válidos")
-
+    if not result["items"]:
+        raise ValueError("No se recibieron items válidos")
     return result
+
 
 
 def home(request):
@@ -179,7 +164,7 @@ def empleado_detalle(request, id):
         if matricula_activa.grado.carrera:
             establecimiento = matricula_activa.grado.carrera.establecimiento
 
-    layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "fields": []}
+    layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -326,23 +311,26 @@ def matricula_view(request):
 @user_passes_test(_can_manage_design)
 def editor_gafete(request, establecimiento_id):
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
-    alumno = (
-        Empleado.objects.filter(matriculas__grado__carrera__establecimiento=establecimiento)
-        .distinct()
+    matricula_demo = (
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento")
+        .filter(grado__carrera__establecimiento=establecimiento, estado="activo")
+        .order_by("-created_at")
         .first()
-        or Empleado.objects.first()
     )
+    alumno = matricula_demo.alumno if matricula_demo else Empleado.objects.first()
+    grado_demo = matricula_demo.grado if matricula_demo else None
     layout = establecimiento.get_layout()
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
-        "empleados/editor_gafete.html",
+        "aulapro/establecimiento_gafete_editor.html",
         {
             "establecimiento": establecimiento,
             "alumno": alumno,
-            "layout": json.dumps(layout),
-            "default_layout": json.dumps(DEFAULT_GAFETE_LAYOUT),
-            "layout_preview": layout,
+            "grado_demo": grado_demo,
+            "layout": layout,
+            "layout_json": json.dumps(layout),
+            "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
             "configuracion": configuracion,
         },
     )
