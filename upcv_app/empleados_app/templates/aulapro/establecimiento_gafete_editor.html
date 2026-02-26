@@ -1,0 +1,114 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+{% include 'empleados/partials_gafete_estilos.html' %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Editor de Gafete</h4></div>
+        <div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">Académico</li><li class="breadcrumb-item">Establecimientos</li><li class="breadcrumb-item active">Editor</li></ol></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xl-9">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Click y arrastra texto/foto</h5></div>
+          <div class="card-body">
+            <div class="gafete-editor-viewport">
+              <div id="gafete-scale-wrapper">
+                {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-canvas' is_editor=True canvas_width=canvas_width canvas_height=canvas_height %}
+              </div>
+            </div>
+            <small id="coords-hint" class="text-muted d-block mt-2"></small>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Propiedades</h5></div>
+          <div class="card-body">
+            <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
+
+                        <div class="mb-3">
+              <label class="form-label d-block">Orientación</label>
+              <div class="d-flex gap-3">
+                <div class="form-check"><input class="form-check-input" type="radio" name="canvas-orientation" id="orient-h" value="H"><label class="form-check-label" for="orient-h">Horizontal</label></div>
+                <div class="form-check"><input class="form-check-input" type="radio" name="canvas-orientation" id="orient-v" value="V"><label class="form-check-label" for="orient-v">Vertical</label></div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label d-block">Campos visibles</label>
+              <div id="enabled-fields-checklist" class="d-flex flex-column gap-1"></div>
+            </div>
+
+            <div id="text-props">
+              <div class="mb-3">
+                <label class="form-label">Color</label>
+                <div class="d-flex gap-2">
+                  <input id="prop-color" type="color" class="form-control form-control-color" style="width: 64px;">
+                  <input id="prop-color-text" type="text" class="form-control" placeholder="#111111">
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Tamaño</label>
+                <input id="prop-size" type="number" min="10" max="120" class="form-control">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Peso</label>
+                <select id="prop-weight" class="form-control">
+                  <option value="400">Normal (400)</option>
+                  <option value="700">Negrita (700)</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="photo-props" class="d-none">
+              <div class="mb-3">
+                <label class="form-label d-block">Forma</label>
+                <div class="d-flex gap-3">
+                  <div class="form-check"><input class="form-check-input" type="radio" name="photo-shape" id="shape-rounded" value="rounded"><label class="form-check-label" for="shape-rounded">Cuadro</label></div>
+                  <div class="form-check"><input class="form-check-input" type="radio" name="photo-shape" id="shape-circle" value="circle"><label class="form-check-label" for="shape-circle">Círculo</label></div>
+                </div>
+              </div>
+              <div class="mb-3 form-check"><input id="photo-border" type="checkbox" class="form-check-input"><label for="photo-border" class="form-check-label">Borde</label></div>
+              <div class="mb-3"><label class="form-label">Ancho borde</label><input id="photo-border-width" type="number" min="0" max="20" class="form-control"></div>
+              <div class="mb-3"><label class="form-label">Color borde</label><input id="photo-border-color" type="color" class="form-control form-control-color"></div>
+              <div class="mb-3"><label class="form-label">Width</label><input id="photo-w" type="number" min="40" max="500" class="form-control"></div>
+              <div class="mb-3"><label class="form-label">Height</label><input id="photo-h" type="number" min="40" max="500" class="form-control"></div>
+              <div class="mb-3"><label class="form-label">Radius (solo cuadro)</label><input id="photo-radius" type="number" min="0" max="200" class="form-control"></div>
+            </div>
+
+            <button id="refresh-size" class="btn btn-light w-100 mb-2" type="button">Actualizar tamaño</button>
+            <button id="save-layout" class="btn btn-primary w-100">Guardar</button>
+            <button id="reset-layout" class="btn btn-outline-secondary w-100 mt-2" type="button">Restablecer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+
+  .gafete-editor-viewport { overflow:auto; max-width:100%; }
+  #gafete-scale-wrapper { transform-origin: top left; width: fit-content; }
+  #editor-canvas .gafete-item { position:absolute; user-select:none; border: 1px dashed transparent; }
+  #editor-canvas .gafete-item:hover { cursor: move; border-color: rgba(115, 102, 255, .6); }
+  #editor-canvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
+</style>
+
+<script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
+<script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
+<script>
+window.gafeteEditorSimple = {
+  saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'aulapro/js/gafete_editor_simple.js' %}"></script>
+{% endblock %}
