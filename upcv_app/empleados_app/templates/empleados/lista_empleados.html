@@ -25,7 +25,7 @@
     <div class="card">
       <div class="card-header card-no-border pb-0 d-flex justify-content-between">
         <h5>Control de alumnos</h5>
-        <a class="btn btn-primary" href="{% url 'empleados:crear_empleado' %}">Nuevo alumno</a>
+
       </div>
       <div class="card-body">
         <div class="table-responsive custom-scrollbar">
@@ -49,7 +49,6 @@
                 <td>
                   <ul class="action">
                     <li class="edit"><a href="{% url 'empleados:editar_empleado' empleado.id %}"><i class="icon-pencil-alt"></i></a></li>
-                    <li class="view"><a href="{% url 'empleados:empleado_detalle' empleado.id %}"><i class="icon-eye"></i></a></li>
                   </ul>
                 </td>
               </tr>
