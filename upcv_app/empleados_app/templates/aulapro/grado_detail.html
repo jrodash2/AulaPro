@@ -62,7 +62,7 @@
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body d-flex justify-content-center">
-        {% include 'aulapro/partials/_gafete_preview.html' with alumno=m.alumno grado=m.grado %}
+        {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout %}
       </div>
     </div>
   </div>

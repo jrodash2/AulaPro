@@ -1,4 +1,5 @@
 import json
+import re
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
@@ -17,7 +18,7 @@ from .forms import (
     GradoForm,
     MatriculaForm,
 )
-from .models import Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 
 def _can_manage_design(user):
@@ -27,18 +28,68 @@ def _can_manage_design(user):
 def _validate_layout_payload(payload):
     if not isinstance(payload, dict):
         raise ValueError("Formato inválido")
-    layers = payload.get("layers")
-    if not isinstance(layers, dict):
-        raise ValueError("El layout debe incluir layers")
-    allowed = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono"}
-    result = {"background": payload.get("background", ""), "layers": {}}
-    for key, cfg in layers.items():
-        if key not in allowed or not isinstance(cfg, dict):
+
+    layout = payload.get("layout", payload)
+    if not isinstance(layout, dict):
+        raise ValueError("Layout inválido")
+
+    canvas = layout.get("canvas") or {"width": 880, "height": 565}
+    if not isinstance(canvas, dict):
+        raise ValueError("Canvas inválido")
+
+    fields = layout.get("fields")
+    if not isinstance(fields, list):
+        raise ValueError("El layout debe incluir una lista de fields")
+
+    allowed_keys = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono_emergencia"}
+    allowed_align = {"left", "center", "right"}
+    allowed_weight = {"300", "400", "600", "700", "800"}
+
+    result = {
+        "canvas": {
+            "width": max(500, min(1800, int(canvas.get("width") or 880))),
+            "height": max(300, min(1200, int(canvas.get("height") or 565))),
+        },
+        "fields": [],
+    }
+
+    for field in fields:
+        if not isinstance(field, dict):
             continue
-        klass = cfg.get("class", "")
-        if not isinstance(klass, str):
-            klass = ""
-        result["layers"][key] = {"class": klass[:20]}
+        key = (field.get("key") or "").strip()
+        if key not in allowed_keys:
+            continue
+
+        color = (field.get("color") or "#111111").strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise ValueError(f"Color inválido para {key}")
+
+        align = (field.get("align") or "left").strip().lower()
+        if align not in allowed_align:
+            align = "left"
+
+        font_weight = str(field.get("font_weight") or "400")
+        if font_weight not in allowed_weight:
+            font_weight = "400"
+
+        result["fields"].append(
+            {
+                "key": key,
+                "label": (field.get("label") or key).strip()[:60],
+                "x": int(field.get("x") or 0),
+                "y": int(field.get("y") or 0),
+                "font_size": max(10, min(120, int(field.get("font_size") or 24))),
+                "font_weight": font_weight,
+                "color": color,
+                "align": align,
+                "class_css": (field.get("class_css") or "").strip()[:40],
+                "visible": bool(field.get("visible", True)),
+            }
+        )
+
+    if not result["fields"]:
+        raise ValueError("No se recibieron fields válidos")
+
     return result
 
 
@@ -128,7 +179,7 @@ def empleado_detalle(request, id):
         if matricula_activa.grado.carrera:
             establecimiento = matricula_activa.grado.carrera.establecimiento
 
-    layout = establecimiento.get_layout() if establecimiento else {"background": "", "layers": {}}
+    layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "fields": []}
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -282,6 +333,7 @@ def editor_gafete(request, establecimiento_id):
         or Empleado.objects.first()
     )
     layout = establecimiento.get_layout()
+    configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
         "empleados/editor_gafete.html",
@@ -289,7 +341,9 @@ def editor_gafete(request, establecimiento_id):
             "establecimiento": establecimiento,
             "alumno": alumno,
             "layout": json.dumps(layout),
+            "default_layout": json.dumps(DEFAULT_GAFETE_LAYOUT),
             "layout_preview": layout,
+            "configuracion": configuracion,
         },
     )
 
@@ -306,7 +360,10 @@ def guardar_diseno_gafete(request, establecimiento_id):
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
     establecimiento.gafete_layout_json = layout
     establecimiento.save(update_fields=["gafete_layout_json"])
-    return JsonResponse({"ok": True})
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+        return JsonResponse({"ok": True})
+    messages.success(request, "Diseño guardado correctamente.")
+    return redirect("empleados:editor_gafete", establecimiento_id=establecimiento.id)
 
 
 @login_required

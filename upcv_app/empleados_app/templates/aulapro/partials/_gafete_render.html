@@ -1,0 +1,29 @@
+{% load static %}
+<div class="card" style="width: {{ layout_json.canvas.width|default:880 }}px; height: {{ layout_json.canvas.height|default:565 }}px;">
+  <div class="card-body gafete-card" id="{{ preview_id|default:'gafete-render' }}" style="position:relative; width: {{ layout_json.canvas.width|default:880 }}px; height: {{ layout_json.canvas.height|default:565 }}px; background: url('{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}') no-repeat center center; background-size: cover;">
+    <div class="gafete-header">
+      <text class="t3">{{ configuracion.nombre_institucion|default:'' }}</text>
+      <text class="t4">{{ configuracion.nombre_institucion2|default:'' }}</text>
+    </div>
+    {% for field in layout_json.fields %}
+      <div
+        class="gafete-field {{ field.class_css|default:'' }}"
+        data-key="{{ field.key }}"
+        style="left:{{ field.x|default:0 }}px; top:{{ field.y|default:0 }}px; font-size:{{ field.font_size|default:24 }}px; font-weight:{{ field.font_weight|default:'400' }}; color:{{ field.color|default:'#111111' }}; text-align:{{ field.align|default:'left' }}; display:{% if field.visible %}block{% else %}none{% endif %};"
+      >
+        {% if field.key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif field.key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif field.key == 'grado' %}{{ grado|default:'Grado' }}{% elif field.key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif field.key == 'sitio_web' %}{{ configuracion.sitio_web|default:''|slice:'8:' }}{% elif field.key == 'telefono_emergencia' %}{{ alumno.tel|default:'-' }}{% endif %}
+      </div>
+    {% endfor %}
+    {% if alumno and alumno.imagen %}
+      <img src="{{ alumno.imagen.url }}" alt="Imagen del alumno" class="gafete-img">
+    {% endif %}
+    <div style="display: flex; justify-content: space-between; padding: 50px; flex-wrap: wrap;">
+      <svg width="{{ layout_json.canvas.width|default:880 }}" height="{{ layout_json.canvas.height|default:565 }}"></svg>
+      <div class="logotipos">
+        {% if configuracion and configuracion.logotipo %}
+          <div class="logotipo"><img src="{{ configuracion.logotipo.url }}" alt="Logotipo" width="170" height="auto"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

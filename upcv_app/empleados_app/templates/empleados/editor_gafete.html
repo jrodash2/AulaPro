@@ -10,23 +10,12 @@
     <div class="row">
       <div class="col-xxl-9">
         <div class="card">
-          <div class="card-header card-no-border pb-0"><h5>Vista previa (estilo original)</h5></div>
+          <div class="card-header card-no-border pb-0"><h5>Vista previa</h5></div>
           <div class="card-body">
             <div class="gafete" style="margin:0 auto; width:880px; max-width:100%;">
-              <div class="card" style="width: 880px; height: 565px; max-width:100%;">
-                <div class="card-body gafete-card editor-canvas" id="editor-canvas" style="width: 880px; height: 565px; max-width:100%; position:relative; background: url('{% if layout_preview.background and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}') no-repeat center center; background-size:cover;">
-                  <text class="t3">{{ alumno.nombres|default:'' }}</text>
-                  <text class="t4">{{ alumno.apellidos|default:'' }}</text>
-                  <text class="layer-item t5" data-layer="nombres">{{ alumno.nombres|default:'Nombre' }}</text>
-                  <text class="layer-item t6" data-layer="apellidos">{{ alumno.apellidos|default:'Apellidos' }}</text>
-                  <text class="layer-item t7" data-layer="grado">{{ alumno.grado|default:'Grado' }}</text>
-                  <text class="layer-item t8" data-layer="grado_descripcion">{{ alumno.grado.descripcion|default:'' }}</text>
-                  <text class="layer-item t10" data-layer="sitio_web">{{ establecimiento.nombre }}</text>
-                  <text class="layer-item t11" data-layer="telefono">{{ alumno.tel|default:'-' }}</text>
-                  {% if alumno.imagen %}<img src="{{ alumno.imagen.url }}" class="gafete-img" alt="foto">{% endif %}
-                </div>
-              </div>
+              {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=alumno.grado establecimiento=establecimiento layout_json=layout_preview preview_id='editor-canvas' %}
             </div>
+            <small class="text-muted">Arrastra los textos para actualizar coordenadas (x,y).</small>
           </div>
         </div>
       </div>
@@ -34,20 +23,33 @@
         <div class="card">
           <div class="card-header card-no-border pb-0"><h5>Herramientas</h5></div>
           <div class="card-body">
-            <div class="mb-3"><label class="form-label">Texto</label><select id="layer-select" class="form-control"></select></div>
-            <div class="mb-3"><label class="form-label">Clase CSS del tema</label><input id="layer-class" class="form-control" placeholder="Ej: t5"></div>
-            <button id="save-layout" class="btn btn-primary w-100 mb-2">Guardar diseño</button>
-            <a class="btn btn-outline-secondary w-100" href="{% url 'empleados:resetear_diseno_gafete' establecimiento.id %}">Restablecer</a>
+            <div class="mb-3"><label class="form-label">Campo</label><select id="field-select" class="form-control"></select></div>
+            <div class="mb-3"><label class="form-label">Etiqueta</label><input id="field-label" class="form-control" readonly></div>
+            <div class="mb-3"><label class="form-label">Clase CSS (Riho)</label><input id="field-class" class="form-control" placeholder="Ej: t5"></div>
+            <div class="row g-2">
+              <div class="col-6"><label class="form-label">Tamaño</label><input id="field-size" type="number" min="10" max="120" class="form-control"></div>
+              <div class="col-6"><label class="form-label">Peso</label><select id="field-weight" class="form-control"><option>300</option><option>400</option><option>600</option><option>700</option><option>800</option></select></div>
+              <div class="col-6"><label class="form-label">Alineación</label><select id="field-align" class="form-control"><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option></select></div>
+              <div class="col-6"><label class="form-label">Visible</label><select id="field-visible" class="form-control"><option value="true">Sí</option><option value="false">No</option></select></div>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-5"><label class="form-label">Color</label><input id="field-color-picker" type="color" class="form-control form-control-color w-100"></div>
+              <div class="col-7"><label class="form-label">Hex</label><input id="field-color-text" class="form-control" placeholder="#111111"></div>
+            </div>
+            <div class="mt-2"><small id="field-coords" class="text-muted">x:0 y:0</small></div>
+            <button id="save-layout" class="btn btn-primary w-100 mt-3">Guardar diseño</button>
+            <button id="reset-layout" type="button" class="btn btn-outline-secondary w-100 mt-2">Restablecer</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
-<style>.layer-item{cursor:move; position:absolute;}</style>
+<style>.gafete-field{position:absolute;cursor:move;z-index:5;user-select:none;pointer-events:auto;white-space:nowrap}</style>
 <script>
 window.gafeteEditorData = {
   layout: {{ layout|safe }},
+  defaultLayout: {{ default_layout|safe }},
   saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
   csrf: "{{ csrf_token }}"
 };
