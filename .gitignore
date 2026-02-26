@@ -1,0 +1,17 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local settings and environment files
+.env
+*.env
+
+# macOS and editor artifacts
+.DS_Store
+.vscode/
+.idea/
