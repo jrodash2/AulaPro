@@ -38,6 +38,7 @@ DEFAULT_GAFETE_LAYOUT = {
 class Establecimiento(models.Model):
     nombre = models.CharField(max_length=160, unique=True)
     direccion = models.CharField(max_length=255, blank=True)
+    sitio_web = models.URLField(max_length=255, blank=True, null=True)
     background_gafete = models.ImageField(upload_to="logotipos2/", null=True, blank=True)
     gafete_ancho = models.PositiveIntegerField(default=880, validators=[MinValueValidator(500), MaxValueValidator(1800)])
     gafete_alto = models.PositiveIntegerField(default=565, validators=[MinValueValidator(300), MaxValueValidator(1200)])

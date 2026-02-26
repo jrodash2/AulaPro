@@ -61,7 +61,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Gafete: {{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</h5>
-        <button class="btn btn-primary btn-sm me-2 gafete-export-btn" type="button" data-target="gafete-preview{{ m.id }}" data-width="{{ canvas_width }}" data-height="{{ canvas_height }}" data-name="{{ m.alumno.codigo_personal|default:'alumno' }}">Descargar JPG</button>
+        <button class="btn btn-primary btn-sm me-2 gafete-export-btn" type="button" data-target="gafete-preview{{ m.id }}" data-width="{{ canvas_width }}" data-height="{{ canvas_height }}" data-name="{{ m.alumno.codigo_personal|default:'alumno' }}" data-download-url="{% url 'empleados:descargar_gafete_jpg' m.id %}" data-csrf="{{ csrf_token }}">Descargar JPG</button>
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">

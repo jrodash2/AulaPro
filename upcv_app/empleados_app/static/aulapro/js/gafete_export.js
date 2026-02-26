@@ -7,6 +7,8 @@
       const width = parseInt(btn.dataset.width || '1011', 10);
       const height = parseInt(btn.dataset.height || '639', 10);
       const name = btn.dataset.name || 'alumno';
+      const downloadUrl = btn.dataset.downloadUrl;
+      const csrfToken = btn.dataset.csrf;
       const element = document.getElementById(targetId);
       if (!element) return;
 
@@ -18,10 +20,34 @@
         height,
       });
 
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+
+      if (!downloadUrl) {
+        const link = document.createElement('a');
+        link.href = imageData;
+        link.download = `${name}_gafete.jpg`;
+        link.click();
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image_data', imageData);
+      const response = await fetch(downloadUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken || '',
+        },
+        body: formData,
+      });
+      if (!response.ok) return;
+
+      const blob = await response.blob();
+      const fileUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.href = fileUrl;
       link.download = `${name}_gafete.jpg`;
       link.click();
+      URL.revokeObjectURL(fileUrl);
     });
   });
 })();

@@ -1,3 +1,4 @@
+import base64
 import json
 import re
 
@@ -441,6 +442,22 @@ def descargar_gafete_jpg(request, matricula_id):
     establecimiento = matricula.grado.carrera.establecimiento if matricula.grado and matricula.grado.carrera else None
     if not establecimiento:
         return HttpResponse(status=404)
+
+    if request.method == "POST":
+        image_data = request.POST.get("image_data", "")
+        if not image_data.startswith("data:image/"):
+            return HttpResponse("Imagen inválida", status=400)
+        try:
+            _, encoded = image_data.split(",", 1)
+            image_bytes = base64.b64decode(encoded)
+        except (ValueError, TypeError):
+            return HttpResponse("Imagen inválida", status=400)
+
+        filename = f"gafete_{matricula_id}.jpg"
+        response = HttpResponse(image_bytes, content_type="image/jpeg")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
     layout = establecimiento.get_layout()
     canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=layout.get("canvas", {}).get("orientation", "H"))
     layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": layout.get("canvas", {}).get("orientation", "H")}

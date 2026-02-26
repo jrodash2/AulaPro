@@ -19,7 +19,7 @@
   {% for key, item in layout_json.items.items %}
     {% if key != 'photo' and key in layout_json.enabled_fields and item.visible|default:True %}
     <div class="gafete-item {% if is_editor %}is-draggable{% endif %}" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{{ item.align|default:'left' }}; display:{% if item.visible|default:True %}block{% else %}none{% endif %};">
-      {% if key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif key == 'codigo_alumno' %}{{ alumno.codigo_personal|default:'-' }}{% elif key == 'grado' %}{{ grado|default:'Grado' }}{% elif key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif key == 'sitio_web' %}{{ configuracion.sitio_web|default:''|slice:'8:' }}{% elif key == 'telefono' %}{{ alumno.tel|default:'-' }}{% endif %}
+      {% if key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif key == 'codigo_alumno' %}{{ alumno.codigo_personal|default:'-' }}{% elif key == 'grado' %}{{ grado|default:'Grado' }}{% elif key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif key == 'sitio_web' %}{{ establecimiento.sitio_web|default:'' }}{% elif key == 'telefono' %}{{ alumno.tel|default:'-' }}{% elif key == 'cui' %}{{ alumno.cui|default:'—' }}{% elif key == 'establecimiento' %}{{ establecimiento.nombre|default:'' }}{% endif %}
     </div>
     {% endif %}
   {% endfor %}
