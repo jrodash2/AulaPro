@@ -1,6 +1,9 @@
 {% extends 'empleados/base.html' %}
 {% load static %}
 {% block content %}
+<link href="https://fonts.googleapis.com/css2?family=Mordato:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+{% include 'empleados/partials_gafete_estilos.html' %}
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
 <div class="container-fluid">
   <div class="card">
@@ -23,7 +26,7 @@
 
       <div class="table-responsive">
         <table class="table table-striped">
-          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th>Gafete</th><th></th></tr></thead>
           <tbody>
             {% for m in matriculas %}
             <tr>
@@ -32,6 +35,7 @@
               <td>{{ m.alumno.cui|default:'-' }}</td>
               <td>{{ m.ciclo_escolar.nombre|default:'-' }}</td>
               <td>{% if m.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
+              <td><button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}">Ver gafete</button></td>
               <td>
                 <form method="post" action="{% url 'empleados:desmatricular_alumno' m.id %}">{% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -40,7 +44,7 @@
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6">Sin matrículas para los filtros seleccionados.</td></tr>
+            <tr><td colspan="7">Sin matrículas para los filtros seleccionados.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -48,6 +52,22 @@
     </div>
   </div>
 </div>
+
+{% for m in matriculas %}
+<div class="modal fade" id="gafeteModal{{ m.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Gafete: {{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</h5>
+        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body d-flex justify-content-center">
+        {% include 'aulapro/partials/_gafete_preview.html' with alumno=m.alumno grado=m.grado %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">

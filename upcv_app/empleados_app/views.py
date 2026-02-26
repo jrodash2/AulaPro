@@ -106,13 +106,13 @@ def editar_empleado(request, e_id):
 
 @login_required
 def lista_empleados(request):
-    empleados = Empleado.objects.select_related("grado", "establecimiento").all().order_by("-created_at", "-grado")
+    empleados = Empleado.objects.all().order_by("-created_at")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
 @login_required
 def credencial_empleados(request):
-    empleados = Empleado.objects.select_related("grado", "establecimiento").all()
+    empleados = Empleado.objects.all()
     return render(request, "empleados/credencial_empleados.html", {"empleados": empleados})
 
 
@@ -120,10 +120,13 @@ def credencial_empleados(request):
 def empleado_detalle(request, id):
     empleado = get_object_or_404(Empleado, id=id)
     configuracion = ConfiguracionGeneral.objects.first()
-    establecimiento = empleado.establecimiento
-    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera").first()
-    if not establecimiento and matricula_activa and matricula_activa.grado and matricula_activa.grado.carrera:
-        establecimiento = matricula_activa.grado.carrera.establecimiento
+    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__establecimiento").first()
+    establecimiento = None
+    grado_gafete = None
+    if matricula_activa and matricula_activa.grado:
+        grado_gafete = matricula_activa.grado
+        if matricula_activa.grado.carrera:
+            establecimiento = matricula_activa.grado.carrera.establecimiento
 
     layout = establecimiento.get_layout() if establecimiento else {"background": "", "layers": {}}
     return render(
@@ -134,6 +137,7 @@ def empleado_detalle(request, id):
             "configuracion": configuracion,
             "establecimiento": establecimiento,
             "layout": layout,
+            "grado_gafete": grado_gafete,
         },
     )
 
@@ -229,9 +233,6 @@ def matricula_view(request):
     form = MatriculaForm(request.POST or None, establecimiento_id=establecimiento_id, carrera_id=carrera_id)
     if request.method == "POST" and form.is_valid():
         matricula = form.save()
-        if not matricula.alumno.establecimiento and matricula.grado.carrera and matricula.grado.carrera.establecimiento:
-            matricula.alumno.establecimiento = matricula.grado.carrera.establecimiento
-            matricula.alumno.save(update_fields=["establecimiento"])
         messages.success(request, "Matrícula registrada.")
         return redirect("empleados:matricula")
 
@@ -274,7 +275,12 @@ def matricula_view(request):
 @user_passes_test(_can_manage_design)
 def editor_gafete(request, establecimiento_id):
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
-    alumno = Empleado.objects.filter(establecimiento=establecimiento).first() or Empleado.objects.first()
+    alumno = (
+        Empleado.objects.filter(matriculas__grado__carrera__establecimiento=establecimiento)
+        .distinct()
+        .first()
+        or Empleado.objects.first()
+    )
     layout = establecimiento.get_layout()
     return render(
         request,
