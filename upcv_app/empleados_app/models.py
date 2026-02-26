@@ -153,7 +153,7 @@ class Empleado(models.Model):
     grado = models.ForeignKey(Grado, on_delete=models.SET_NULL, null=True, blank=True)
     establecimiento = models.ForeignKey(Establecimiento, on_delete=models.SET_NULL, null=True, blank=True, related_name="alumnos")
     imagen = models.ImageField(upload_to="card_images/", null=True, blank=True)
-    tel = models.CharField(max_length=15, null=False, blank=False)
+    tel = models.CharField(max_length=15, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     activo = models.BooleanField(default=True)
