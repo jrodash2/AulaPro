@@ -30,6 +30,7 @@ DEFAULT_GAFETE_LAYOUT = {
 }
 
 
+
 class Establecimiento(models.Model):
     nombre = models.CharField(max_length=160, unique=True)
     direccion = models.CharField(max_length=255, blank=True)

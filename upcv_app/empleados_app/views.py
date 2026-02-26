@@ -202,6 +202,7 @@ def empleado_detalle(request, id):
         {
             "empleado": empleado,
             "configuracion": configuracion,
+            "is_editor": True,
             "establecimiento": establecimiento,
             "layout": layout,
             "grado_gafete": grado_gafete,
