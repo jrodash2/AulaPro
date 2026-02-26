@@ -38,7 +38,7 @@ def _validate_layout_payload(payload):
     if not isinstance(canvas, dict) or not isinstance(items, dict):
         raise ValueError("El layout debe incluir canvas e items")
 
-    allowed_keys = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono"}
+    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
 
@@ -53,6 +53,27 @@ def _validate_layout_payload(payload):
     for key, cfg in items.items():
         if key not in allowed_keys or not isinstance(cfg, dict):
             continue
+
+        if key == "photo":
+            border_color = (cfg.get("border_color") or "#ffffff").strip()
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", border_color):
+                raise ValueError("Color de borde inválido para photo")
+            shape = (cfg.get("shape") or "rounded").strip().lower()
+            if shape not in {"rounded", "circle"}:
+                raise ValueError("Forma inválida para photo")
+            result["items"][key] = {
+                "x": int(cfg.get("x") or 0),
+                "y": int(cfg.get("y") or 0),
+                "w": max(40, min(500, int(cfg.get("w") or 250))),
+                "h": max(40, min(500, int(cfg.get("h") or 350))),
+                "shape": shape,
+                "radius": max(0, min(200, int(cfg.get("radius") or 20))),
+                "border": bool(cfg.get("border", True)),
+                "border_width": max(0, min(20, int(cfg.get("border_width") or 4))),
+                "border_color": border_color,
+            }
+            continue
+
         color = (cfg.get("color") or "#111111").strip()
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
             raise ValueError(f"Color inválido para {key}")
@@ -171,6 +192,7 @@ def empleado_detalle(request, id):
         {
             "empleado": empleado,
             "configuracion": configuracion,
+            "is_editor": True,
             "establecimiento": establecimiento,
             "layout": layout,
             "grado_gafete": grado_gafete,
@@ -332,6 +354,7 @@ def editor_gafete(request, establecimiento_id):
             "layout_json": json.dumps(layout),
             "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
             "configuracion": configuracion,
+            "is_editor": True,
         },
     )
 

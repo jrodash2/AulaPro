@@ -8,8 +8,20 @@ from django.db.models import Q
 DEFAULT_GAFETE_LAYOUT = {
     "canvas": {"width": 880, "height": 565},
     "items": {
+        "photo": {
+            "x": 20,
+            "y": 40,
+            "w": 250,
+            "h": 350,
+            "shape": "rounded",
+            "radius": 20,
+            "border": True,
+            "border_width": 4,
+            "border_color": "#ffffff",
+        },
         "nombres": {"x": 300, "y": 120, "font_size": 45, "font_weight": "700", "color": "#090909", "align": "left", "visible": True},
         "apellidos": {"x": 300, "y": 180, "font_size": 50, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
+        "codigo_alumno": {"x": 300, "y": 235, "font_size": 22, "font_weight": "700", "color": "#111111", "align": "left", "visible": True},
         "grado": {"x": 350, "y": 260, "font_size": 25, "font_weight": "400", "color": "#090909", "align": "left", "visible": True},
         "grado_descripcion": {"x": 350, "y": 290, "font_size": 25, "font_weight": "400", "color": "#0f0f0f", "align": "left", "visible": True},
         "sitio_web": {"x": 580, "y": 430, "font_size": 28, "font_weight": "400", "color": "#275393", "align": "left", "visible": True},
@@ -59,9 +71,6 @@ class Establecimiento(models.Model):
                 if key in base["items"]:
                     mapped = {k: field[k] for k in ["x", "y", "font_size", "font_weight", "color", "align", "visible"] if k in field}
                     base["items"][key].update(mapped)
-        elif isinstance(custom.get("layers"), dict):
-            # Compatibilidad con layouts muy antiguos por clases únicamente
-            pass
 
         return base
 

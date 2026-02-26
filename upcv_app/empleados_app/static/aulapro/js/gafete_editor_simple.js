@@ -10,12 +10,24 @@
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
+  const textProps = document.getElementById('text-props');
+  const photoProps = document.getElementById('photo-props');
+
   const colorInput = document.getElementById('prop-color');
   const colorText = document.getElementById('prop-color-text');
   const sizeInput = document.getElementById('prop-size');
   const weightInput = document.getElementById('prop-weight');
 
-  const items = Array.from(canvas.querySelectorAll('.gafete-item'));
+  const shapeRounded = document.getElementById('shape-rounded');
+  const shapeCircle = document.getElementById('shape-circle');
+  const photoBorder = document.getElementById('photo-border');
+  const photoBorderWidth = document.getElementById('photo-border-width');
+  const photoBorderColor = document.getElementById('photo-border-color');
+  const photoW = document.getElementById('photo-w');
+  const photoH = document.getElementById('photo-h');
+  const photoRadius = document.getElementById('photo-radius');
+
+  const items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
   let activeEl = null;
   let dragState = null;
 
@@ -30,16 +42,24 @@
   }
 
   function itemCfg(key) {
-    if (!layout.items || !layout.items[key]) return null;
-    return layout.items[key];
+    return layout.items && layout.items[key] ? layout.items[key] : null;
   }
 
-  function applyStyle(el, cfgItem) {
-    el.style.left = `${cfgItem.x}px`;
-    el.style.top = `${cfgItem.y}px`;
-    el.style.fontSize = `${cfgItem.font_size}px`;
-    el.style.fontWeight = `${cfgItem.font_weight}`;
-    el.style.color = cfgItem.color;
+  function applyStyle(el, cfgItem, key) {
+    el.style.left = `${cfgItem.x || 0}px`;
+    el.style.top = `${cfgItem.y || 0}px`;
+
+    if (key === 'photo') {
+      el.style.width = `${cfgItem.w || 250}px`;
+      el.style.height = `${cfgItem.h || 350}px`;
+      el.style.border = cfgItem.border ? `${cfgItem.border_width || 4}px solid ${cfgItem.border_color || '#ffffff'}` : 'none';
+      el.style.borderRadius = cfgItem.shape === 'circle' ? '50%' : `${cfgItem.radius || 20}px`;
+      return;
+    }
+
+    el.style.fontSize = `${cfgItem.font_size || 24}px`;
+    el.style.fontWeight = `${cfgItem.font_weight || '400'}`;
+    el.style.color = cfgItem.color || '#111111';
     el.style.textAlign = cfgItem.align || 'left';
     el.style.display = cfgItem.visible === false ? 'none' : 'block';
   }
@@ -49,34 +69,71 @@
     activeEl = el;
     if (!activeEl) {
       activeKeyLabel.textContent = 'Elemento activo: ninguno';
+      textProps.classList.add('d-none');
+      photoProps.classList.add('d-none');
       return;
     }
+
     activeEl.classList.add('is-active');
     const key = activeEl.dataset.key;
     const cfgItem = itemCfg(key);
     if (!cfgItem) return;
     activeKeyLabel.textContent = `Elemento activo: ${key}`;
+
+    if (key === 'photo') {
+      textProps.classList.add('d-none');
+      photoProps.classList.remove('d-none');
+      shapeRounded.checked = (cfgItem.shape || 'rounded') === 'rounded';
+      shapeCircle.checked = cfgItem.shape === 'circle';
+      photoBorder.checked = cfgItem.border !== false;
+      photoBorderWidth.value = cfgItem.border_width || 4;
+      photoBorderColor.value = cfgItem.border_color || '#ffffff';
+      photoW.value = cfgItem.w || 250;
+      photoH.value = cfgItem.h || 350;
+      photoRadius.value = cfgItem.radius || 20;
+      return;
+    }
+
+    photoProps.classList.add('d-none');
+    textProps.classList.remove('d-none');
     colorInput.value = cfgItem.color || '#111111';
     colorText.value = cfgItem.color || '#111111';
     sizeInput.value = cfgItem.font_size || 24;
     weightInput.value = String(cfgItem.font_weight || '400');
   }
 
-  function applyProperties() {
+  function applyTextProps() {
     if (!activeEl) return;
     const key = activeEl.dataset.key;
+    if (key === 'photo') return;
     const cfgItem = itemCfg(key);
     if (!cfgItem) return;
     cfgItem.color = colorInput.value;
     cfgItem.font_size = parseInt(sizeInput.value || '24', 10);
     cfgItem.font_weight = weightInput.value;
-    applyStyle(activeEl, cfgItem);
+    applyStyle(activeEl, cfgItem, key);
+  }
+
+  function applyPhotoProps() {
+    if (!activeEl || activeEl.dataset.key !== 'photo') return;
+    const cfgItem = itemCfg('photo');
+    if (!cfgItem) return;
+
+    cfgItem.shape = shapeCircle.checked ? 'circle' : 'rounded';
+    cfgItem.border = !!photoBorder.checked;
+    cfgItem.border_width = parseInt(photoBorderWidth.value || '4', 10);
+    cfgItem.border_color = photoBorderColor.value || '#ffffff';
+    cfgItem.w = parseInt(photoW.value || '250', 10);
+    cfgItem.h = parseInt(photoH.value || '350', 10);
+    cfgItem.radius = parseInt(photoRadius.value || '20', 10);
+
+    applyStyle(activeEl, cfgItem, 'photo');
   }
 
   items.forEach((el) => {
     const key = el.dataset.key;
     const cfgItem = itemCfg(key);
-    if (cfgItem) applyStyle(el, cfgItem);
+    if (cfgItem) applyStyle(el, cfgItem, key);
 
     el.addEventListener('click', function (ev) {
       ev.stopPropagation();
@@ -86,15 +143,15 @@
     el.addEventListener('pointerdown', function (ev) {
       setActive(el);
       const scale = getScale();
-      const key = el.dataset.key;
       const cfgItem = itemCfg(key);
       if (!cfgItem) return;
+
       dragState = {
         key,
         startX: ev.clientX,
         startY: ev.clientY,
-        baseX: cfgItem.x,
-        baseY: cfgItem.y,
+        baseX: cfgItem.x || 0,
+        baseY: cfgItem.y || 0,
         scale,
       };
       el.setPointerCapture(ev.pointerId);
@@ -102,16 +159,19 @@
     });
 
     el.addEventListener('pointermove', function (ev) {
-      if (!dragState || dragState.key !== el.dataset.key) return;
-      const cfgItem = itemCfg(dragState.key);
+      if (!dragState || dragState.key !== key) return;
+      const cfgItem = itemCfg(key);
       if (!cfgItem) return;
       const dx = (ev.clientX - dragState.startX) / dragState.scale;
       const dy = (ev.clientY - dragState.startY) / dragState.scale;
-      const maxX = (layout.canvas?.width || 880) - el.offsetWidth;
-      const maxY = (layout.canvas?.height || 565) - el.offsetHeight;
+
+      const itemW = key === 'photo' ? (cfgItem.w || el.offsetWidth) : el.offsetWidth;
+      const itemH = key === 'photo' ? (cfgItem.h || el.offsetHeight) : el.offsetHeight;
+      const maxX = (layout.canvas?.width || 880) - itemW;
+      const maxY = (layout.canvas?.height || 565) - itemH;
       cfgItem.x = clamp(Math.round(dragState.baseX + dx), 0, Math.max(0, maxX));
       cfgItem.y = clamp(Math.round(dragState.baseY + dy), 0, Math.max(0, maxY));
-      applyStyle(el, cfgItem);
+      applyStyle(el, cfgItem, key);
       hint.textContent = `x: ${cfgItem.x}, y: ${cfgItem.y}`;
     });
 
@@ -126,16 +186,21 @@
 
   colorInput.addEventListener('input', function () {
     colorText.value = colorInput.value;
-    applyProperties();
+    applyTextProps();
   });
   colorText.addEventListener('input', function () {
     if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) {
       colorInput.value = colorText.value;
-      applyProperties();
+      applyTextProps();
     }
   });
-  sizeInput.addEventListener('input', applyProperties);
-  weightInput.addEventListener('change', applyProperties);
+  sizeInput.addEventListener('input', applyTextProps);
+  weightInput.addEventListener('change', applyTextProps);
+
+  [shapeRounded, shapeCircle, photoBorder, photoBorderWidth, photoBorderColor, photoW, photoH, photoRadius].forEach((input) => {
+    input.addEventListener('input', applyPhotoProps);
+    input.addEventListener('change', applyPhotoProps);
+  });
 
   document.getElementById('save-layout').addEventListener('click', async function () {
     const res = await fetch(cfg.saveUrl, {
@@ -147,6 +212,7 @@
       },
       body: JSON.stringify({ layout }),
     });
+
     if (res.ok) {
       alert('Diseño guardado');
     } else {
@@ -158,8 +224,9 @@
     layout.canvas = { ...defaultLayout.canvas };
     layout.items = JSON.parse(JSON.stringify(defaultLayout.items || {}));
     items.forEach((el) => {
-      const cfgItem = itemCfg(el.dataset.key);
-      if (cfgItem) applyStyle(el, cfgItem);
+      const key = el.dataset.key;
+      const cfgItem = itemCfg(key);
+      if (cfgItem) applyStyle(el, cfgItem, key);
     });
     setActive(null);
     hint.textContent = 'Restablecido a valores por defecto';
