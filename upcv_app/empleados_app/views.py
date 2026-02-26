@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -21,6 +21,20 @@ from .forms import (
 from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 
+BASE_GAFETE_W = 1011
+BASE_GAFETE_H = 639
+
+
+def _canvas_for_orientation(orientation):
+    return (BASE_GAFETE_W, BASE_GAFETE_H) if orientation == "H" else (BASE_GAFETE_H, BASE_GAFETE_W)
+
+
+def _orientation_for_establecimiento(establecimiento):
+    if not establecimiento:
+        return "H"
+    return "V" if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else "H"
+
+
 def _can_manage_design(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
@@ -33,20 +47,32 @@ def _validate_layout_payload(payload):
     if not isinstance(layout, dict):
         raise ValueError("Layout inválido")
 
-    canvas = layout.get("canvas") or {"width": 880, "height": 565}
+    canvas = layout.get("canvas") or {}
     items = layout.get("items")
-    if not isinstance(canvas, dict) or not isinstance(items, dict):
-        raise ValueError("El layout debe incluir canvas e items")
+    if not isinstance(items, dict):
+        raise ValueError("El layout debe incluir items")
 
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono"}
+    orientation = str(canvas.get("orientation") or "H").upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = _canvas_for_orientation(orientation)
+
+    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
 
+    enabled_fields = layout.get("enabled_fields")
+    if not isinstance(enabled_fields, list):
+        enabled_fields = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
+    enabled_fields = [field for field in enabled_fields if field in allowed_keys]
+
     result = {
         "canvas": {
-            "width": max(500, min(1800, int(canvas.get("width") or 880))),
-            "height": max(300, min(1200, int(canvas.get("height") or 565))),
+            "width": canvas_width,
+            "height": canvas_height,
+            "orientation": orientation,
         },
+        "enabled_fields": enabled_fields,
         "items": {},
     }
 
@@ -64,13 +90,14 @@ def _validate_layout_payload(payload):
             result["items"][key] = {
                 "x": int(cfg.get("x") or 0),
                 "y": int(cfg.get("y") or 0),
-                "w": max(40, min(500, int(cfg.get("w") or 250))),
-                "h": max(40, min(500, int(cfg.get("h") or 350))),
+                "w": max(40, min(canvas_width, int(cfg.get("w") or 250))),
+                "h": max(40, min(canvas_height, int(cfg.get("h") or 350))),
                 "shape": shape,
                 "radius": max(0, min(200, int(cfg.get("radius") or 20))),
                 "border": bool(cfg.get("border", True)),
                 "border_width": max(0, min(20, int(cfg.get("border_width") or 4))),
                 "border_color": border_color,
+                "visible": bool(cfg.get("visible", True)),
             }
             continue
 
@@ -98,13 +125,9 @@ def _validate_layout_payload(payload):
     return result
 
 
-
-def _canvas_dimensions(establecimiento):
-    default_w = DEFAULT_GAFETE_LAYOUT.get("canvas", {}).get("width", 880)
-    default_h = DEFAULT_GAFETE_LAYOUT.get("canvas", {}).get("height", 565)
-    if not establecimiento:
-        return default_w, default_h
-    return establecimiento.gafete_ancho or default_w, establecimiento.gafete_alto or default_h
+def _canvas_dimensions(establecimiento, orientation=None):
+    orient = orientation or _orientation_for_establecimiento(establecimiento)
+    return _canvas_for_orientation(orient)
 
 
 def home(request):
@@ -194,8 +217,13 @@ def empleado_detalle(request, id):
             establecimiento = matricula_activa.grado.carrera.establecimiento
 
     layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
-    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
-    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
+    orientation = str(layout.get("canvas", {}).get("orientation") or _orientation_for_establecimiento(establecimiento)).upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=orientation)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
+    if not isinstance(layout.get("enabled_fields"), list):
+        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -354,8 +382,13 @@ def editor_gafete(request, establecimiento_id):
     alumno = matricula_demo.alumno if matricula_demo else Empleado.objects.first()
     grado_demo = matricula_demo.grado if matricula_demo else None
     layout = establecimiento.get_layout()
-    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
-    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
+    orientation = str(layout.get("canvas", {}).get("orientation") or _orientation_for_establecimiento(establecimiento)).upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=orientation)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
+    if not isinstance(layout.get("enabled_fields"), list):
+        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
@@ -385,10 +418,17 @@ def guardar_diseno_gafete(request, establecimiento_id):
         layout = _validate_layout_payload(payload)
     except (ValueError, json.JSONDecodeError, TypeError) as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
-    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
-    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
+    orientation = str(layout.get("canvas", {}).get("orientation") or _orientation_for_establecimiento(establecimiento)).upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=orientation)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
+    if not isinstance(layout.get("enabled_fields"), list):
+        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
+    establecimiento.gafete_ancho = canvas_width
+    establecimiento.gafete_alto = canvas_height
     establecimiento.gafete_layout_json = layout
-    establecimiento.save(update_fields=["gafete_layout_json"])
+    establecimiento.save(update_fields=["gafete_layout_json", "gafete_ancho", "gafete_alto"])
     if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
         return JsonResponse({"ok": True})
     messages.success(request, "Diseño guardado correctamente.")
@@ -396,10 +436,33 @@ def guardar_diseno_gafete(request, establecimiento_id):
 
 
 @login_required
+def descargar_gafete_jpg(request, matricula_id):
+    matricula = get_object_or_404(Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento"), pk=matricula_id)
+    establecimiento = matricula.grado.carrera.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if not establecimiento:
+        return HttpResponse(status=404)
+    layout = establecimiento.get_layout()
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=layout.get("canvas", {}).get("orientation", "H"))
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": layout.get("canvas", {}).get("orientation", "H")}
+    configuracion = ConfiguracionGeneral.objects.first()
+    return render(request, "aulapro/gafete_download.html", {
+        "matricula": matricula,
+        "alumno": matricula.alumno,
+        "grado": matricula.grado,
+        "establecimiento": establecimiento,
+        "layout": layout,
+        "canvas_width": canvas_width,
+        "canvas_height": canvas_height,
+        "configuracion": configuracion,
+    })
+
+
+@login_required
 @user_passes_test(_can_manage_design)
 def resetear_diseno_gafete(request, establecimiento_id):
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
     establecimiento.gafete_layout_json = {}
-    establecimiento.save(update_fields=["gafete_layout_json"])
+    establecimiento.gafete_ancho, establecimiento.gafete_alto = _canvas_for_orientation("H")
+    establecimiento.save(update_fields=["gafete_layout_json", "gafete_ancho", "gafete_alto"])
     messages.success(request, "Diseño restablecido al valor original.")
     return redirect("empleados:editor_gafete", establecimiento_id=establecimiento.id)

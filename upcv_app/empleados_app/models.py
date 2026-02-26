@@ -6,7 +6,8 @@ from django.db.models import Q
 
 
 DEFAULT_GAFETE_LAYOUT = {
-    "canvas": {"width": 880, "height": 565},
+    "canvas": {"width": 1011, "height": 639, "orientation": "H"},
+    "enabled_fields": ["photo", "nombres", "apellidos", "codigo_alumno", "grado", "telefono", "establecimiento"],
     "items": {
         "photo": {
             "x": 20,
@@ -18,6 +19,7 @@ DEFAULT_GAFETE_LAYOUT = {
             "border": True,
             "border_width": 4,
             "border_color": "#ffffff",
+            "visible": True,
         },
         "nombres": {"x": 300, "y": 120, "font_size": 45, "font_weight": "700", "color": "#090909", "align": "left", "visible": True},
         "apellidos": {"x": 300, "y": 180, "font_size": 50, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
@@ -26,6 +28,8 @@ DEFAULT_GAFETE_LAYOUT = {
         "grado_descripcion": {"x": 350, "y": 290, "font_size": 25, "font_weight": "400", "color": "#0f0f0f", "align": "left", "visible": True},
         "sitio_web": {"x": 580, "y": 430, "font_size": 28, "font_weight": "400", "color": "#275393", "align": "left", "visible": True},
         "telefono": {"x": 520, "y": 500, "font_size": 35, "font_weight": "700", "color": "#030303", "align": "left", "visible": True},
+        "cui": {"x": 300, "y": 330, "font_size": 20, "font_weight": "400", "color": "#111111", "align": "left", "visible": False},
+        "establecimiento": {"x": 300, "y": 360, "font_size": 20, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
     },
 }
 
@@ -49,13 +53,16 @@ class Establecimiento(models.Model):
     def get_layout(self):
         base = {
             "canvas": DEFAULT_GAFETE_LAYOUT["canvas"].copy(),
+            "enabled_fields": list(DEFAULT_GAFETE_LAYOUT["enabled_fields"]),
             "items": {key: value.copy() for key, value in DEFAULT_GAFETE_LAYOUT["items"].items()},
         }
         custom = self.gafete_layout_json or {}
 
         if isinstance(custom.get("canvas"), dict):
-            base["canvas"]["width"] = int(custom["canvas"].get("width") or base["canvas"]["width"])
-            base["canvas"]["height"] = int(custom["canvas"].get("height") or base["canvas"]["height"])
+            base["canvas"]["orientation"] = custom["canvas"].get("orientation") or base["canvas"]["orientation"]
+
+        if isinstance(custom.get("enabled_fields"), list):
+            base["enabled_fields"] = [f for f in custom["enabled_fields"] if f in base["items"]]
 
         if isinstance(custom.get("items"), dict):
             for key, cfg in custom["items"].items():

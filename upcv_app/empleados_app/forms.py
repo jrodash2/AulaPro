@@ -43,9 +43,30 @@ class EmpleadoEditForm(EmpleadoForm):
 
 
 class EstablecimientoForm(BaseRihoForm):
+    ORIENTACION_CHOICES = (("H", "Horizontal (1011x639)"), ("V", "Vertical (639x1011)"))
+    gafete_orientacion = forms.ChoiceField(choices=ORIENTACION_CHOICES)
+
     class Meta:
         model = Establecimiento
-        fields = ["nombre", "direccion", "background_gafete", "gafete_ancho", "gafete_alto", "activo"]
+        fields = ["nombre", "direccion", "background_gafete", "gafete_orientacion", "gafete_ancho", "gafete_alto", "activo"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        orientacion = "V" if (self.instance and self.instance.gafete_alto > self.instance.gafete_ancho) else "H"
+        self.fields["gafete_orientacion"].initial = orientacion
+        self.fields["gafete_ancho"].widget.attrs["readonly"] = True
+        self.fields["gafete_alto"].widget.attrs["readonly"] = True
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        orientacion = self.cleaned_data.get("gafete_orientacion", "H")
+        if orientacion == "V":
+            instance.gafete_ancho, instance.gafete_alto = 639, 1011
+        else:
+            instance.gafete_ancho, instance.gafete_alto = 1011, 639
+        if commit:
+            instance.save()
+        return instance
 
 
 class CarreraForm(BaseRihoForm):
