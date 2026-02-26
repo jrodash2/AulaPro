@@ -213,6 +213,10 @@ def grado_detail(request, est_id, car_id, grado_id):
         matriculas = matriculas.filter(ciclo_escolar=ciclo_activo)
 
     configuracion = ConfiguracionGeneral.objects.first()
+    canvas_width = establecimiento.gafete_ancho or 880
+    canvas_height = establecimiento.gafete_alto or 565
+    layout = establecimiento.get_layout()
+    layout['canvas'] = {'width': canvas_width, 'height': canvas_height}
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
         'carrera': carrera,
@@ -221,7 +225,9 @@ def grado_detail(request, est_id, car_id, grado_id):
         'filtro_form': filtro_form,
         'ciclo_activo': ciclo_activo,
         'configuracion': configuracion,
-        'layout': establecimiento.get_layout(),
+        'layout': layout,
+        'canvas_width': canvas_width,
+        'canvas_height': canvas_height,
     })
 
 

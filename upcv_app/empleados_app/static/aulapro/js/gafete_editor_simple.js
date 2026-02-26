@@ -3,10 +3,30 @@
   if (!cfg) return;
 
   const canvas = document.getElementById('editor-canvas');
+  const scaleWrapper = document.getElementById('gafete-scale-wrapper');
   if (!canvas) return;
 
   const layout = JSON.parse(document.getElementById('layout-data').textContent || '{}');
   const defaultLayout = JSON.parse(document.getElementById('default-layout-data').textContent || '{}');
+
+  function syncCanvasSizeFromDom() {
+    const w = parseInt(canvas.dataset.canvasWidth || '880', 10);
+    const h = parseInt(canvas.dataset.canvasHeight || '565', 10);
+    layout.canvas = { width: w, height: h };
+  }
+
+  function fitScale() {
+    if (!scaleWrapper || !layout.canvas) return;
+    const viewport = scaleWrapper.parentElement;
+    const available = viewport.clientWidth || layout.canvas.width;
+    const scale = Math.min(1, available / layout.canvas.width);
+    scaleWrapper.style.transform = `scale(${scale})`;
+    scaleWrapper.style.width = `${layout.canvas.width}px`;
+    scaleWrapper.style.height = `${layout.canvas.height}px`;
+    viewport.style.minHeight = `${Math.round(layout.canvas.height * scale)}px`;
+  }
+
+  syncCanvasSizeFromDom();
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
@@ -30,10 +50,12 @@
   const items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
   let activeEl = null;
   let dragState = null;
+  fitScale();
+  window.addEventListener('resize', fitScale);
 
   function getScale() {
     const displayed = canvas.getBoundingClientRect().width || 1;
-    const real = parseFloat(canvas.dataset.canvasWidth || layout.canvas?.width || 880);
+    const real = parseFloat(layout.canvas?.width || canvas.dataset.canvasWidth || 880);
     return displayed / real;
   }
 
@@ -203,6 +225,7 @@
   });
 
   document.getElementById('save-layout').addEventListener('click', async function () {
+    syncCanvasSizeFromDom();
     const res = await fetch(cfg.saveUrl, {
       method: 'POST',
       headers: {
@@ -221,7 +244,7 @@
   });
 
   document.getElementById('reset-layout').addEventListener('click', function () {
-    layout.canvas = { ...defaultLayout.canvas };
+    syncCanvasSizeFromDom();
     layout.items = JSON.parse(JSON.stringify(defaultLayout.items || {}));
     items.forEach((el) => {
       const key = el.dataset.key;

@@ -99,6 +99,14 @@ def _validate_layout_payload(payload):
 
 
 
+def _canvas_dimensions(establecimiento):
+    default_w = DEFAULT_GAFETE_LAYOUT.get("canvas", {}).get("width", 880)
+    default_h = DEFAULT_GAFETE_LAYOUT.get("canvas", {}).get("height", 565)
+    if not establecimiento:
+        return default_w, default_h
+    return establecimiento.gafete_ancho or default_w, establecimiento.gafete_alto or default_h
+
+
 def home(request):
     return render(request, "empleados/login.html")
 
@@ -186,6 +194,8 @@ def empleado_detalle(request, id):
             establecimiento = matricula_activa.grado.carrera.establecimiento
 
     layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -196,6 +206,8 @@ def empleado_detalle(request, id):
             "establecimiento": establecimiento,
             "layout": layout,
             "grado_gafete": grado_gafete,
+            "canvas_width": canvas_width,
+            "canvas_height": canvas_height,
         },
     )
 
@@ -342,6 +354,8 @@ def editor_gafete(request, establecimiento_id):
     alumno = matricula_demo.alumno if matricula_demo else Empleado.objects.first()
     grado_demo = matricula_demo.grado if matricula_demo else None
     layout = establecimiento.get_layout()
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
@@ -355,6 +369,8 @@ def editor_gafete(request, establecimiento_id):
             "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
             "configuracion": configuracion,
             "is_editor": True,
+            "canvas_width": canvas_width,
+            "canvas_height": canvas_height,
         },
     )
 
@@ -369,6 +385,8 @@ def guardar_diseno_gafete(request, establecimiento_id):
         layout = _validate_layout_payload(payload)
     except (ValueError, json.JSONDecodeError, TypeError) as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    canvas_width, canvas_height = _canvas_dimensions(establecimiento)
+    layout["canvas"] = {"width": canvas_width, "height": canvas_height}
     establecimiento.gafete_layout_json = layout
     establecimiento.save(update_fields=["gafete_layout_json"])
     if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":

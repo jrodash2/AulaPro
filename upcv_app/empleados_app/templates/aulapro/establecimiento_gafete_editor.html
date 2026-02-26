@@ -18,8 +18,10 @@
         <div class="card">
           <div class="card-header card-no-border pb-0"><h5>Click y arrastra texto/foto</h5></div>
           <div class="card-body">
-            <div style="overflow:auto;">
-              {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-canvas' is_editor=True %}
+            <div class="gafete-editor-viewport">
+              <div id="gafete-scale-wrapper">
+                {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-canvas' is_editor=True canvas_width=canvas_width canvas_height=canvas_height %}
+              </div>
             </div>
             <small id="coords-hint" class="text-muted d-block mt-2"></small>
           </div>
@@ -78,6 +80,9 @@
 </div>
 
 <style>
+
+  .gafete-editor-viewport { overflow:auto; max-width:100%; }
+  #gafete-scale-wrapper { transform-origin: top left; width: fit-content; }
   #editor-canvas .gafete-item { position:absolute; user-select:none; border: 1px dashed transparent; }
   #editor-canvas .gafete-item:hover { cursor: move; border-color: rgba(115, 102, 255, .6); }
   #editor-canvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
