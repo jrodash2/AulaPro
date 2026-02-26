@@ -29,8 +29,6 @@ class EmpleadoForm(BaseRihoForm):
             "apellidos",
             "fecha_nacimiento",
             "cui",
-            "establecimiento",
-            "grado",
             "imagen",
             "tel",
             "activo",
@@ -91,7 +89,6 @@ class MatriculaForm(BaseRihoForm):
         grados = Grado.objects.select_related("carrera", "carrera__establecimiento")
         ciclos = CicloEscolar.objects.select_related("establecimiento")
         if establecimiento_id:
-            alumnos = alumnos.filter(establecimiento_id=establecimiento_id)
             grados = grados.filter(carrera__establecimiento_id=establecimiento_id)
             ciclos = ciclos.filter(establecimiento_id=establecimiento_id)
         if carrera_id:

@@ -1,4 +1,5 @@
 import json
+import re
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
@@ -17,7 +18,7 @@ from .forms import (
     GradoForm,
     MatriculaForm,
 )
-from .models import Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 
 def _can_manage_design(user):
@@ -27,19 +28,54 @@ def _can_manage_design(user):
 def _validate_layout_payload(payload):
     if not isinstance(payload, dict):
         raise ValueError("Formato inválido")
-    layers = payload.get("layers")
-    if not isinstance(layers, dict):
-        raise ValueError("El layout debe incluir layers")
-    allowed = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono"}
-    result = {"background": payload.get("background", ""), "layers": {}}
-    for key, cfg in layers.items():
-        if key not in allowed or not isinstance(cfg, dict):
+
+    layout = payload.get("layout", payload)
+    if not isinstance(layout, dict):
+        raise ValueError("Layout inválido")
+
+    canvas = layout.get("canvas") or {"width": 880, "height": 565}
+    items = layout.get("items")
+    if not isinstance(canvas, dict) or not isinstance(items, dict):
+        raise ValueError("El layout debe incluir canvas e items")
+
+    allowed_keys = {"nombres", "apellidos", "grado", "grado_descripcion", "sitio_web", "telefono"}
+    allowed_align = {"left", "center", "right"}
+    allowed_weight = {"400", "700"}
+
+    result = {
+        "canvas": {
+            "width": max(500, min(1800, int(canvas.get("width") or 880))),
+            "height": max(300, min(1200, int(canvas.get("height") or 565))),
+        },
+        "items": {},
+    }
+
+    for key, cfg in items.items():
+        if key not in allowed_keys or not isinstance(cfg, dict):
             continue
-        klass = cfg.get("class", "")
-        if not isinstance(klass, str):
-            klass = ""
-        result["layers"][key] = {"class": klass[:20]}
+        color = (cfg.get("color") or "#111111").strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise ValueError(f"Color inválido para {key}")
+        align = (cfg.get("align") or "left").strip().lower()
+        if align not in allowed_align:
+            align = "left"
+        weight = str(cfg.get("font_weight") or "400")
+        if weight not in allowed_weight:
+            weight = "400"
+        result["items"][key] = {
+            "x": int(cfg.get("x") or 0),
+            "y": int(cfg.get("y") or 0),
+            "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
+            "font_weight": weight,
+            "color": color,
+            "align": align,
+            "visible": bool(cfg.get("visible", True)),
+        }
+
+    if not result["items"]:
+        raise ValueError("No se recibieron items válidos")
     return result
+
 
 
 def home(request):
@@ -106,13 +142,13 @@ def editar_empleado(request, e_id):
 
 @login_required
 def lista_empleados(request):
-    empleados = Empleado.objects.select_related("grado", "establecimiento").all().order_by("-created_at", "-grado")
+    empleados = Empleado.objects.all().order_by("-created_at")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
 @login_required
 def credencial_empleados(request):
-    empleados = Empleado.objects.select_related("grado", "establecimiento").all()
+    empleados = Empleado.objects.all()
     return render(request, "empleados/credencial_empleados.html", {"empleados": empleados})
 
 
@@ -120,12 +156,15 @@ def credencial_empleados(request):
 def empleado_detalle(request, id):
     empleado = get_object_or_404(Empleado, id=id)
     configuracion = ConfiguracionGeneral.objects.first()
-    establecimiento = empleado.establecimiento
-    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera").first()
-    if not establecimiento and matricula_activa and matricula_activa.grado and matricula_activa.grado.carrera:
-        establecimiento = matricula_activa.grado.carrera.establecimiento
+    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__establecimiento").first()
+    establecimiento = None
+    grado_gafete = None
+    if matricula_activa and matricula_activa.grado:
+        grado_gafete = matricula_activa.grado
+        if matricula_activa.grado.carrera:
+            establecimiento = matricula_activa.grado.carrera.establecimiento
 
-    layout = establecimiento.get_layout() if establecimiento else {"background": "", "layers": {}}
+    layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -134,6 +173,7 @@ def empleado_detalle(request, id):
             "configuracion": configuracion,
             "establecimiento": establecimiento,
             "layout": layout,
+            "grado_gafete": grado_gafete,
         },
     )
 
@@ -229,9 +269,6 @@ def matricula_view(request):
     form = MatriculaForm(request.POST or None, establecimiento_id=establecimiento_id, carrera_id=carrera_id)
     if request.method == "POST" and form.is_valid():
         matricula = form.save()
-        if not matricula.alumno.establecimiento and matricula.grado.carrera and matricula.grado.carrera.establecimiento:
-            matricula.alumno.establecimiento = matricula.grado.carrera.establecimiento
-            matricula.alumno.save(update_fields=["establecimiento"])
         messages.success(request, "Matrícula registrada.")
         return redirect("empleados:matricula")
 
@@ -274,16 +311,27 @@ def matricula_view(request):
 @user_passes_test(_can_manage_design)
 def editor_gafete(request, establecimiento_id):
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
-    alumno = Empleado.objects.filter(establecimiento=establecimiento).first() or Empleado.objects.first()
+    matricula_demo = (
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento")
+        .filter(grado__carrera__establecimiento=establecimiento, estado="activo")
+        .order_by("-created_at")
+        .first()
+    )
+    alumno = matricula_demo.alumno if matricula_demo else Empleado.objects.first()
+    grado_demo = matricula_demo.grado if matricula_demo else None
     layout = establecimiento.get_layout()
+    configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
-        "empleados/editor_gafete.html",
+        "aulapro/establecimiento_gafete_editor.html",
         {
             "establecimiento": establecimiento,
             "alumno": alumno,
-            "layout": json.dumps(layout),
-            "layout_preview": layout,
+            "grado_demo": grado_demo,
+            "layout": layout,
+            "layout_json": json.dumps(layout),
+            "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
+            "configuracion": configuracion,
         },
     )
 
@@ -300,7 +348,10 @@ def guardar_diseno_gafete(request, establecimiento_id):
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
     establecimiento.gafete_layout_json = layout
     establecimiento.save(update_fields=["gafete_layout_json"])
-    return JsonResponse({"ok": True})
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+        return JsonResponse({"ok": True})
+    messages.success(request, "Diseño guardado correctamente.")
+    return redirect("empleados:editor_gafete", establecimiento_id=establecimiento.id)
 
 
 @login_required

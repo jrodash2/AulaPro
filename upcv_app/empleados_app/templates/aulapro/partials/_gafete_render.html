@@ -1,0 +1,23 @@
+{% load static %}
+<div class="card" style="width: {{ layout_json.canvas.width|default:880 }}px; height: {{ layout_json.canvas.height|default:565 }}px;">
+  <div class="card-body gafete-card" id="{{ preview_id|default:'gafete-render' }}" data-canvas-width="{{ layout_json.canvas.width|default:880 }}" data-canvas-height="{{ layout_json.canvas.height|default:565 }}" style="position:relative; width: {{ layout_json.canvas.width|default:880 }}px; height: {{ layout_json.canvas.height|default:565 }}px; background: url('{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}') no-repeat center center; background-size: cover;">
+    {% for key, item in layout_json.items.items %}
+      <div class="gafete-item" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{{ item.align|default:'left' }}; display:{% if item.visible %}block{% else %}none{% endif %};">
+        {% if key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif key == 'grado' %}{{ grado|default:'Grado' }}{% elif key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif key == 'sitio_web' %}{{ configuracion.sitio_web|default:''|slice:'8:' }}{% elif key == 'telefono' %}{{ alumno.tel|default:'-' }}{% endif %}
+      </div>
+    {% endfor %}
+
+    {% if alumno and alumno.imagen %}
+      <img src="{{ alumno.imagen.url }}" alt="Imagen del alumno" class="gafete-img">
+    {% endif %}
+
+    <div style="display: flex; justify-content: space-between; padding: 50px; flex-wrap: wrap;">
+      <svg width="{{ layout_json.canvas.width|default:880 }}" height="{{ layout_json.canvas.height|default:565 }}"></svg>
+      <div class="logotipos">
+        {% if configuracion and configuracion.logotipo %}
+          <div class="logotipo"><img src="{{ configuracion.logotipo.url }}" alt="Logotipo" width="170" height="auto"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
