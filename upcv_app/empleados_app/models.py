@@ -6,16 +6,83 @@ from django.db.models import Q
 
 
 DEFAULT_GAFETE_LAYOUT = {
-    "background": "",
-    "layers": {
-        "nombres": {"class": "t5"},
-        "apellidos": {"class": "t6"},
-        "grado": {"class": "t7"},
-        "grado_descripcion": {"class": "t8"},
-        "sitio_web": {"class": "t10"},
-        "telefono": {"class": "t11"},
-    },
+    "canvas": {"width": 880, "height": 565},
+    "fields": [
+        {
+            "key": "nombres",
+            "label": "Nombres",
+            "x": 300,
+            "y": 120,
+            "font_size": 45,
+            "font_weight": "700",
+            "color": "#090909",
+            "align": "left",
+            "class_css": "t5",
+            "visible": True,
+        },
+        {
+            "key": "apellidos",
+            "label": "Apellidos",
+            "x": 300,
+            "y": 180,
+            "font_size": 50,
+            "font_weight": "400",
+            "color": "#111111",
+            "align": "left",
+            "class_css": "t6",
+            "visible": True,
+        },
+        {
+            "key": "grado",
+            "label": "Grado",
+            "x": 350,
+            "y": 260,
+            "font_size": 25,
+            "font_weight": "400",
+            "color": "#090909",
+            "align": "left",
+            "class_css": "t7",
+            "visible": True,
+        },
+        {
+            "key": "grado_descripcion",
+            "label": "Descripción grado",
+            "x": 350,
+            "y": 290,
+            "font_size": 25,
+            "font_weight": "400",
+            "color": "#0f0f0f",
+            "align": "left",
+            "class_css": "t8",
+            "visible": True,
+        },
+        {
+            "key": "sitio_web",
+            "label": "Sitio web",
+            "x": 580,
+            "y": 430,
+            "font_size": 28,
+            "font_weight": "400",
+            "color": "#275393",
+            "align": "left",
+            "class_css": "t10",
+            "visible": True,
+        },
+        {
+            "key": "telefono_emergencia",
+            "label": "Teléfono",
+            "x": 520,
+            "y": 500,
+            "font_size": 35,
+            "font_weight": "700",
+            "color": "#030303",
+            "align": "left",
+            "class_css": "t11",
+            "visible": True,
+        },
+    ],
 }
+
 
 
 class Establecimiento(models.Model):
@@ -34,17 +101,35 @@ class Establecimiento(models.Model):
         return self.nombre
 
     def get_layout(self):
-        layout = DEFAULT_GAFETE_LAYOUT.copy()
+        base = {"canvas": DEFAULT_GAFETE_LAYOUT["canvas"].copy(), "fields": [item.copy() for item in DEFAULT_GAFETE_LAYOUT["fields"]]}
         custom = self.gafete_layout_json or {}
-        if custom.get("background"):
-            layout["background"] = custom.get("background")
-        if isinstance(custom.get("layers"), dict):
-            merged_layers = layout["layers"].copy()
-            for key, value in custom["layers"].items():
-                if key in merged_layers and isinstance(value, dict):
-                    merged_layers[key] = {**merged_layers[key], **value}
-            layout["layers"] = merged_layers
-        return layout
+
+        if isinstance(custom.get("canvas"), dict):
+            base["canvas"]["width"] = int(custom["canvas"].get("width") or base["canvas"]["width"])
+            base["canvas"]["height"] = int(custom["canvas"].get("height") or base["canvas"]["height"])
+
+        if isinstance(custom.get("fields"), list):
+            by_key = {f["key"]: f for f in base["fields"]}
+            for field in custom["fields"]:
+                if not isinstance(field, dict):
+                    continue
+                key = field.get("key")
+                if key in by_key:
+                    by_key[key].update(field)
+            base["fields"] = [by_key[k] for k in by_key]
+        elif isinstance(custom.get("layers"), dict):
+            # Compatibilidad hacia atrás con layouts antiguos por clases
+            by_key = {f["key"]: f for f in base["fields"]}
+            alias = {"telefono": "telefono_emergencia"}
+            for key, cfg in custom["layers"].items():
+                if not isinstance(cfg, dict):
+                    continue
+                target = alias.get(key, key)
+                if target in by_key and cfg.get("class"):
+                    by_key[target]["class_css"] = cfg.get("class")
+            base["fields"] = [by_key[k] for k in by_key]
+
+        return base
 
     def get_ciclo_activo(self):
         return self.ciclos_escolares.filter(es_activo=True).order_by("-anio", "-id").first()
