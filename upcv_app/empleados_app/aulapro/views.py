@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import CicloEscolarForm
-from empleados_app.models import Carrera, CicloEscolar, Empleado, Establecimiento, Grado, Matricula
+from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatriculaFiltroForm
 
@@ -212,6 +212,7 @@ def grado_detail(request, est_id, car_id, grado_id):
     elif ciclo_activo:
         matriculas = matriculas.filter(ciclo_escolar=ciclo_activo)
 
+    configuracion = ConfiguracionGeneral.objects.first()
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
         'carrera': carrera,
@@ -219,6 +220,8 @@ def grado_detail(request, est_id, car_id, grado_id):
         'matriculas': matriculas.order_by('-created_at', 'alumno__apellidos'),
         'filtro_form': filtro_form,
         'ciclo_activo': ciclo_activo,
+        'configuracion': configuracion,
+        'layout': establecimiento.get_layout(),
     })
 
 
