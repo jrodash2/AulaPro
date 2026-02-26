@@ -1,0 +1,23 @@
+{% load static %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Descargar gafete</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>body{margin:0;padding:8px}</style>
+</head>
+<body>
+  {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height %}
+  <script>
+    const element = document.getElementById('download-canvas');
+    html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.download = 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg';
+      link.click();
+      window.close();
+    });
+  </script>
+</body>
+</html>
