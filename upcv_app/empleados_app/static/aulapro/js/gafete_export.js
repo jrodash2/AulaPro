@@ -7,6 +7,9 @@
     event.preventDefault();
 
     const btn = event.currentTarget;
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    btn.disabled = true;
     const targetId = btn.dataset.target;
     const width = parseInt(btn.dataset.width || '1011', 10);
     const height = parseInt(btn.dataset.height || '639', 10);
@@ -16,12 +19,16 @@
 
     if (typeof html2canvas === 'undefined') {
       console.error('[gafete_export] html2canvas no está cargado.');
+      btn.dataset.busy = '0';
+      btn.disabled = false;
       return;
     }
 
     const element = document.getElementById(targetId);
     if (!element) {
       console.error('[gafete_export] No se encontró el contenedor del gafete:', targetId);
+      btn.dataset.busy = '0';
+      btn.disabled = false;
       return;
     }
 
@@ -69,6 +76,9 @@
       URL.revokeObjectURL(fileUrl);
     } catch (error) {
       console.error('[gafete_export] Falló la descarga del gafete:', error);
+    } finally {
+      btn.dataset.busy = '0';
+      btn.disabled = false;
     }
   }
 
