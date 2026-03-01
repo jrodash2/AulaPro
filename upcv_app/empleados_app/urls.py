@@ -33,7 +33,8 @@ urlpatterns = [
 
     path("matricula/", views.matricula_view, name="matricula"),
 
-    path("matriculas/<int:matricula_id>/gafete.jpg", views.descargar_gafete_jpg, name="descargar_gafete_jpg"),
+    path("matriculas/<int:matricula_id>/gafete.jpg", views.gafete_jpg, name="gafete_jpg"),
+    path("matriculas/<int:matricula_id>/gafete_descarga.jpg", views.descargar_gafete_jpg, name="descargar_gafete_jpg"),
 
     path("establecimientos/<int:establecimiento_id>/gafete/editor/", views.editor_gafete, name="editor_gafete"),
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/guardar/", views.guardar_diseno_gafete, name="guardar_diseno_gafete"),

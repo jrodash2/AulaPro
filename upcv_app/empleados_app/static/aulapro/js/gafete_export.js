@@ -1,53 +1,87 @@
 (function () {
-  if (typeof html2canvas === 'undefined') return;
+  function sanitizeFilenamePart(value) {
+    return (value || 'NA')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '') || 'NA';
+  }
 
-  document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
-    btn.addEventListener('click', async function () {
-      const targetId = btn.dataset.target;
-      const width = parseInt(btn.dataset.width || '1011', 10);
-      const height = parseInt(btn.dataset.height || '639', 10);
-      const name = btn.dataset.name || 'alumno';
-      const downloadUrl = btn.dataset.downloadUrl;
-      const csrfToken = btn.dataset.csrf;
-      const element = document.getElementById(targetId);
-      if (!element) return;
+  function buildFilename(btn) {
+    return `GAFETE_${sanitizeFilenamePart(btn.dataset.apellidos)}_${sanitizeFilenamePart(btn.dataset.nombres)}_${sanitizeFilenamePart(btn.dataset.codigo)}.jpg`;
+  }
 
-      const canvas = await html2canvas(element, {
-        useCORS: true,
-        backgroundColor: null,
-        scale: 1,
-        width,
-        height,
+  async function waitForImages(container) {
+    const imgs = Array.from(container.querySelectorAll('img'));
+    await Promise.all(imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        const done = () => resolve();
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
       });
+    }));
+  }
 
-      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+  async function exportGafete(event) {
+    event.preventDefault();
+    const btn = event.currentTarget;
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    btn.disabled = true;
 
-      if (!downloadUrl) {
-        const link = document.createElement('a');
-        link.href = imageData;
-        link.download = `${name}_gafete.jpg`;
-        link.click();
+    try {
+      if (typeof html2canvas === 'undefined') {
+        console.error('[gafete_export] html2canvas no está cargado.');
         return;
       }
 
-      const formData = new FormData();
-      formData.append('image_data', imageData);
-      const response = await fetch(downloadUrl, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrfToken || '',
-        },
-        body: formData,
-      });
-      if (!response.ok) return;
+      const targetId = btn.dataset.target;
+      const el = document.getElementById(targetId);
+      if (!el) {
+        console.error('[gafete_export] No se encontró canvas de export:', targetId);
+        return;
+      }
 
-      const blob = await response.blob();
-      const fileUrl = URL.createObjectURL(blob);
+      const width = parseInt(el.dataset.canvasWidth || btn.dataset.width || '1011', 10);
+      const height = parseInt(el.dataset.canvasHeight || btn.dataset.height || '639', 10);
+      const textEl = el.querySelector('.gafete-item[data-key="nombres"], .gafete-item[data-key="apellidos"]');
+      console.log('[gafete_export] target', el, el.getBoundingClientRect());
+      console.log('[gafete_export] transform', getComputedStyle(el).transform, 'fontSize', textEl ? getComputedStyle(textEl).fontSize : 'n/a');
+
+      await waitForImages(el);
+
+      const canvas = await html2canvas(el, {
+        scale: 1,
+        width,
+        height,
+        backgroundColor: null,
+        useCORS: true,
+      });
+
       const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = `${name}_gafete.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.download = buildFilename(btn);
       link.click();
-      URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error('[gafete_export] Falló la exportación:', err);
+    } finally {
+      btn.dataset.busy = '0';
+      btn.disabled = false;
+    }
+  }
+
+  function bind() {
+    document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
+      btn.removeEventListener('click', exportGafete);
+      btn.addEventListener('click', exportGafete);
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
 })();

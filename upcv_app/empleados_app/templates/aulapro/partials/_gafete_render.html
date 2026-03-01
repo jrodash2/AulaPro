@@ -1,6 +1,6 @@
 {% load static %}
 <div class="gafete-canvas" id="{{ preview_id|default:'gafete-canvas' }}" data-canvas-width="{{ canvas_width|default:layout_json.canvas.width|default:880 }}" data-canvas-height="{{ canvas_height|default:layout_json.canvas.height|default:565 }}" style="position:relative; width:{{ canvas_width|default:layout_json.canvas.width|default:880 }}px; height:{{ canvas_height|default:layout_json.canvas.height|default:565 }}px; background:#fff;">
-  <img src="{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}" alt="Fondo gafete" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;">
+  <img src="{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}" alt="Fondo gafete" style="position:absolute; inset:0; width:100%; height:100%; object-fit:fill;">
 
   {% with photo=layout_json.items.photo %}
     {% if "photo" in layout_json.enabled_fields and photo.visible|default:True and alumno and alumno.imagen %}
@@ -9,7 +9,7 @@
         alt="Imagen del alumno"
         class="gafete-item {% if is_editor %}is-draggable{% endif %}"
         data-key="photo"
-        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:cover; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};"
+        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:fill; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};"
       >
     {% elif "photo" in layout_json.enabled_fields and photo.visible|default:True and is_editor %}
       <div class="gafete-item is-draggable d-flex align-items-center justify-content-center bg-light" data-key="photo" style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; border:1px dashed #999; border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};">Foto</div>
@@ -18,7 +18,7 @@
 
   {% for key, item in layout_json.items.items %}
     {% if key != 'photo' and key in layout_json.enabled_fields and item.visible|default:True %}
-    <div class="gafete-item {% if is_editor %}is-draggable{% endif %}" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{{ item.align|default:'left' }}; display:{% if item.visible|default:True %}block{% else %}none{% endif %};">
+    <div class="gafete-item {% if is_editor %}is-draggable{% endif %}" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{{ item.align|default:'left' }}; font-family:{% if export_mode %}Arial, sans-serif{% else %}{{ item.font_family|default:"'Poppins', sans-serif" }}{% endif %}; line-height:1.1; white-space:nowrap; display:{% if item.visible|default:True %}block{% else %}none{% endif %};">
       {% if key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif key == 'codigo_alumno' %}{{ alumno.codigo_personal|default:'-' }}{% elif key == 'grado' %}{{ grado|default:'Grado' }}{% elif key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif key == 'sitio_web' %}{{ establecimiento.sitio_web|default:'' }}{% elif key == 'telefono' %}{{ alumno.tel|default:'-' }}{% elif key == 'cui' %}{{ alumno.cui|default:'—' }}{% elif key == 'establecimiento' %}{{ establecimiento.nombre|default:'' }}{% endif %}
     </div>
     {% endif %}
