@@ -5,20 +5,28 @@
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/gi, '_')
-      .replace(/^_+|_+$/g, '');
+      .replace(/^_+|_+$/g, '') || 'NA';
   }
 
   function buildFilename(btn) {
-    const apellidos = sanitizeFilenamePart(btn.dataset.apellidos);
-    const nombres = sanitizeFilenamePart(btn.dataset.nombres);
-    const codigo = sanitizeFilenamePart(btn.dataset.codigo);
-    return `GAFETE_${apellidos || 'NA'}_${nombres || 'NA'}_${codigo || 'NA'}.jpg`;
+    return `GAFETE_${sanitizeFilenamePart(btn.dataset.apellidos)}_${sanitizeFilenamePart(btn.dataset.nombres)}_${sanitizeFilenamePart(btn.dataset.codigo)}.jpg`;
+  }
+
+  async function waitForImages(container) {
+    const imgs = Array.from(container.querySelectorAll('img'));
+    await Promise.all(imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        const done = () => resolve();
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      });
+    }));
   }
 
   async function exportGafete(event) {
     event.preventDefault();
     const btn = event.currentTarget;
-
     if (btn.dataset.busy === '1') return;
     btn.dataset.busy = '1';
     btn.disabled = true;
@@ -30,20 +38,26 @@
       }
 
       const targetId = btn.dataset.target;
-      const width = parseInt(btn.dataset.width || '1011', 10);
-      const height = parseInt(btn.dataset.height || '639', 10);
-      const source = document.getElementById(targetId);
-      if (!source) {
-        console.error('[gafete_export] No se encontró el canvas real:', targetId);
+      const el = document.getElementById(targetId);
+      if (!el) {
+        console.error('[gafete_export] No se encontró canvas de export:', targetId);
         return;
       }
 
-      const canvas = await html2canvas(source, {
+      const width = parseInt(el.dataset.canvasWidth || btn.dataset.width || '1011', 10);
+      const height = parseInt(el.dataset.canvasHeight || btn.dataset.height || '639', 10);
+      const textEl = el.querySelector('.gafete-item[data-key="nombres"], .gafete-item[data-key="apellidos"]');
+      console.log('[gafete_export] target', el, el.getBoundingClientRect());
+      console.log('[gafete_export] transform', getComputedStyle(el).transform, 'fontSize', textEl ? getComputedStyle(textEl).fontSize : 'n/a');
+
+      await waitForImages(el);
+
+      const canvas = await html2canvas(el, {
         scale: 1,
         width,
         height,
+        backgroundColor: null,
         useCORS: true,
-        backgroundColor: '#ffffff',
       });
 
       const link = document.createElement('a');
@@ -51,14 +65,14 @@
       link.download = buildFilename(btn);
       link.click();
     } catch (err) {
-      console.error('[gafete_export] Falló la exportación JPG:', err);
+      console.error('[gafete_export] Falló la exportación:', err);
     } finally {
       btn.dataset.busy = '0';
       btn.disabled = false;
     }
   }
 
-  function bindExportButtons() {
+  function bind() {
     document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
       btn.removeEventListener('click', exportGafete);
       btn.addEventListener('click', exportGafete);
@@ -66,8 +80,8 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindExportButtons);
+    document.addEventListener('DOMContentLoaded', bind);
   } else {
-    bindExportButtons();
+    bind();
   }
 })();

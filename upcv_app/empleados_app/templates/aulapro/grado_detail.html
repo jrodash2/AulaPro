@@ -70,9 +70,13 @@
               <td>
                 <div class="btn-group" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:gafete_jpg' m.id %}">
+                  <button class="btn btn-outline-primary btn-sm gafete-export-btn" type="button"
+                    data-target="gafete-export-{{ m.id }}"
+                    data-apellidos="{{ m.alumno.apellidos|default:'NA' }}"
+                    data-nombres="{{ m.alumno.nombres|default:'NA' }}"
+                    data-codigo="{{ m.alumno.codigo_personal|default:'NA' }}">
                     <i class="fa fa-download me-1"></i>Descargar JPG
-                  </a>
+                  </button>
                 </div>
               </td>
               <td>
@@ -123,6 +127,13 @@
 </div>
 {% endwith %}
 {% endfor %}
+
+
+<div id="gafete-export-root" class="gafete-export-hidden" aria-hidden="true">
+  {% for m in matriculas %}
+    {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id='gafete-export-'|add:m.id export_mode=True %}
+  {% endfor %}
+</div>
 
 
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
