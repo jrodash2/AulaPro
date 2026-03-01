@@ -56,22 +56,24 @@
 </div>
 
 {% for m in matriculas %}
+{% with preview_dom_id='gafete-preview-'|add:m.id %}
 <div class="modal fade" id="gafeteModal{{ m.id }}" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Gafete: {{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</h5>
-        <button class="btn btn-primary btn-sm me-2 gafete-export-btn" type="button" data-target="gafete-preview{{ m.id }}" data-width="{{ canvas_width }}" data-height="{{ canvas_height }}" data-name="{{ m.alumno.codigo_personal|default:'alumno' }}" data-download-url="{% url 'empleados:descargar_gafete_jpg' m.id %}" data-csrf="{{ csrf_token }}">Descargar JPG</button>
+        <button class="btn btn-primary btn-sm me-2 gafete-export-btn" type="button" data-target="{{ preview_dom_id }}" data-width="{{ canvas_width }}" data-height="{{ canvas_height }}" data-name="{{ m.alumno.codigo_personal|default:'alumno' }}" data-download-url="{% url 'empleados:descargar_gafete_jpg' m.id %}" data-csrf="{{ csrf_token }}">Descargar JPG</button>
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="gafete-modal-viewport">
-          {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id='gafete-preview{{ m.id }}'  %}
+          {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=preview_dom_id %}
         </div>
       </div>
     </div>
   </div>
 </div>
+{% endwith %}
 {% endfor %}
 
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
