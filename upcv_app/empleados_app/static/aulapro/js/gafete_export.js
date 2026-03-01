@@ -1,53 +1,73 @@
 (function () {
-  if (typeof html2canvas === 'undefined') return;
+  function sanitizeFilenamePart(value) {
+    return (value || 'NA')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '');
+  }
 
-  document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
-    btn.addEventListener('click', async function () {
-      const targetId = btn.dataset.target;
-      const width = parseInt(btn.dataset.width || '1011', 10);
-      const height = parseInt(btn.dataset.height || '639', 10);
-      const name = btn.dataset.name || 'alumno';
-      const downloadUrl = btn.dataset.downloadUrl;
-      const csrfToken = btn.dataset.csrf;
-      const element = document.getElementById(targetId);
-      if (!element) return;
+  function buildFilename(btn) {
+    const apellidos = sanitizeFilenamePart(btn.dataset.apellidos);
+    const nombres = sanitizeFilenamePart(btn.dataset.nombres);
+    const codigo = sanitizeFilenamePart(btn.dataset.codigo);
+    return `GAFETE_${apellidos || 'NA'}_${nombres || 'NA'}_${codigo || 'NA'}.jpg`;
+  }
 
-      const canvas = await html2canvas(element, {
-        useCORS: true,
-        backgroundColor: null,
-        scale: 1,
-        width,
-        height,
-      });
+  async function exportGafete(event) {
+    event.preventDefault();
+    const btn = event.currentTarget;
 
-      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    btn.disabled = true;
 
-      if (!downloadUrl) {
-        const link = document.createElement('a');
-        link.href = imageData;
-        link.download = `${name}_gafete.jpg`;
-        link.click();
+    try {
+      if (typeof html2canvas === 'undefined') {
+        console.error('[gafete_export] html2canvas no está cargado.');
         return;
       }
 
-      const formData = new FormData();
-      formData.append('image_data', imageData);
-      const response = await fetch(downloadUrl, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrfToken || '',
-        },
-        body: formData,
-      });
-      if (!response.ok) return;
+      const targetId = btn.dataset.target;
+      const width = parseInt(btn.dataset.width || '1011', 10);
+      const height = parseInt(btn.dataset.height || '639', 10);
+      const source = document.getElementById(targetId);
+      if (!source) {
+        console.error('[gafete_export] No se encontró el canvas real:', targetId);
+        return;
+      }
 
-      const blob = await response.blob();
-      const fileUrl = URL.createObjectURL(blob);
+      const canvas = await html2canvas(source, {
+        scale: 1,
+        width,
+        height,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
       const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = `${name}_gafete.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.download = buildFilename(btn);
       link.click();
-      URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error('[gafete_export] Falló la exportación JPG:', err);
+    } finally {
+      btn.dataset.busy = '0';
+      btn.disabled = false;
+    }
+  }
+
+  function bindExportButtons() {
+    document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
+      btn.removeEventListener('click', exportGafete);
+      btn.addEventListener('click', exportGafete);
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindExportButtons);
+  } else {
+    bindExportButtons();
+  }
 })();
