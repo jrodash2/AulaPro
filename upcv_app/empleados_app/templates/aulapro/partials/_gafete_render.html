@@ -9,7 +9,7 @@
         alt="Imagen del alumno"
         class="gafete-item {% if is_editor %}is-draggable{% endif %}"
         data-key="photo"
-        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:cover; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};"
+        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:fill; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};"
       >
     {% elif "photo" in layout_json.enabled_fields and photo.visible|default:True and is_editor %}
       <div class="gafete-item is-draggable d-flex align-items-center justify-content-center bg-light" data-key="photo" style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; border:1px dashed #999; border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};">Foto</div>
