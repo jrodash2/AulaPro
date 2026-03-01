@@ -1,4 +1,7 @@
 (function () {
+  const CANVAS_WIDTH = 1011;
+  const CANVAS_HEIGHT = 639;
+
   function waitForImage(img) {
     if (img.complete && img.naturalWidth > 0) return Promise.resolve();
     return new Promise((resolve) => {
@@ -42,6 +45,10 @@
         return;
       }
 
+      el.style.width = `${CANVAS_WIDTH}px`;
+      el.style.height = `${CANVAS_HEIGHT}px`;
+      el.style.transform = 'none';
+
       const rect = el.getBoundingClientRect();
       const transform = getComputedStyle(el).transform;
       console.log('[gafete_export_v2] elemento encontrado', el);
@@ -52,8 +59,8 @@
 
       const canvas = await html2canvas(el, {
         scale: 1,
-        width: 1011,
-        height: 639,
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT,
         useCORS: true,
         backgroundColor: '#ffffff',
       });

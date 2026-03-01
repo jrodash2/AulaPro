@@ -5,15 +5,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 {% include 'empleados/partials_gafete_estilos.html' %}
 <style>
-  .gafete-modal-body { background: var(--bs-light); }
+  .gafete-modal-body { background: var(--bs-light); padding: .5rem; }
   .gafete-preview-viewport {
     width: 100%;
-    max-height: 70vh;
+    max-height: 85vh;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: 12px;
+    padding: 4px;
     border: 1px solid rgba(82, 82, 108, 0.15);
     border-radius: 12px;
     background: #fff;
@@ -35,6 +35,12 @@
     opacity: 0;
     pointer-events: none;
     z-index: -1;
+  }
+
+  .gafete-export-hidden .gafete-canvas-real {
+    width: 1011px !important;
+    height: 639px !important;
+    transform: none !important;
   }
 </style>
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
