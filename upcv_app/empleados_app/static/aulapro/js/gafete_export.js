@@ -1,20 +1,41 @@
 (function () {
-  if (typeof html2canvas === 'undefined') return;
+  function sanitizeFilenamePart(value) {
+    return (value || 'alumno').toString().trim().replace(/[^a-z0-9_-]+/gi, '_');
+  }
 
-  document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
-    btn.addEventListener('click', async function () {
-      const targetId = btn.dataset.target;
-      const width = parseInt(btn.dataset.width || '1011', 10);
-      const height = parseInt(btn.dataset.height || '639', 10);
-      const name = btn.dataset.name || 'alumno';
-      const downloadUrl = btn.dataset.downloadUrl;
-      const csrfToken = btn.dataset.csrf;
-      const element = document.getElementById(targetId);
-      if (!element) return;
+  async function downloadJpg(event) {
+    event.preventDefault();
 
+    const btn = event.currentTarget;
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    btn.disabled = true;
+    const targetId = btn.dataset.target;
+    const width = parseInt(btn.dataset.width || '1011', 10);
+    const height = parseInt(btn.dataset.height || '639', 10);
+    const name = sanitizeFilenamePart(btn.dataset.name);
+    const downloadUrl = btn.dataset.downloadUrl;
+    const csrfToken = btn.dataset.csrf;
+
+    if (typeof html2canvas === 'undefined') {
+      console.error('[gafete_export] html2canvas no está cargado.');
+      btn.dataset.busy = '0';
+      btn.disabled = false;
+      return;
+    }
+
+    const element = document.getElementById(targetId);
+    if (!element) {
+      console.error('[gafete_export] No se encontró el contenedor del gafete:', targetId);
+      btn.dataset.busy = '0';
+      btn.disabled = false;
+      return;
+    }
+
+    try {
       const canvas = await html2canvas(element, {
         useCORS: true,
-        backgroundColor: null,
+        backgroundColor: '#ffffff',
         scale: 1,
         width,
         height,
@@ -39,7 +60,12 @@
         },
         body: formData,
       });
-      if (!response.ok) return;
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[gafete_export] Error al solicitar JPG:', response.status, errorText);
+        return;
+      }
 
       const blob = await response.blob();
       const fileUrl = URL.createObjectURL(blob);
@@ -48,6 +74,24 @@
       link.download = `${name}_gafete.jpg`;
       link.click();
       URL.revokeObjectURL(fileUrl);
+    } catch (error) {
+      console.error('[gafete_export] Falló la descarga del gafete:', error);
+    } finally {
+      btn.dataset.busy = '0';
+      btn.disabled = false;
+    }
+  }
+
+  function bindExportButtons() {
+    document.querySelectorAll('.gafete-export-btn').forEach((btn) => {
+      btn.removeEventListener('click', downloadJpg);
+      btn.addEventListener('click', downloadJpg);
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindExportButtons);
+  } else {
+    bindExportButtons();
+  }
 })();
