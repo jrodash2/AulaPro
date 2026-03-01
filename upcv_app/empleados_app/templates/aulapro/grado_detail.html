@@ -157,6 +157,8 @@
   {% endfor %}
 </div>
 
+<div id="export-sandbox" style="position:fixed;left:-99999px;top:0;width:0;height:0;overflow:hidden;"></div>
+
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -200,5 +202,5 @@ window.matriculaModalConfig = {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
-<script src="{% static 'aulapro/js/gafete_export_v2.js' %}"></script>
+<script src="{% static 'aulapro/js/gafete_export_fix.js' %}"></script>
 {% endblock %}
