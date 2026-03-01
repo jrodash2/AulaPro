@@ -52,8 +52,23 @@
       const rect = el.getBoundingClientRect();
       const transform = getComputedStyle(el).transform;
       console.log('[gafete_export_v2] elemento encontrado', el);
-      console.log('[gafete_export_v2] rect', rect.width, rect.height, rect);
-      console.log('[gafete_export_v2] transform', transform);
+      console.log('[gafete_export_v2] export rect:', rect.width, rect.height);
+      console.log('[gafete_export_v2] export transform:', transform);
+
+      const bg = el.querySelector('img.gafete-bg');
+      if (bg) {
+        console.log('[gafete_export_v2] bg natural/rendered:', bg.naturalWidth, bg.naturalHeight, bg.getBoundingClientRect());
+      }
+      const photo = el.querySelector('img.gafete-photo');
+      if (photo) {
+        console.log('[gafete_export_v2] photo natural/rendered:', photo.naturalWidth, photo.naturalHeight, photo.getBoundingClientRect());
+      }
+
+      const widthOk = Math.abs(rect.width - CANVAS_WIDTH) < 1;
+      const heightOk = Math.abs(rect.height - CANVAS_HEIGHT) < 1;
+      if (!widthOk || !heightOk) {
+        throw new Error('Export canvas no es 1011x639');
+      }
 
       await waitForImages(el);
 

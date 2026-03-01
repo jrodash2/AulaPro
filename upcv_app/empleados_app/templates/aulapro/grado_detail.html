@@ -8,7 +8,8 @@
   .gafete-modal-body { background: var(--bs-light); padding: .5rem; }
   .gafete-preview-viewport {
     width: 100%;
-    max-height: 85vh;
+    max-height: 80vh;
+    min-height: 300px;
     overflow: hidden;
     display: flex;
     justify-content: center;
@@ -105,7 +106,7 @@
 
 {% for m in matriculas %}
 {% with m.id|stringformat:"s" as mid %}
-{% with preview_dom_id='gafete-preview-'|add:mid %}
+{% with preview_dom_id='gafete-canvas-'|add:mid %}
 <div class="modal fade" id="gafeteModal{{ m.id }}" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">

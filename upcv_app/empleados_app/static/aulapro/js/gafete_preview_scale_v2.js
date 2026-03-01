@@ -6,19 +6,30 @@
   function applyPreviewScaleFor(id) {
     const viewport = document.getElementById(`vp-${id}`);
     const wrap = document.getElementById(`wrap-${id}`);
-    const canvas = wrap ? wrap.querySelector('.gafete-canvas-real') : null;
+    const canvas = document.getElementById(`gafete-canvas-${id}`) || (wrap ? wrap.querySelector('.gafete-canvas-real') : null);
     if (!viewport || !wrap || !canvas) return;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
 
     const availWidth = Math.max(1, viewport.clientWidth - SAFETY_MARGIN);
     const availHeight = Math.max(1, viewport.clientHeight - SAFETY_MARGIN);
-    const scale = Math.min(1, availWidth / CANVAS_WIDTH, availHeight / CANVAS_HEIGHT);
+    let scale = Math.min(1, availWidth / CANVAS_WIDTH, availHeight / CANVAS_HEIGHT);
+
+    if (!Number.isFinite(scale) || scale < 0.1) {
+      console.error('[gafete_preview] scale inválido, se fuerza a 1', { id, scale, availWidth, availHeight });
+      scale = 1;
+    }
 
     wrap.style.transform = `scale(${scale})`;
     wrap.style.width = `${CANVAS_WIDTH * scale}px`;
     wrap.style.height = `${CANVAS_HEIGHT * scale}px`;
 
-    console.log('[gafete_preview] scale', id, scale, 'avail', availWidth, availHeight);
-    console.log('[gafete_preview] base canvas size', CANVAS_WIDTH, CANVAS_HEIGHT);
+    console.log('preview canvas:', canvas);
+    console.log('rect:', canvasRect);
+    console.log('wrap transform:', getComputedStyle(wrap).transform);
+    console.log('viewport rect:', viewportRect);
+    console.log('[gafete_preview] scale aplicado', id, scale);
   }
 
   function bindPreviewScale() {
@@ -31,7 +42,10 @@
     document.querySelectorAll('.modal[id^="gafeteModal"]').forEach((modal) => {
       modal.addEventListener('shown.bs.modal', () => {
         const id = (modal.id || '').replace('gafeteModal', '');
-        requestAnimationFrame(() => applyPreviewScaleFor(id));
+        requestAnimationFrame(() => {
+          applyPreviewScaleFor(id);
+          setTimeout(() => applyPreviewScaleFor(id), 0);
+        });
       });
     });
   }
