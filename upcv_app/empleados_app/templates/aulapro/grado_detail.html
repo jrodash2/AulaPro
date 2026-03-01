@@ -70,10 +70,8 @@
                 <div class="btn-group" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
                   <button class="btn btn-outline-primary btn-sm gafete-export-btn" type="button"
-                    data-target="gafete-export-canvas-{{ mid }}"
-                    data-apellidos="{{ m.alumno.apellidos|default:'NA' }}"
-                    data-nombres="{{ m.alumno.nombres|default:'NA' }}"
-                    data-codigo="{{ m.alumno.codigo_personal|default:'NA' }}">
+                    data-export-id="{{ mid }}"
+                    data-filename="GAFETE_{{ m.alumno.apellidos|slugify }}_{{ m.alumno.nombres|slugify }}_{{ m.alumno.codigo_personal|default:'NA'|slugify }}.jpg">
                     <i class="fa fa-download me-1"></i>Descargar JPG
                   </button>
                 </div>
@@ -111,9 +109,9 @@
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body gafete-modal-body">
-        <div class="gafete-modal-viewport mx-auto text-center">
+        <div class="gafete-modal-viewport mx-auto text-center" id="previewViewport-{{ mid }}">
           <div class="gafete-modal-canvas-wrap">
-            <div class="gafete-scale-wrapper">
+            <div class="gafete-scale-wrapper" id="previewScaleWrap-{{ mid }}">
               {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=preview_dom_id %}
             </div>
           </div>
@@ -129,10 +127,10 @@
 {% endwith %}
 {% endfor %}
 
-<div id="gafete-export-root" class="gafete-export-hidden" aria-hidden="true">
+<div id="gafete-export-root" class="gafete-export-hidden" style="position:fixed; left:-99999px; top:0;" aria-hidden="true">
   {% for m in matriculas %}
   {% with m.id|stringformat:"s" as mid %}
-    {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id='gafete-export-canvas-'|add:mid %}
+    {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id='gafete-export-canvas-'|add:mid export_mode=True is_editor=False %}
   {% endwith %}
   {% endfor %}
 </div>
