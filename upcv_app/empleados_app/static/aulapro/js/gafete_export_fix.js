@@ -53,7 +53,14 @@
     }
     const ph = root.querySelector('img.gafete-photo');
     if (ph) {
+      const phStyle = getComputedStyle(ph);
       console.log('photo natural:', ph.naturalWidth, ph.naturalHeight, 'rendered:', ph.getBoundingClientRect());
+      console.log('photo objectFit:', phStyle.objectFit, 'photo size:', phStyle.width, phStyle.height);
+    }
+    const phBg = root.querySelector('.gafete-photo-bg');
+    if (phBg) {
+      const phBgStyle = getComputedStyle(phBg);
+      console.log('photo-bg size:', phBgStyle.width, phBgStyle.height, 'bgSize:', phBgStyle.backgroundSize, 'bgPosition:', phBgStyle.backgroundPosition);
     }
   }
 
