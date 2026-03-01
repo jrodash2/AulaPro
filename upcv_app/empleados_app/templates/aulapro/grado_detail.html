@@ -60,6 +60,7 @@
           <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th>Acciones</th><th></th></tr></thead>
           <tbody>
             {% for m in matriculas %}
+            {% with export_dom_id='gafete-export-'|add:m.id %}
             <tr>
               <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
               <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
@@ -81,6 +82,7 @@
                 </form>
               </td>
             </tr>
+            {% endwith %}
             {% empty %}
             <tr><td colspan="7">Sin matrículas para los filtros seleccionados.</td></tr>
             {% endfor %}
@@ -163,5 +165,6 @@ window.matriculaModalConfig = {
   tieneCicloActivo: {{ ciclo_activo|yesno:'true,false' }}
 };
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 {% endblock %}
