@@ -5,9 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 {% include 'empleados/partials_gafete_estilos.html' %}
 <style>
-  .gafete-modal-body {
-    background: var(--bs-light);
-  }
+  .gafete-modal-body { background: var(--bs-light); }
   .gafete-modal-viewport {
     max-width: 100%;
     max-height: min(72vh, 760px);
@@ -17,11 +15,24 @@
     border-radius: 12px;
     background: #fff;
   }
+  .gafete-scale-wrapper {
+    display: inline-block;
+    transform-origin: top center;
+  }
   .gafete-modal-canvas-wrap {
     display: flex;
     justify-content: center;
     align-items: flex-start;
     min-width: fit-content;
+  }
+  .gafete-export-hidden {
+    position: fixed;
+    left: -99999px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    pointer-events: none;
   }
 </style>
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
@@ -49,6 +60,7 @@
           <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th>Acciones</th><th></th></tr></thead>
           <tbody>
             {% for m in matriculas %}
+            {% with export_dom_id='gafete-export-'|add:m.id %}
             <tr>
               <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
               <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
@@ -58,7 +70,15 @@
               <td>
                 <div class="btn-group" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:gafete_jpg' m.id %}"><i class="fa fa-download me-1"></i>Descargar JPG</a>
+                  <button class="btn btn-outline-primary btn-sm gafete-export-btn" type="button"
+                    data-target="{{ export_dom_id }}"
+                    data-width="{{ canvas_width }}"
+                    data-height="{{ canvas_height }}"
+                    data-apellidos="{{ m.alumno.apellidos|default:'NA' }}"
+                    data-nombres="{{ m.alumno.nombres|default:'NA' }}"
+                    data-codigo="{{ m.alumno.codigo_personal|default:'NA' }}">
+                    <i class="fa fa-download me-1"></i>Descargar JPG
+                  </button>
                 </div>
               </td>
               <td>
@@ -68,6 +88,7 @@
                 </form>
               </td>
             </tr>
+            {% endwith %}
             {% empty %}
             <tr><td colspan="7">Sin matrículas para los filtros seleccionados.</td></tr>
             {% endfor %}
@@ -92,9 +113,11 @@
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body gafete-modal-body">
-        <div class="gafete-modal-viewport mx-auto">
+        <div class="gafete-modal-viewport mx-auto text-center">
           <div class="gafete-modal-canvas-wrap">
-            {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=preview_dom_id %}
+            <div class="gafete-scale-wrapper">
+              {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=preview_dom_id %}
+            </div>
           </div>
         </div>
       </div>
@@ -106,6 +129,14 @@
 </div>
 {% endwith %}
 {% endfor %}
+
+<div class="gafete-export-hidden" aria-hidden="true">
+  {% for m in matriculas %}
+  {% with export_dom_id='gafete-export-'|add:m.id %}
+    {% include 'aulapro/partials/_gafete_render.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=export_dom_id %}
+  {% endwith %}
+  {% endfor %}
+</div>
 
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -147,5 +178,6 @@ window.matriculaModalConfig = {
   tieneCicloActivo: {{ ciclo_activo|yesno:'true,false' }}
 };
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 {% endblock %}
