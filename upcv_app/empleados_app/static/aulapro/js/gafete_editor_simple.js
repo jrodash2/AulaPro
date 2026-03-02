@@ -2,12 +2,15 @@
   const cfg = window.gafeteEditorSimple;
   if (!cfg) return;
 
-  const canvas = document.getElementById('editor-canvas');
+  const canvas = document.getElementById('editor-gafete-canvas');
   const scaleWrapper = document.getElementById('gafete-scale-wrapper');
   if (!canvas) return;
 
   const layout = JSON.parse(document.getElementById('layout-data').textContent || '{}');
   const defaultLayout = JSON.parse(document.getElementById('default-layout-data').textContent || '{}');
+  const layoutJsonInput = document.getElementById('layout-json-hidden');
+
+  console.log('Editor canvas found:', canvas);
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
@@ -28,11 +31,19 @@
   const photoH = document.getElementById('photo-h');
   const photoRadius = document.getElementById('photo-radius');
 
-  const items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
+  let items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
+  console.log('Draggables:', canvas.querySelectorAll('.draggable[data-key]').length);
+
   let activeEl = null;
   let dragState = null;
 
   if (!Array.isArray(layout.enabled_fields)) layout.enabled_fields = Object.keys(layout.items || {});
+
+  function syncLayoutJsonField() {
+    if (!layoutJsonInput) return;
+    layoutJsonInput.value = JSON.stringify({ layout });
+    console.log('layout_json updated length:', layoutJsonInput.value.length);
+  }
 
   function syncCanvasSizeFromLayout() {
     const width = parseInt(layout.canvas?.width || canvas.dataset.w || 1011, 10);
@@ -41,8 +52,6 @@
     layout.canvas = { width, height, orientation };
     canvas.dataset.w = String(width);
     canvas.dataset.h = String(height);
-    canvas.dataset.canvasWidth = String(width);
-    canvas.dataset.canvasHeight = String(height);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
   }
@@ -58,12 +67,6 @@
     scaleWrapper.style.width = `${layout.canvas.width}px`;
     scaleWrapper.style.height = `${layout.canvas.height}px`;
     viewport.style.minHeight = `${Math.round(layout.canvas.height * scale)}px`;
-  }
-
-  function getScale() {
-    const displayed = canvas.getBoundingClientRect().width || 1;
-    const real = parseFloat(layout.canvas?.width || 1011);
-    return displayed / real;
   }
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -105,8 +108,9 @@
           layout.enabled_fields = layout.enabled_fields.filter((f) => f !== key);
           layout.items[key].visible = false;
         }
-        const el = items.find((i) => i.dataset.key === key);
+        const el = canvas.querySelector(`.gafete-item[data-key="${key}"]`);
         if (el) applyStyle(el, layout.items[key], key);
+        syncLayoutJsonField();
       });
       checklist.appendChild(wrap);
     });
@@ -160,6 +164,7 @@
     cfgItem.font_size = parseInt(sizeInput.value || '24', 10);
     cfgItem.font_weight = weightInput.value;
     applyStyle(activeEl, cfgItem, key);
+    syncLayoutJsonField();
   }
 
   function applyPhotoProps() {
@@ -174,9 +179,11 @@
     cfgItem.h = parseInt(photoH.value || '350', 10);
     cfgItem.radius = parseInt(photoRadius.value || '20', 10);
     applyStyle(activeEl, cfgItem, 'photo');
+    syncLayoutJsonField();
   }
 
   function applyAllStyles() {
+    items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
     items.forEach((el) => {
       const key = el.dataset.key;
       const cfgItem = itemCfg(key);
@@ -184,42 +191,98 @@
     });
   }
 
+  function beginDrag(ev, el) {
+    const key = el.dataset.key;
+    if (!key || !isEnabled(key)) return;
+    const cfgItem = itemCfg(key);
+    if (!cfgItem) return;
+
+    setActive(el);
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / (layout.canvas.width || rect.width || 1);
+    const scaleY = rect.height / (layout.canvas.height || rect.height || 1);
+
+    const left = parseFloat(cfgItem.x || 0);
+    const top = parseFloat(cfgItem.y || 0);
+    const pointerX = (ev.clientX - rect.left) / scaleX;
+    const pointerY = (ev.clientY - rect.top) / scaleY;
+
+    dragState = {
+      key,
+      el,
+      startX: pointerX,
+      startY: pointerY,
+      origLeft: left,
+      origTop: top,
+      moved: false,
+      pointerId: ev.pointerId,
+      scaleX,
+      scaleY,
+    };
+
+    el.setPointerCapture(ev.pointerId);
+    el.classList.add('dragging');
+    console.log('drag start', key);
+    ev.preventDefault();
+  }
+
+  function onDragMove(ev) {
+    if (!dragState) return;
+    const cfgItem = itemCfg(dragState.key);
+    if (!cfgItem) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const curX = (ev.clientX - rect.left) / dragState.scaleX;
+    const curY = (ev.clientY - rect.top) / dragState.scaleY;
+    const dx = curX - dragState.startX;
+    const dy = curY - dragState.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragState.moved = true;
+
+    const itemW = dragState.key === 'photo' ? (cfgItem.w || dragState.el.offsetWidth) : dragState.el.offsetWidth;
+    const itemH = dragState.key === 'photo' ? (cfgItem.h || dragState.el.offsetHeight) : dragState.el.offsetHeight;
+
+    const newLeft = clamp(Math.round(dragState.origLeft + dx), 0, Math.max(0, layout.canvas.width - itemW));
+    const newTop = clamp(Math.round(dragState.origTop + dy), 0, Math.max(0, layout.canvas.height - itemH));
+
+    cfgItem.x = newLeft;
+    cfgItem.y = newTop;
+    applyStyle(dragState.el, cfgItem, dragState.key);
+    hint.textContent = `x: ${newLeft}, y: ${newTop}`;
+  }
+
+  function endDrag() {
+    if (!dragState) return;
+    const cfgItem = itemCfg(dragState.key);
+    if (cfgItem) {
+      console.log('drag end', dragState.key, cfgItem.x, cfgItem.y);
+      syncLayoutJsonField();
+    }
+    dragState.el.classList.remove('dragging');
+    dragState = null;
+  }
+
   syncCanvasSizeFromLayout();
   renderChecklist();
   applyAllStyles();
   fitScale();
+  syncLayoutJsonField();
   window.addEventListener('resize', fitScale);
 
-  items.forEach((el) => {
-    const key = el.dataset.key;
-    el.addEventListener('click', (ev) => { ev.stopPropagation(); setActive(el); });
-    el.addEventListener('pointerdown', (ev) => {
-      if (!isEnabled(key)) return;
-      setActive(el);
-      const scale = getScale();
-      const cfgItem = itemCfg(key);
-      if (!cfgItem) return;
-      dragState = { key, startX: ev.clientX, startY: ev.clientY, baseX: cfgItem.x || 0, baseY: cfgItem.y || 0, scale };
-      el.setPointerCapture(ev.pointerId);
-      ev.preventDefault();
-    });
-    el.addEventListener('pointermove', (ev) => {
-      if (!dragState || dragState.key !== key) return;
-      const cfgItem = itemCfg(key);
-      if (!cfgItem) return;
-      const dx = (ev.clientX - dragState.startX) / dragState.scale;
-      const dy = (ev.clientY - dragState.startY) / dragState.scale;
-      const itemW = key === 'photo' ? (cfgItem.w || el.offsetWidth) : el.offsetWidth;
-      const itemH = key === 'photo' ? (cfgItem.h || el.offsetHeight) : el.offsetHeight;
-      cfgItem.x = clamp(Math.round(dragState.baseX + dx), 0, Math.max(0, layout.canvas.width - itemW));
-      cfgItem.y = clamp(Math.round(dragState.baseY + dy), 0, Math.max(0, layout.canvas.height - itemH));
-      applyStyle(el, cfgItem, key);
-      hint.textContent = `x: ${cfgItem.x}, y: ${cfgItem.y}`;
-    });
-    el.addEventListener('pointerup', () => { dragState = null; });
+  canvas.addEventListener('pointerdown', (ev) => {
+    const target = ev.target.closest('.draggable[data-key]');
+    if (!target || !canvas.contains(target)) return;
+    beginDrag(ev, target);
+  });
+  canvas.addEventListener('pointermove', onDragMove);
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('click', (ev) => {
+    const target = ev.target.closest('.gafete-item[data-key]');
+    if (target) setActive(target);
+    else setActive(null);
   });
 
-  canvas.addEventListener('click', () => setActive(null));
   document.getElementById('refresh-size').addEventListener('click', fitScale);
   colorInput.addEventListener('input', () => { colorText.value = colorInput.value; applyTextProps(); });
   colorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
@@ -231,6 +294,7 @@
   });
 
   document.getElementById('save-layout').addEventListener('click', async () => {
+    syncLayoutJsonField();
     const res = await fetch(cfg.saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrf, 'X-Requested-With': 'XMLHttpRequest' },
@@ -248,6 +312,7 @@
     syncCanvasSizeFromLayout();
     fitScale();
     setActive(null);
+    syncLayoutJsonField();
     hint.textContent = 'Restablecido a valores por defecto';
   });
 })();
