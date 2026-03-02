@@ -1,6 +1,9 @@
-import base64
 import json
 import re
+import unicodedata
+from io import BytesIO
+
+from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
@@ -436,42 +439,188 @@ def guardar_diseno_gafete(request, establecimiento_id):
     return redirect("empleados:editor_gafete", establecimiento_id=establecimiento.id)
 
 
+
+def _safe_text(value, fallback="-"):
+    text = str(value or "").strip()
+    return text if text else fallback
+
+
+def _sanitize_filename_token(value):
+    text = unicodedata.normalize("NFKD", _safe_text(value, fallback=""))
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
+    return text or "NA"
+
+
+def _build_gafete_filename(alumno):
+    apellidos = _sanitize_filename_token(getattr(alumno, "apellidos", ""))
+    nombres = _sanitize_filename_token(getattr(alumno, "nombres", ""))
+    codigo = _sanitize_filename_token(getattr(alumno, "codigo_personal", ""))
+    return f"GAFETE_{apellidos}_{nombres}_{codigo}.jpg"
+
+
+def _parse_color(value, default="#111111"):
+    try:
+        return ImageColor.getrgb(str(value or default))
+    except ValueError:
+        return ImageColor.getrgb(default)
+
+
+def _load_font(font_size=24, bold=False):
+    font_candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    ]
+    for font_path in font_candidates:
+        try:
+            return ImageFont.truetype(font_path, max(10, int(font_size or 24)))
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _field_text_for_key(key, matricula, establecimiento):
+    alumno = matricula.alumno
+    grado = matricula.grado
+    mapping = {
+        "nombres": _safe_text(getattr(alumno, "nombres", ""), "Nombre"),
+        "apellidos": _safe_text(getattr(alumno, "apellidos", ""), "Apellidos"),
+        "codigo_alumno": _safe_text(getattr(alumno, "codigo_personal", ""), "-"),
+        "grado": _safe_text(getattr(grado, "nombre", ""), "Grado"),
+        "grado_descripcion": _safe_text(getattr(grado, "descripcion", ""), ""),
+        "sitio_web": _safe_text(getattr(establecimiento, "sitio_web", ""), ""),
+        "telefono": _safe_text(getattr(alumno, "tel", ""), "-"),
+        "cui": _safe_text(getattr(alumno, "cui", ""), "—"),
+        "establecimiento": _safe_text(getattr(establecimiento, "nombre", ""), ""),
+    }
+    return mapping.get(key, "")
+
+
+def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, canvas_height):
+    canvas = Image.new("RGB", (canvas_width, canvas_height), "white")
+
+    if establecimiento and establecimiento.background_gafete:
+        try:
+            with establecimiento.background_gafete.open("rb") as bg_file:
+                background = Image.open(bg_file).convert("RGB")
+                background = ImageOps.fit(background, (canvas_width, canvas_height), method=Image.Resampling.LANCZOS)
+                canvas.paste(background, (0, 0))
+        except Exception:
+            pass
+
+    items = layout.get("items", {}) if isinstance(layout, dict) else {}
+    enabled_fields = set(layout.get("enabled_fields", [])) if isinstance(layout, dict) else set()
+
+    photo_cfg = items.get("photo", {}) if isinstance(items.get("photo", {}), dict) else {}
+    if "photo" in enabled_fields and photo_cfg.get("visible", True) and getattr(matricula.alumno, "imagen", None):
+        x = int(photo_cfg.get("x", 20))
+        y = int(photo_cfg.get("y", 40))
+        w = max(20, int(photo_cfg.get("w", 250)))
+        h = max(20, int(photo_cfg.get("h", 350)))
+        border_width = max(0, int(photo_cfg.get("border_width", 4))) if photo_cfg.get("border", True) else 0
+        border_color = _parse_color(photo_cfg.get("border_color", "#ffffff"), default="#ffffff")
+        shape = str(photo_cfg.get("shape") or "rounded").lower()
+        radius = max(0, int(photo_cfg.get("radius", 20)))
+
+        try:
+            with matricula.alumno.imagen.open("rb") as photo_file:
+                photo = Image.open(photo_file).convert("RGB")
+                photo = ImageOps.fit(photo, (w, h), method=Image.Resampling.LANCZOS)
+                alpha_mask = Image.new("L", (w, h), 0)
+                alpha_draw = ImageDraw.Draw(alpha_mask)
+                if shape == "circle":
+                    alpha_draw.ellipse((0, 0, w, h), fill=255)
+                else:
+                    alpha_draw.rounded_rectangle((0, 0, w, h), radius=radius, fill=255)
+
+                if border_width > 0:
+                    border_img = Image.new("RGBA", (w + border_width * 2, h + border_width * 2), (0, 0, 0, 0))
+                    border_mask = Image.new("L", border_img.size, 0)
+                    border_draw = ImageDraw.Draw(border_mask)
+                    if shape == "circle":
+                        border_draw.ellipse((0, 0, border_img.size[0], border_img.size[1]), fill=255)
+                    else:
+                        border_draw.rounded_rectangle(
+                            (0, 0, border_img.size[0], border_img.size[1]),
+                            radius=radius + border_width,
+                            fill=255,
+                        )
+                    border_fill = Image.new("RGBA", border_img.size, (*border_color, 255))
+                    border_img.paste(border_fill, (0, 0), border_mask)
+                    canvas.paste(border_img, (x - border_width, y - border_width), border_img)
+
+                photo_rgba = photo.convert("RGBA")
+                photo_rgba.putalpha(alpha_mask)
+                canvas.paste(photo_rgba, (x, y), photo_rgba)
+        except Exception:
+            pass
+
+    draw = ImageDraw.Draw(canvas)
+    for key, cfg in items.items():
+        if key == "photo" or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
+            continue
+        text = _field_text_for_key(key, matricula, establecimiento)
+        if not text:
+            continue
+        x = int(cfg.get("x", 0))
+        y = int(cfg.get("y", 0))
+        font_size = int(cfg.get("font_size", 24))
+        weight = str(cfg.get("font_weight", "400"))
+        color = _parse_color(cfg.get("color", "#111111"), default="#111111")
+        align = str(cfg.get("align", "left")).lower()
+        font = _load_font(font_size=font_size, bold=(weight == "700"))
+
+        text_bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = text_bbox[2] - text_bbox[0]
+        tx = x
+        if align == "center":
+            tx = x - text_w // 2
+        elif align == "right":
+            tx = x - text_w
+
+        draw.text((tx, y), text, fill=color, font=font)
+
+    config = ConfiguracionGeneral.objects.first()
+    if config and config.logotipo:
+        try:
+            with config.logotipo.open("rb") as logo_file:
+                logo = Image.open(logo_file).convert("RGBA")
+                logo.thumbnail((170, 170), Image.Resampling.LANCZOS)
+                canvas.paste(logo, (12, 40), logo)
+        except Exception:
+            pass
+
+    buffer = BytesIO()
+    canvas.save(buffer, format="JPEG", quality=95, optimize=True)
+    return buffer.getvalue()
+
+
 @login_required
-def descargar_gafete_jpg(request, matricula_id):
-    matricula = get_object_or_404(Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento"), pk=matricula_id)
+def gafete_jpg(request, matricula_id):
+    matricula = get_object_or_404(
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento"),
+        pk=matricula_id,
+    )
     establecimiento = matricula.grado.carrera.establecimiento if matricula.grado and matricula.grado.carrera else None
     if not establecimiento:
-        return HttpResponse(status=404)
+        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
 
-    if request.method == "POST":
-        image_data = request.POST.get("image_data", "")
-        if not image_data.startswith("data:image/"):
-            return HttpResponse("Imagen inválida", status=400)
-        try:
-            _, encoded = image_data.split(",", 1)
-            image_bytes = base64.b64decode(encoded)
-        except (ValueError, TypeError):
-            return HttpResponse("Imagen inválida", status=400)
+    layout = establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT
+    orientation = str(layout.get("canvas", {}).get("orientation") or _orientation_for_establecimiento(establecimiento)).upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = _canvas_for_orientation(orientation)
+    image_bytes = _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, canvas_height)
 
-        filename = f"gafete_{matricula_id}.jpg"
-        response = HttpResponse(image_bytes, content_type="image/jpeg")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+    filename = _build_gafete_filename(matricula.alumno)
+    response = HttpResponse(image_bytes, content_type="image/jpeg")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
-    layout = establecimiento.get_layout()
-    canvas_width, canvas_height = _canvas_dimensions(establecimiento, orientation=layout.get("canvas", {}).get("orientation", "H"))
-    layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": layout.get("canvas", {}).get("orientation", "H")}
-    configuracion = ConfiguracionGeneral.objects.first()
-    return render(request, "aulapro/gafete_download.html", {
-        "matricula": matricula,
-        "alumno": matricula.alumno,
-        "grado": matricula.grado,
-        "establecimiento": establecimiento,
-        "layout": layout,
-        "canvas_width": canvas_width,
-        "canvas_height": canvas_height,
-        "configuracion": configuracion,
-    })
+
+@login_required
+def descargar_gafete_jpg(request, matricula_id):
+    return gafete_jpg(request, matricula_id)
 
 
 @login_required
