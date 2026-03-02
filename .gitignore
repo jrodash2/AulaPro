@@ -11,6 +11,14 @@ env/
 .env
 *.env
 
+# Django local artifacts
+*.sqlite3
+media/
+staticfiles/
+
+# Logs and runtime files
+*.log
+
 # macOS and editor artifacts
 .DS_Store
 .vscode/

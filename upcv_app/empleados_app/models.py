@@ -117,16 +117,16 @@ class CicloEscolar(models.Model):
 
 
 class Carrera(models.Model):
-    establecimiento = models.ForeignKey(Establecimiento, on_delete=models.CASCADE, related_name="carreras")
+    ciclo_escolar = models.ForeignKey(CicloEscolar, on_delete=models.CASCADE, related_name="carreras")
     nombre = models.CharField(max_length=120)
     activo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ["establecimiento__nombre", "nombre"]
-        unique_together = ("establecimiento", "nombre")
+        ordering = ["ciclo_escolar__establecimiento__nombre", "ciclo_escolar__anio", "nombre"]
+        unique_together = ("ciclo_escolar", "nombre")
 
     def __str__(self):
-        return f"{self.nombre} - {self.establecimiento.nombre}"
+        return f"{self.nombre} - {self.ciclo_escolar.nombre}"
 
 
 class Grado(models.Model):
@@ -198,7 +198,7 @@ class Matricula(models.Model):
             return
         grado_establecimiento_id = None
         if self.grado and self.grado.carrera:
-            grado_establecimiento_id = self.grado.carrera.establecimiento_id
+            grado_establecimiento_id = self.grado.carrera.ciclo_escolar.establecimiento_id
         if grado_establecimiento_id and self.ciclo_escolar.establecimiento_id != grado_establecimiento_id:
             raise ValidationError("El ciclo escolar no pertenece al establecimiento del grado.")
 
