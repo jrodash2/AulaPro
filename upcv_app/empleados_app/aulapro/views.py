@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import CarreraForm, CicloEscolarForm, GradoForm
+from empleados_app.gafete_utils import resolve_gafete_dimensions
 from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatriculaFiltroForm
@@ -274,7 +275,7 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
-    orientation, canvas_width, canvas_height = _resolve_gafete_dimensions(establecimiento, layout)
+    orientation, canvas_width, canvas_height = resolve_gafete_dimensions(establecimiento, layout)
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
