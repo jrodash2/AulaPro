@@ -240,6 +240,9 @@ def empleado_detalle(request, id):
             "grado_gafete": grado_gafete,
             "canvas_width": canvas_width,
             "canvas_height": canvas_height,
+            "gafete_w": canvas_width,
+            "gafete_h": canvas_height,
+            "orientacion": orientation,
         },
     )
 
@@ -410,6 +413,9 @@ def editor_gafete(request, establecimiento_id):
             "is_editor": True,
             "canvas_width": canvas_width,
             "canvas_height": canvas_height,
+            "gafete_w": canvas_width,
+            "gafete_h": canvas_height,
+            "orientacion": orientation,
         },
     )
 

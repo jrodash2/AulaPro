@@ -39,13 +39,13 @@
   }
 
   .gafete-export-hidden .gafete-canvas-real {
-    width: 1011px !important;
-    height: 639px !important;
+    width: {{ gafete_w }}px !important;
+    height: {{ gafete_h }}px !important;
     transform: none !important;
   }
   .gafete-export-canvas {
-    width: 1011px;
-    height: 639px;
+    width: {{ gafete_w }}px;
+    height: {{ gafete_h }}px;
     position: relative;
     overflow: hidden;
     transform: none !important;
@@ -132,7 +132,7 @@
         <div class="gafete-preview-viewport mx-auto text-center" id="vp-{{ mid }}">
           <div class="gafete-modal-canvas-wrap">
             <div class="gafete-preview-scale" id="wrap-{{ mid }}">
-              {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id=preview_dom_id %}
+              {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id=preview_dom_id %}
             </div>
           </div>
         </div>
@@ -150,8 +150,8 @@
 <div id="gafete-export-root" class="gafete-export-hidden" style="position:fixed; left:-99999px; top:0; opacity:1;" aria-hidden="true">
   {% for m in matriculas %}
   {% with m.id|stringformat:"s" as mid %}
-    <div id="gafete-export-{{ mid }}" class="gafete-export-canvas" style="width:1011px;height:639px;position:relative;overflow:hidden;">
-      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height preview_id='gafete-export-canvas-'|add:mid export_mode=True is_editor=False %}
+    <div id="gafete-export-{{ mid }}" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid export_mode=True is_editor=False %}
     </div>
   {% endwith %}
   {% endfor %}

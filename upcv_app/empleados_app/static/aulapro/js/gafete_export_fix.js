@@ -1,6 +1,4 @@
 (function () {
-  const W = 1011;
-  const H = 639;
 
   function sanitizeFilename(name) {
     const base = (name || 'GAFETE_NA_NA_NA.jpg').replace(/\.jpg$/i, '');
@@ -31,15 +29,21 @@
     await Promise.all(Array.from(root.querySelectorAll('img')).map(waitForImage));
   }
 
-  function validateRectAndTransform(el, label) {
+  function resolveDimensions(el) {
+    const w = parseInt(el?.dataset?.w || el?.dataset?.canvasWidth || 1011, 10);
+    const h = parseInt(el?.dataset?.h || el?.dataset?.canvasHeight || 639, 10);
+    return { w, h };
+  }
+
+  function validateRectAndTransform(el, label, w, h) {
     const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     console.log(`${label} selector/id:`, el.id || el.className, el);
     console.log(`${label} rect:`, rect.width, rect.height, rect);
     console.log(`${label} transform:`, cs.transform);
     console.log(`${label} zoom:`, cs.zoom || 'normal');
-    if (Math.abs(rect.width - W) > 1 || Math.abs(rect.height - H) > 1) {
-      throw new Error('Export canvas NO está en 1011x639');
+    if (Math.abs(rect.width - w) > 1 || Math.abs(rect.height - h) > 1) {
+      throw new Error(`Export canvas NO está en ${w}x${h}`);
     }
     if (cs.transform && cs.transform !== 'none') {
       throw new Error('Export canvas tiene transform, no se permite');
@@ -64,17 +68,21 @@
     }
   }
 
-  function buildCloneWrapper(originalCanvas) {
+  function buildCloneWrapper(originalCanvas, w, h) {
     const clone = originalCanvas.cloneNode(true);
     clone.style.transform = 'none';
     clone.style.zoom = '1';
-    clone.style.width = `${W}px`;
-    clone.style.height = `${H}px`;
+    clone.style.width = `${w}px`;
+    clone.style.height = `${h}px`;
+    clone.dataset.w = String(w);
+    clone.dataset.h = String(h);
 
     const wrapper = document.createElement('div');
     wrapper.id = `export-wrapper-${Date.now()}`;
-    wrapper.style.width = `${W}px`;
-    wrapper.style.height = `${H}px`;
+    wrapper.style.width = `${w}px`;
+    wrapper.style.height = `${h}px`;
+    wrapper.dataset.w = String(w);
+    wrapper.dataset.h = String(h);
     wrapper.style.position = 'relative';
     wrapper.style.overflow = 'hidden';
     wrapper.style.background = '#fff';
@@ -85,11 +93,11 @@
     return { wrapper, clone };
   }
 
-  async function exportWithHtml2Canvas(wrapper, filename) {
+  async function exportWithHtml2Canvas(wrapper, filename, w, h) {
     const canvas = await html2canvas(wrapper, {
       scale: 1,
-      width: W,
-      height: H,
+      width: w,
+      height: h,
       useCORS: true,
       backgroundColor: '#ffffff',
       allowTaint: false,
@@ -102,9 +110,9 @@
     a.click();
   }
 
-  async function exportWithSvgForeignObject(wrapper, filename) {
-    const foreign = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${W}px;height:${H}px;position:relative;overflow:hidden;background:#fff;">${wrapper.innerHTML}</div>`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${foreign}</foreignObject></svg>`;
+  async function exportWithSvgForeignObject(wrapper, filename, w, h) {
+    const foreign = `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;position:relative;overflow:hidden;background:#fff;">${wrapper.innerHTML}</div>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${foreign}</foreignObject></svg>`;
     const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
 
@@ -113,11 +121,11 @@
       img.onload = () => {
         try {
           const c = document.createElement('canvas');
-          c.width = W;
-          c.height = H;
+          c.width = w;
+          c.height = h;
           const ctx = c.getContext('2d');
           ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, W, H);
+          ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0);
           const a = document.createElement('a');
           a.href = c.toDataURL('image/jpeg', 0.95);
@@ -155,19 +163,21 @@
       if (!originalCanvas) throw new Error(`No se encontró origen de export: ${id}`);
 
       const sandbox = getSandbox();
-      const { wrapper, clone } = buildCloneWrapper(originalCanvas);
+      const { w, h } = resolveDimensions(originalCanvas);
+      const { wrapper, clone } = buildCloneWrapper(originalCanvas, w, h);
       sandbox.innerHTML = '';
       sandbox.appendChild(wrapper);
 
-      validateRectAndTransform(wrapper, 'EXPORT');
+      validateRectAndTransform(wrapper, 'EXPORT', w, h);
+      console.log('[gafete_export] dims', { w, h });
       logImageMetrics(clone);
       await waitImages(clone);
 
       try {
-        await exportWithHtml2Canvas(wrapper, btn.dataset.filename);
+        await exportWithHtml2Canvas(wrapper, btn.dataset.filename, w, h);
       } catch (e) {
         console.error('[gafete_export_fix] html2canvas falló, usando fallback SVG', e);
-        await exportWithSvgForeignObject(wrapper, btn.dataset.filename);
+        await exportWithSvgForeignObject(wrapper, btn.dataset.filename, w, h);
       }
     } catch (error) {
       console.error('[gafete_export_fix] error:', error);

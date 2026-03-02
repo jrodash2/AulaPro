@@ -1,6 +1,4 @@
 (function () {
-  const CANVAS_WIDTH = 1011;
-  const CANVAS_HEIGHT = 639;
   const SAFETY_MARGIN = 24;
 
   function applyPreviewScaleFor(id) {
@@ -14,7 +12,9 @@
 
     const availWidth = Math.max(1, viewport.clientWidth - SAFETY_MARGIN);
     const availHeight = Math.max(1, viewport.clientHeight - SAFETY_MARGIN);
-    let scale = Math.min(1, availWidth / CANVAS_WIDTH, availHeight / CANVAS_HEIGHT);
+    const canvasW = parseInt(canvas.dataset.w || canvas.dataset.canvasWidth || Math.round(canvas.offsetWidth) || 1011, 10);
+    const canvasH = parseInt(canvas.dataset.h || canvas.dataset.canvasHeight || Math.round(canvas.offsetHeight) || 639, 10);
+    let scale = Math.min(1, availWidth / canvasW, availHeight / canvasH);
 
     if (!Number.isFinite(scale) || scale < 0.1) {
       console.error('[gafete_preview] scale inválido, se fuerza a 1', { id, scale, availWidth, availHeight });
@@ -22,14 +22,14 @@
     }
 
     wrap.style.transform = `scale(${scale})`;
-    wrap.style.width = `${CANVAS_WIDTH * scale}px`;
-    wrap.style.height = `${CANVAS_HEIGHT * scale}px`;
+    wrap.style.width = `${canvasW * scale}px`;
+    wrap.style.height = `${canvasH * scale}px`;
 
     console.log('preview canvas:', canvas);
     console.log('rect:', canvasRect);
     console.log('wrap transform:', getComputedStyle(wrap).transform);
     console.log('viewport rect:', viewportRect);
-    console.log('[gafete_preview] scale aplicado', id, scale);
+    console.log('[gafete_preview] scale aplicado', { id, scale, w: canvasW, h: canvasH });
   }
 
   function bindPreviewScale() {

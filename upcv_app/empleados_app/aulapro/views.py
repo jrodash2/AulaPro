@@ -13,6 +13,22 @@ from .forms import MatriculaFiltroForm
 ALLOW_MULTI_GRADE_PER_CYCLE = False
 
 
+BASE_GAFETE_W = 1011
+BASE_GAFETE_H = 639
+
+
+def _canvas_for_orientation(orientation):
+    return (BASE_GAFETE_W, BASE_GAFETE_H) if orientation == 'H' else (BASE_GAFETE_H, BASE_GAFETE_W)
+
+
+def _resolve_gafete_dimensions(establecimiento, layout):
+    orientation = str((layout or {}).get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
+    if orientation not in ('H', 'V'):
+        orientation = 'H'
+    gafete_w, gafete_h = _canvas_for_orientation(orientation)
+    return orientation, gafete_w, gafete_h
+
+
 def _can_manage(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
@@ -258,10 +274,7 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
-    orientation = str(layout.get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
-    if orientation not in ('H', 'V'):
-        orientation = 'H'
-    canvas_width, canvas_height = (1011, 639) if orientation == 'H' else (639, 1011)
+    orientation, canvas_width, canvas_height = _resolve_gafete_dimensions(establecimiento, layout)
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
@@ -275,6 +288,9 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'layout': layout,
         'canvas_width': canvas_width,
         'canvas_height': canvas_height,
+        'gafete_w': canvas_width,
+        'gafete_h': canvas_height,
+        'orientacion': orientation,
     })
 
 

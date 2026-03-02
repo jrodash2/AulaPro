@@ -1,5 +1,5 @@
 {% load static %}
-<div class="gafete-canvas-real gafete-canvas" id="{{ preview_id|default:'gafete-canvas' }}" data-canvas-width="1011" data-canvas-height="639" style="position:relative;width:1011px;height:639px;overflow:hidden;background:#fff;">
+<div class="gafete-canvas-real gafete-canvas" id="{{ preview_id|default:'gafete-canvas' }}" data-w="{{ gafete_w|default:canvas_width|default:1011 }}" data-h="{{ gafete_h|default:canvas_height|default:639 }}" data-canvas-width="{{ gafete_w|default:canvas_width|default:1011 }}" data-canvas-height="{{ gafete_h|default:canvas_height|default:639 }}" style="position:relative;width:{{ gafete_w|default:canvas_width|default:1011 }}px;height:{{ gafete_h|default:canvas_height|default:639 }}px;overflow:hidden;background:#fff;">
   <img src="{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}" class="gafete-bg" alt="Fondo gafete" style="position:absolute; inset:0; width:100%; height:100%; object-fit:fill;">
 
   {% with photo=layout_json.items.photo %}
