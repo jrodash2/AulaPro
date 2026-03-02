@@ -72,13 +72,13 @@ class EstablecimientoForm(BaseRihoForm):
 class CarreraForm(BaseRihoForm):
     class Meta:
         model = Carrera
-        fields = ["ciclo_escolar", "nombre", "activo"]
+        fields = ["nombre", "activo"]
 
 
 class GradoForm(BaseRihoForm):
     class Meta:
         model = Grado
-        fields = ["carrera", "nombre", "descripcion", "jornada", "seccion", "activo"]
+        fields = ["nombre", "descripcion", "jornada", "seccion", "activo"]
 
 
 class CicloEscolarForm(BaseRihoForm):

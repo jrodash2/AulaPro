@@ -273,7 +273,10 @@ def crear_carrera(request):
     initial = {"ciclo_escolar": ciclo_id} if ciclo_id else None
     form = CarreraForm(request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
-        carrera = form.save()
+        carrera = form.save(commit=False)
+        if ciclo_id:
+            carrera.ciclo_escolar_id = int(ciclo_id)
+        carrera.save()
         messages.success(request, "Carrera creada.")
         return redirect("empleados:ciclo_detail", est_id=carrera.ciclo_escolar.establecimiento_id, ciclo_id=carrera.ciclo_escolar_id)
     return render(request, "empleados/carrera_form.html", {"form": form, "titulo": "Crear carrera"})
@@ -284,7 +287,9 @@ def editar_carrera(request, pk):
     carrera = get_object_or_404(Carrera, pk=pk)
     form = CarreraForm(request.POST or None, instance=carrera)
     if request.method == "POST" and form.is_valid():
-        carrera = form.save()
+        carrera = form.save(commit=False)
+        carrera.ciclo_escolar = carrera.ciclo_escolar
+        carrera.save()
         messages.success(request, "Carrera actualizada.")
         return redirect("empleados:ciclo_detail", est_id=carrera.ciclo_escolar.establecimiento_id, ciclo_id=carrera.ciclo_escolar_id)
     return render(request, "empleados/carrera_form.html", {"form": form, "titulo": "Editar carrera"})
@@ -300,7 +305,11 @@ def lista_grados(request):
 def crear_grado(request):
     form = GradoForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        grado = form.save(commit=False)
+        carrera_id = request.POST.get("carrera")
+        if carrera_id:
+            grado.carrera_id = int(carrera_id)
+        grado.save()
         messages.success(request, "Grado creado.")
         return redirect("empleados:grado_lista")
     return render(request, "empleados/grado_form.html", {"form": form, "titulo": "Crear grado"})
@@ -311,7 +320,9 @@ def editar_grado(request, pk):
     grado = get_object_or_404(Grado, pk=pk)
     form = GradoForm(request.POST or None, instance=grado)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        grado = form.save(commit=False)
+        grado.carrera = grado.carrera
+        grado.save()
         messages.success(request, "Grado actualizado.")
         return redirect("empleados:grado_lista")
     return render(request, "empleados/grado_form.html", {"form": form, "titulo": "Editar grado"})

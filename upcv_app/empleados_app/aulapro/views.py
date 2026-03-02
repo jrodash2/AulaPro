@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import CarreraForm, CicloEscolarForm, GradoForm
+from empleados_app.forms import CarreraForm, CicloEscolarForm, EstablecimientoForm, GradoForm
 from empleados_app.gafete_utils import resolve_gafete_dimensions
 from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
@@ -42,6 +42,13 @@ def _get_establecimiento(est_id):
 def _get_ciclo(est_id, ciclo_id):
     return get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id, establecimiento_id=est_id)
 
+def _get_carrera(est_id, ciclo_id, car_id):
+    return get_object_or_404(
+        Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'),
+        pk=car_id,
+        ciclo_escolar_id=ciclo_id,
+        ciclo_escolar__establecimiento_id=est_id,
+    )
 
 def _get_carrera(est_id, ciclo_id, car_id):
     return get_object_or_404(
@@ -80,6 +87,23 @@ def establecimiento_detail(request, est_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
+def establecimiento_update(request, est_id):
+    establecimiento = _get_establecimiento(est_id)
+    form = EstablecimientoForm(request.POST or None, request.FILES or None, instance=establecimiento)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Establecimiento actualizado correctamente.')
+        return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
+
+    return render(request, 'aulapro/establecimientos/form.html', {
+        'establecimiento': establecimiento,
+        'form': form,
+        'titulo': 'Editar establecimiento',
+    })
+
+
+@login_required
 def ciclos_list(request, est_id):
     establecimiento = _get_establecimiento(est_id)
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
@@ -105,12 +129,13 @@ def ciclo_create(request, est_id):
             ciclo.save()
 
         messages.success(request, 'Ciclo escolar creado correctamente.')
-        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
-    return render(request, 'aulapro/ciclos_form.html', {
+    return render(request, 'aulapro/ciclos/form.html', {
         'establecimiento': establecimiento,
         'form': form,
         'titulo': 'Nuevo ciclo escolar',
+        'ciclo': None,
         'accion': 'Guardar ciclo',
     })
 
@@ -133,9 +158,9 @@ def ciclo_update(request, est_id, ciclo_id):
             ciclo.save()
 
         messages.success(request, 'Ciclo escolar actualizado correctamente.')
-        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
-    return render(request, 'aulapro/ciclos_form.html', {
+    return render(request, 'aulapro/ciclos/form.html', {
         'establecimiento': establecimiento,
         'form': form,
         'ciclo': ciclo,
@@ -157,7 +182,7 @@ def ciclo_activar(request, est_id, ciclo_id):
             ciclo.save(update_fields=['activo'])
     except IntegrityError:
         messages.error(request, 'No se pudo activar el ciclo por un conflicto de integridad. Intente nuevamente.')
-        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
     messages.success(request, f'El ciclo {ciclo.nombre} ahora está activo.')
     return redirect(request.POST.get('next') or 'empleados:ciclos_list', est_id=establecimiento.id)
@@ -172,11 +197,11 @@ def ciclo_delete(request, est_id, ciclo_id):
 
     if ciclo.matriculas.exists():
         messages.warning(request, 'No se puede eliminar el ciclo porque tiene matrículas asociadas.')
-        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
     if ciclo.activo:
         messages.warning(request, 'No se puede eliminar el ciclo activo. Active otro ciclo primero.')
-        return redirect('empleados:ciclos_list', est_id=establecimiento.id)
+        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
     ciclo.delete()
     messages.success(request, 'Ciclo escolar eliminado correctamente.')
@@ -205,7 +230,6 @@ def ciclo_detail(request, est_id, ciclo_id):
 def carrera_create(request, est_id, ciclo_id):
     ciclo = _get_ciclo(est_id, ciclo_id)
     form = CarreraForm(request.POST or None, initial={'ciclo_escolar': ciclo, 'activo': True})
-    form.fields['ciclo_escolar'].widget = forms.HiddenInput()
     if request.method == 'POST' and form.is_valid():
         carrera = form.save(commit=False)
         carrera.ciclo_escolar = ciclo
@@ -213,9 +237,11 @@ def carrera_create(request, est_id, ciclo_id):
         messages.success(request, 'Carrera creada correctamente.')
         return redirect('empleados:ciclo_detail', est_id=est_id, ciclo_id=ciclo_id)
 
-    return render(request, 'empleados/carrera_form.html', {
+    return render(request, 'aulapro/carreras/form.html', {
+        'establecimiento': ciclo.establecimiento,
+        'ciclo': ciclo,
         'form': form,
-        'titulo': f'Nueva carrera - {ciclo.nombre}',
+        'titulo': 'Nueva carrera',
     })
 
 @login_required
@@ -238,7 +264,6 @@ def grado_create(request, est_id, ciclo_id, car_id):
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
     form = GradoForm(request.POST or None, initial={'carrera': carrera, 'activo': True})
-    form.fields['carrera'].widget = forms.HiddenInput()
     if request.method == 'POST' and form.is_valid():
         grado = form.save(commit=False)
         grado.carrera = carrera
@@ -246,13 +271,71 @@ def grado_create(request, est_id, ciclo_id, car_id):
         messages.success(request, 'Grado creado correctamente.')
         return redirect('empleados:carrera_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id)
 
-    return render(request, 'empleados/grado_form.html', {
+    return render(request, 'aulapro/grados/form.html', {
         'form': form,
         'titulo': f'Nuevo grado - {carrera.nombre}',
         'ciclo': ciclo,
         'carrera': carrera,
     })
 
+
+
+@login_required
+def carreras_list(request, est_id, ciclo_id):
+    return ciclo_detail(request, est_id, ciclo_id)
+
+
+@login_required
+@user_passes_test(_can_manage)
+def carrera_update(request, est_id, ciclo_id, car_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    form = CarreraForm(request.POST or None, instance=carrera)
+    if request.method == 'POST' and form.is_valid():
+        carrera = form.save(commit=False)
+        carrera.ciclo_escolar = ciclo
+        carrera.save()
+        messages.success(request, 'Carrera actualizada correctamente.')
+        return redirect('empleados:carrera_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id)
+
+    return render(request, 'aulapro/carreras/form.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carrera': carrera,
+        'form': form,
+        'titulo': 'Editar carrera',
+    })
+
+
+@login_required
+def grados_list(request, est_id, ciclo_id, car_id):
+    return carrera_detail(request, est_id, ciclo_id, car_id)
+
+
+@login_required
+@user_passes_test(_can_manage)
+def grado_update(request, est_id, ciclo_id, car_id, grado_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    form = GradoForm(request.POST or None, instance=grado)
+    if request.method == 'POST' and form.is_valid():
+        grado = form.save(commit=False)
+        grado.carrera = carrera
+        grado.save()
+        messages.success(request, 'Grado actualizado correctamente.')
+        return redirect('empleados:grado_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id)
+
+    return render(request, 'aulapro/grados/form.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carrera': carrera,
+        'grado': grado,
+        'form': form,
+        'titulo': 'Editar grado',
+    })
 
 
 @login_required
