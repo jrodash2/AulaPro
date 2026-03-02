@@ -25,8 +25,6 @@ urlpatterns = [
 
 
 
-    path("matricula/", views.matricula_view, name="matricula"),
-
     path("matriculas/<int:matricula_id>/gafete.jpg", views.gafete_jpg, name="gafete_jpg"),
     path("matriculas/<int:matricula_id>/gafete_descarga.jpg", views.descargar_gafete_jpg, name="descargar_gafete_jpg"),
 

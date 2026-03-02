@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import IntegrityError, transaction
@@ -39,24 +40,26 @@ def _get_establecimiento(est_id):
 
 
 def _get_ciclo(est_id, ciclo_id):
-    ciclo = get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id)
-    if ciclo.establecimiento_id != est_id:
-        raise CicloEscolar.DoesNotExist
-    return ciclo
+    return get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id, establecimiento_id=est_id)
 
 
 def _get_carrera(est_id, ciclo_id, car_id):
-    carrera = get_object_or_404(Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'), pk=car_id)
-    if carrera.ciclo_escolar_id != ciclo_id or carrera.ciclo_escolar.establecimiento_id != est_id:
-        raise Carrera.DoesNotExist
-    return carrera
+    return get_object_or_404(
+        Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'),
+        pk=car_id,
+        ciclo_escolar_id=ciclo_id,
+        ciclo_escolar__establecimiento_id=est_id,
+    )
 
 
 def _get_grado(est_id, ciclo_id, car_id, grado_id):
-    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__ciclo_escolar', 'carrera__ciclo_escolar__establecimiento'), pk=grado_id)
-    if grado.carrera_id != car_id or not grado.carrera or grado.carrera.ciclo_escolar_id != ciclo_id or grado.carrera.ciclo_escolar.establecimiento_id != est_id:
-        raise Grado.DoesNotExist
-    return grado
+    return get_object_or_404(
+        Grado.objects.select_related('carrera', 'carrera__ciclo_escolar', 'carrera__ciclo_escolar__establecimiento'),
+        pk=grado_id,
+        carrera_id=car_id,
+        carrera__ciclo_escolar_id=ciclo_id,
+        carrera__ciclo_escolar__establecimiento_id=est_id,
+    )
 
 
 @login_required
@@ -202,6 +205,7 @@ def ciclo_detail(request, est_id, ciclo_id):
 def carrera_create(request, est_id, ciclo_id):
     ciclo = _get_ciclo(est_id, ciclo_id)
     form = CarreraForm(request.POST or None, initial={'ciclo_escolar': ciclo, 'activo': True})
+    form.fields['ciclo_escolar'].widget = forms.HiddenInput()
     if request.method == 'POST' and form.is_valid():
         carrera = form.save(commit=False)
         carrera.ciclo_escolar = ciclo
@@ -234,6 +238,7 @@ def grado_create(request, est_id, ciclo_id, car_id):
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
     form = GradoForm(request.POST or None, initial={'carrera': carrera, 'activo': True})
+    form.fields['carrera'].widget = forms.HiddenInput()
     if request.method == 'POST' and form.is_valid():
         grado = form.save(commit=False)
         grado.carrera = carrera
