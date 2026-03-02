@@ -72,7 +72,7 @@ class EstablecimientoForm(BaseRihoForm):
 class CarreraForm(BaseRihoForm):
     class Meta:
         model = Carrera
-        fields = ["establecimiento", "nombre", "activo"]
+        fields = ["ciclo_escolar", "nombre", "activo"]
 
 
 class GradoForm(BaseRihoForm):
@@ -84,7 +84,7 @@ class GradoForm(BaseRihoForm):
 class CicloEscolarForm(BaseRihoForm):
     class Meta:
         model = CicloEscolar
-        fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "estado", "es_activo"]
+        fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "activo"]
         widgets = {
             "fecha_inicio": forms.DateInput(attrs={"type": "date"}),
             "fecha_fin": forms.DateInput(attrs={"type": "date"}),
@@ -107,10 +107,10 @@ class MatriculaForm(BaseRihoForm):
         carrera_id = kwargs.pop("carrera_id", None)
         super().__init__(*args, **kwargs)
         alumnos = Empleado.objects.all()
-        grados = Grado.objects.select_related("carrera", "carrera__establecimiento")
+        grados = Grado.objects.select_related("carrera", "carrera__ciclo_escolar", "carrera__ciclo_escolar__establecimiento")
         ciclos = CicloEscolar.objects.select_related("establecimiento")
         if establecimiento_id:
-            grados = grados.filter(carrera__establecimiento_id=establecimiento_id)
+            grados = grados.filter(carrera__ciclo_escolar__establecimiento_id=establecimiento_id)
             ciclos = ciclos.filter(establecimiento_id=establecimiento_id)
         if carrera_id:
             grados = grados.filter(carrera_id=carrera_id)

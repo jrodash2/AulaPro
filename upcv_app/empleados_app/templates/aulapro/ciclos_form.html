@@ -25,11 +25,10 @@
           {% csrf_token %}
           <div class="col-md-6"><label class="form-label">Nombre</label>{{ form.nombre }}</div>
           <div class="col-md-3"><label class="form-label">Año</label>{{ form.anio }}</div>
-          <div class="col-md-3"><label class="form-label">Estado</label>{{ form.estado }}</div>
           <div class="col-md-3"><label class="form-label">Fecha inicio</label>{{ form.fecha_inicio }}</div>
           <div class="col-md-3"><label class="form-label">Fecha fin</label>{{ form.fecha_fin }}</div>
-          <div class="col-md-3 d-flex align-items-center">
-            <div class="form-check mt-4">{{ form.es_activo }}<label class="form-check-label ms-2" for="{{ form.es_activo.id_for_label }}">Marcar como ciclo activo</label></div>
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="form-check mt-4">{{ form.activo }}<label class="form-check-label ms-2" for="{{ form.activo.id_for_label }}">Marcar como ciclo activo</label></div>
           </div>
           <div class="col-12 d-flex gap-2">
             <button class="btn btn-primary" type="submit">{{ accion|default:'Guardar ciclo' }}</button>
