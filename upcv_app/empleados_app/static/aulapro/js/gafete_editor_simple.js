@@ -2,9 +2,6 @@
   const cfg = window.gafeteEditorSimple;
   if (!cfg) return;
 
-  const H_SIZE = { width: 1011, height: 639 };
-  const V_SIZE = { width: 639, height: 1011 };
-
   const canvas = document.getElementById('editor-canvas');
   const scaleWrapper = document.getElementById('gafete-scale-wrapper');
   if (!canvas) return;
@@ -17,9 +14,6 @@
   const textProps = document.getElementById('text-props');
   const photoProps = document.getElementById('photo-props');
   const checklist = document.getElementById('enabled-fields-checklist');
-  const orientH = document.getElementById('orient-h');
-  const orientV = document.getElementById('orient-v');
-
   const colorInput = document.getElementById('prop-color');
   const colorText = document.getElementById('prop-color-text');
   const sizeInput = document.getElementById('prop-size');
@@ -38,22 +32,19 @@
   let activeEl = null;
   let dragState = null;
 
-  if (!Array.isArray(layout.enabled_fields)) {
-    layout.enabled_fields = Object.keys(layout.items || {});
-  }
-
-  function canvasSizeByOrientation(orientation) {
-    return orientation === 'V' ? V_SIZE : H_SIZE;
-  }
+  if (!Array.isArray(layout.enabled_fields)) layout.enabled_fields = Object.keys(layout.items || {});
 
   function syncCanvasSizeFromLayout() {
-    const orientation = (layout.canvas && layout.canvas.orientation) || 'H';
-    const size = canvasSizeByOrientation(orientation);
-    layout.canvas = { width: size.width, height: size.height, orientation };
-    canvas.dataset.canvasWidth = size.width;
-    canvas.dataset.canvasHeight = size.height;
-    canvas.style.width = `${size.width}px`;
-    canvas.style.height = `${size.height}px`;
+    const width = parseInt(layout.canvas?.width || canvas.dataset.w || 1011, 10);
+    const height = parseInt(layout.canvas?.height || canvas.dataset.h || 639, 10);
+    const orientation = layout.canvas?.orientation || (height > width ? 'V' : 'H');
+    layout.canvas = { width, height, orientation };
+    canvas.dataset.w = String(width);
+    canvas.dataset.h = String(height);
+    canvas.dataset.canvasWidth = String(width);
+    canvas.dataset.canvasHeight = String(height);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
   }
 
   function fitScale() {
@@ -75,17 +66,9 @@
     return displayed / real;
   }
 
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-  }
-
-  function itemCfg(key) {
-    return layout.items && layout.items[key] ? layout.items[key] : null;
-  }
-
-  function isEnabled(key) {
-    return layout.enabled_fields.includes(key);
-  }
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const itemCfg = (key) => (layout.items && layout.items[key] ? layout.items[key] : null);
+  const isEnabled = (key) => layout.enabled_fields.includes(key);
 
   function applyStyle(el, cfgItem, key) {
     el.style.left = `${cfgItem.x || 0}px`;
@@ -108,10 +91,7 @@
 
   function renderChecklist() {
     checklist.innerHTML = '';
-    const labels = {
-      photo: 'Foto', nombres: 'Nombres', apellidos: 'Apellidos', codigo_alumno: 'Código alumno',
-      grado: 'Grado', grado_descripcion: 'Descripción grado', cui: 'CUI', telefono: 'Teléfono emergencia', establecimiento: 'Establecimiento', sitio_web: 'Sitio web',
-    };
+    const labels = { photo: 'Foto', nombres: 'Nombres', apellidos: 'Apellidos', codigo_alumno: 'Código alumno', grado: 'Grado', grado_descripcion: 'Descripción grado', cui: 'CUI', telefono: 'Teléfono emergencia', establecimiento: 'Establecimiento', sitio_web: 'Sitio web' };
     Object.keys(layout.items || {}).forEach((key) => {
       const id = `field-${key}`;
       const wrap = document.createElement('div');
@@ -204,66 +184,31 @@
     });
   }
 
-  function changeOrientation(orientation) {
-    const oldW = layout.canvas.width;
-    const oldH = layout.canvas.height;
-    const next = canvasSizeByOrientation(orientation);
-
-    Object.keys(layout.items || {}).forEach((key) => {
-      const cfgItem = layout.items[key];
-      cfgItem.x = Math.round((cfgItem.x || 0) * (next.width / oldW));
-      cfgItem.y = Math.round((cfgItem.y || 0) * (next.height / oldH));
-      if (key === 'photo') {
-        cfgItem.w = Math.round((cfgItem.w || 250) * (next.width / oldW));
-        cfgItem.h = Math.round((cfgItem.h || 350) * (next.height / oldH));
-      }
-    });
-
-    layout.canvas.orientation = orientation;
-    syncCanvasSizeFromLayout();
-    applyAllStyles();
-    fitScale();
-  }
-
   syncCanvasSizeFromLayout();
   renderChecklist();
   applyAllStyles();
   fitScale();
   window.addEventListener('resize', fitScale);
 
-  if ((layout.canvas.orientation || 'H') === 'V') orientV.checked = true;
-  else orientH.checked = true;
-
-  orientH.addEventListener('change', () => orientH.checked && changeOrientation('H'));
-  orientV.addEventListener('change', () => orientV.checked && changeOrientation('V'));
-
   items.forEach((el) => {
     const key = el.dataset.key;
-
-    el.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      setActive(el);
-    });
-
-    el.addEventListener('pointerdown', function (ev) {
+    el.addEventListener('click', (ev) => { ev.stopPropagation(); setActive(el); });
+    el.addEventListener('pointerdown', (ev) => {
       if (!isEnabled(key)) return;
       setActive(el);
       const scale = getScale();
       const cfgItem = itemCfg(key);
       if (!cfgItem) return;
-
       dragState = { key, startX: ev.clientX, startY: ev.clientY, baseX: cfgItem.x || 0, baseY: cfgItem.y || 0, scale };
       el.setPointerCapture(ev.pointerId);
       ev.preventDefault();
     });
-
-    el.addEventListener('pointermove', function (ev) {
+    el.addEventListener('pointermove', (ev) => {
       if (!dragState || dragState.key !== key) return;
       const cfgItem = itemCfg(key);
       if (!cfgItem) return;
       const dx = (ev.clientX - dragState.startX) / dragState.scale;
       const dy = (ev.clientY - dragState.startY) / dragState.scale;
-
       const itemW = key === 'photo' ? (cfgItem.w || el.offsetWidth) : el.offsetWidth;
       const itemH = key === 'photo' ? (cfgItem.h || el.offsetHeight) : el.offsetHeight;
       cfgItem.x = clamp(Math.round(dragState.baseX + dx), 0, Math.max(0, layout.canvas.width - itemW));
@@ -271,15 +216,13 @@
       applyStyle(el, cfgItem, key);
       hint.textContent = `x: ${cfgItem.x}, y: ${cfgItem.y}`;
     });
-
-    el.addEventListener('pointerup', function () { dragState = null; });
+    el.addEventListener('pointerup', () => { dragState = null; });
   });
 
-  canvas.addEventListener('click', function () { setActive(null); });
+  canvas.addEventListener('click', () => setActive(null));
   document.getElementById('refresh-size').addEventListener('click', fitScale);
-
-  colorInput.addEventListener('input', function () { colorText.value = colorInput.value; applyTextProps(); });
-  colorText.addEventListener('input', function () { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
+  colorInput.addEventListener('input', () => { colorText.value = colorInput.value; applyTextProps(); });
+  colorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
   sizeInput.addEventListener('input', applyTextProps);
   weightInput.addEventListener('change', applyTextProps);
   [shapeRounded, shapeCircle, photoBorder, photoBorderWidth, photoBorderColor, photoW, photoH, photoRadius].forEach((input) => {
@@ -287,7 +230,7 @@
     input.addEventListener('change', applyPhotoProps);
   });
 
-  document.getElementById('save-layout').addEventListener('click', async function () {
+  document.getElementById('save-layout').addEventListener('click', async () => {
     const res = await fetch(cfg.saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrf, 'X-Requested-With': 'XMLHttpRequest' },
@@ -296,14 +239,12 @@
     alert(res.ok ? 'Diseño guardado' : 'No se pudo guardar el diseño');
   });
 
-  document.getElementById('reset-layout').addEventListener('click', function () {
+  document.getElementById('reset-layout').addEventListener('click', () => {
     layout.canvas = JSON.parse(JSON.stringify(defaultLayout.canvas));
     layout.enabled_fields = JSON.parse(JSON.stringify(defaultLayout.enabled_fields || []));
     layout.items = JSON.parse(JSON.stringify(defaultLayout.items || {}));
     renderChecklist();
     applyAllStyles();
-    orientH.checked = (layout.canvas.orientation || 'H') === 'H';
-    orientV.checked = (layout.canvas.orientation || 'H') === 'V';
     syncCanvasSizeFromLayout();
     fitScale();
     setActive(null);
