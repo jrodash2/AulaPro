@@ -5,12 +5,28 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import CicloEscolarForm
+from empleados_app.forms import CarreraForm, CicloEscolarForm, GradoForm
 from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_CYCLE = False
+
+
+BASE_GAFETE_W = 1011
+BASE_GAFETE_H = 639
+
+
+def _canvas_for_orientation(orientation):
+    return (BASE_GAFETE_W, BASE_GAFETE_H) if orientation == 'H' else (BASE_GAFETE_H, BASE_GAFETE_W)
+
+
+def _resolve_gafete_dimensions(establecimiento, layout):
+    orientation = str((layout or {}).get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
+    if orientation not in ('H', 'V'):
+        orientation = 'H'
+    gafete_w, gafete_h = _canvas_for_orientation(orientation)
+    return orientation, gafete_w, gafete_h
 
 
 def _can_manage(user):
@@ -21,16 +37,23 @@ def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
 
-def _get_carrera(est_id, car_id):
-    carrera = get_object_or_404(Carrera.objects.select_related('establecimiento'), pk=car_id)
-    if carrera.establecimiento_id != est_id:
+def _get_ciclo(est_id, ciclo_id):
+    ciclo = get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id)
+    if ciclo.establecimiento_id != est_id:
+        raise CicloEscolar.DoesNotExist
+    return ciclo
+
+
+def _get_carrera(est_id, ciclo_id, car_id):
+    carrera = get_object_or_404(Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'), pk=car_id)
+    if carrera.ciclo_escolar_id != ciclo_id or carrera.ciclo_escolar.establecimiento_id != est_id:
         raise Carrera.DoesNotExist
     return carrera
 
 
-def _get_grado(est_id, car_id, grado_id):
-    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__establecimiento'), pk=grado_id)
-    if grado.carrera_id != car_id or not grado.carrera or grado.carrera.establecimiento_id != est_id:
+def _get_grado(est_id, ciclo_id, car_id, grado_id):
+    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__ciclo_escolar', 'carrera__ciclo_escolar__establecimiento'), pk=grado_id)
+    if grado.carrera_id != car_id or not grado.carrera or grado.carrera.ciclo_escolar_id != ciclo_id or grado.carrera.ciclo_escolar.establecimiento_id != est_id:
         raise Grado.DoesNotExist
     return grado
 
@@ -44,11 +67,9 @@ def establecimientos_list(request):
 @login_required
 def establecimiento_detail(request, est_id):
     establecimiento = _get_establecimiento(est_id)
-    carreras = establecimiento.carreras.all().order_by('nombre')
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
     return render(request, 'aulapro/establecimiento_detail.html', {
         'establecimiento': establecimiento,
-        'carreras': carreras,
         'ciclos': ciclos,
         'ciclo_activo': establecimiento.get_ciclo_activo(),
     })
@@ -72,21 +93,12 @@ def ciclo_create(request, est_id):
     if request.method == 'POST' and form.is_valid():
         ciclo = form.save(commit=False)
         ciclo.establecimiento = establecimiento
-        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+        ciclo.activo = bool(form.cleaned_data.get('activo'))
 
-        try:
-            with transaction.atomic():
-                if ciclo.es_activo:
-                    establecimiento.ciclos_escolares.filter(es_activo=True).update(es_activo=False)
-                ciclo.save()
-        except IntegrityError:
-            messages.error(request, 'No se pudo crear el ciclo: ya existe un ciclo activo para este establecimiento.')
-            return render(request, 'aulapro/ciclos_form.html', {
-                'establecimiento': establecimiento,
-                'form': form,
-                'titulo': 'Nuevo ciclo escolar',
-                'accion': 'Guardar ciclo',
-            })
+        with transaction.atomic():
+            if ciclo.activo:
+                establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
+            ciclo.save()
 
         messages.success(request, 'Ciclo escolar creado correctamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -109,22 +121,12 @@ def ciclo_update(request, est_id, ciclo_id):
     if request.method == 'POST' and form.is_valid():
         ciclo = form.save(commit=False)
         ciclo.establecimiento = establecimiento
-        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+        ciclo.activo = bool(form.cleaned_data.get('activo'))
 
-        try:
-            with transaction.atomic():
-                if ciclo.es_activo:
-                    establecimiento.ciclos_escolares.filter(es_activo=True).exclude(pk=ciclo.pk).update(es_activo=False)
-                ciclo.save()
-        except IntegrityError:
-            messages.error(request, 'No se pudo actualizar: ya existe otro ciclo activo para este establecimiento.')
-            return render(request, 'aulapro/ciclos_form.html', {
-                'establecimiento': establecimiento,
-                'form': form,
-                'ciclo': ciclo,
-                'titulo': 'Editar ciclo escolar',
-                'accion': 'Guardar cambios',
-            })
+        with transaction.atomic():
+            if ciclo.activo:
+                establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
+            ciclo.save()
 
         messages.success(request, 'Ciclo escolar actualizado correctamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -146,10 +148,9 @@ def ciclo_activar(request, est_id, ciclo_id):
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
     try:
         with transaction.atomic():
-            establecimiento.ciclos_escolares.update(es_activo=False)
-            ciclo.es_activo = True
-            ciclo.estado = 'activo'
-            ciclo.save(update_fields=['es_activo', 'estado'])
+            establecimiento.ciclos_escolares.update(activo=False)
+            ciclo.activo = True
+            ciclo.save(update_fields=['activo'])
     except IntegrityError:
         messages.error(request, 'No se pudo activar el ciclo por un conflicto de integridad. Intente nuevamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -169,7 +170,7 @@ def ciclo_delete(request, est_id, ciclo_id):
         messages.warning(request, 'No se puede eliminar el ciclo porque tiene matrículas asociadas.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
-    if ciclo.es_activo:
+    if ciclo.activo:
         messages.warning(request, 'No se puede eliminar el ciclo activo. Active otro ciclo primero.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
@@ -178,23 +179,82 @@ def ciclo_delete(request, est_id, ciclo_id):
     return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
 
+
 @login_required
-def carrera_detail(request, est_id, car_id):
+def ciclo_detail(request, est_id, ciclo_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = _get_carrera(est_id, car_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carreras = ciclo.carreras.all().order_by('nombre')
+    form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
+    return render(request, 'aulapro/ciclo_detail.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carreras': carreras,
+        'form_carrera': form,
+    })
+
+
+
+
+@login_required
+@user_passes_test(_can_manage)
+def carrera_create(request, est_id, ciclo_id):
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    form = CarreraForm(request.POST or None, initial={'ciclo_escolar': ciclo, 'activo': True})
+    if request.method == 'POST' and form.is_valid():
+        carrera = form.save(commit=False)
+        carrera.ciclo_escolar = ciclo
+        carrera.save()
+        messages.success(request, 'Carrera creada correctamente.')
+        return redirect('empleados:ciclo_detail', est_id=est_id, ciclo_id=ciclo_id)
+
+    return render(request, 'empleados/carrera_form.html', {
+        'form': form,
+        'titulo': f'Nueva carrera - {ciclo.nombre}',
+    })
+
+@login_required
+def carrera_detail(request, est_id, ciclo_id, car_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
     grados = Grado.objects.filter(carrera=carrera).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
+        'ciclo': ciclo,
         'carrera': carrera,
         'grados': grados,
     })
 
 
 @login_required
-def grado_detail(request, est_id, car_id, grado_id):
+@user_passes_test(_can_manage)
+def grado_create(request, est_id, ciclo_id, car_id):
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    form = GradoForm(request.POST or None, initial={'carrera': carrera, 'activo': True})
+    if request.method == 'POST' and form.is_valid():
+        grado = form.save(commit=False)
+        grado.carrera = carrera
+        grado.save()
+        messages.success(request, 'Grado creado correctamente.')
+        return redirect('empleados:carrera_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id)
+
+    return render(request, 'empleados/grado_form.html', {
+        'form': form,
+        'titulo': f'Nuevo grado - {carrera.nombre}',
+        'ciclo': ciclo,
+        'carrera': carrera,
+    })
+
+
+
+@login_required
+def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = _get_carrera(est_id, car_id)
-    grado = _get_grado(est_id, car_id, grado_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     ciclo_activo = establecimiento.get_ciclo_activo()
     filtro_form = MatriculaFiltroForm(request.GET or None, establecimiento=establecimiento)
@@ -214,13 +274,11 @@ def grado_detail(request, est_id, car_id, grado_id):
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
-    orientation = str(layout.get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
-    if orientation not in ('H', 'V'):
-        orientation = 'H'
-    canvas_width, canvas_height = (1011, 639) if orientation == 'H' else (639, 1011)
+    orientation, canvas_width, canvas_height = _resolve_gafete_dimensions(establecimiento, layout)
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
+        'ciclo': ciclo,
         'carrera': carrera,
         'grado': grado,
         'matriculas': matriculas.order_by('-created_at', 'alumno__apellidos'),
@@ -230,13 +288,16 @@ def grado_detail(request, est_id, car_id, grado_id):
         'layout': layout,
         'canvas_width': canvas_width,
         'canvas_height': canvas_height,
+        'gafete_w': canvas_width,
+        'gafete_h': canvas_height,
+        'orientacion': orientation,
     })
 
 
 @login_required
 @require_GET
-def buscar_alumno(request, grado_id):
-    get_object_or_404(Grado, pk=grado_id)
+def buscar_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     codigo = (request.GET.get('codigo') or '').strip()
     if not codigo:
@@ -265,12 +326,12 @@ def buscar_alumno(request, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 @require_POST
-def matricular_alumno(request, grado_id):
-    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__establecimiento'), pk=grado_id)
-    if not grado.carrera or not grado.carrera.establecimiento_id:
+def matricular_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    if not grado.carrera or not grado.carrera.ciclo_escolar_id:
         return JsonResponse({'ok': False, 'error': 'El grado no tiene establecimiento asociado.'}, status=400)
 
-    establecimiento = grado.carrera.establecimiento
+    establecimiento = grado.carrera.ciclo_escolar.establecimiento
     ciclo_activo = establecimiento.get_ciclo_activo()
     if not ciclo_activo:
         return JsonResponse({'ok': False, 'error': 'No hay ciclo escolar activo en este establecimiento. Activa uno para matricular.'}, status=409)
@@ -287,7 +348,7 @@ def matricular_alumno(request, grado_id):
         other = Matricula.objects.filter(
             alumno=alumno,
             ciclo_escolar=ciclo_activo,
-            grado__carrera__establecimiento=establecimiento,
+            grado__carrera__ciclo_escolar__establecimiento=establecimiento,
         ).exclude(grado=grado).exists()
         if other:
             return JsonResponse({'ok': False, 'error': 'El alumno ya está matriculado en otro grado de este establecimiento para el ciclo activo.'}, status=409)
