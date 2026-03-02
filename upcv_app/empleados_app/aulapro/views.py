@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import CicloEscolarForm
+from empleados_app.forms import CarreraForm, CicloEscolarForm
 from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatriculaFiltroForm
@@ -21,16 +21,23 @@ def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
 
-def _get_carrera(est_id, car_id):
-    carrera = get_object_or_404(Carrera.objects.select_related('establecimiento'), pk=car_id)
-    if carrera.establecimiento_id != est_id:
+def _get_ciclo(est_id, ciclo_id):
+    ciclo = get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id)
+    if ciclo.establecimiento_id != est_id:
+        raise CicloEscolar.DoesNotExist
+    return ciclo
+
+
+def _get_carrera(est_id, ciclo_id, car_id):
+    carrera = get_object_or_404(Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'), pk=car_id)
+    if carrera.ciclo_escolar_id != ciclo_id or carrera.ciclo_escolar.establecimiento_id != est_id:
         raise Carrera.DoesNotExist
     return carrera
 
 
-def _get_grado(est_id, car_id, grado_id):
-    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__establecimiento'), pk=grado_id)
-    if grado.carrera_id != car_id or not grado.carrera or grado.carrera.establecimiento_id != est_id:
+def _get_grado(est_id, ciclo_id, car_id, grado_id):
+    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__ciclo_escolar', 'carrera__ciclo_escolar__establecimiento'), pk=grado_id)
+    if grado.carrera_id != car_id or not grado.carrera or grado.carrera.ciclo_escolar_id != ciclo_id or grado.carrera.ciclo_escolar.establecimiento_id != est_id:
         raise Grado.DoesNotExist
     return grado
 
@@ -44,11 +51,9 @@ def establecimientos_list(request):
 @login_required
 def establecimiento_detail(request, est_id):
     establecimiento = _get_establecimiento(est_id)
-    carreras = establecimiento.carreras.all().order_by('nombre')
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
     return render(request, 'aulapro/establecimiento_detail.html', {
         'establecimiento': establecimiento,
-        'carreras': carreras,
         'ciclos': ciclos,
         'ciclo_activo': establecimiento.get_ciclo_activo(),
     })
@@ -178,22 +183,60 @@ def ciclo_delete(request, est_id, ciclo_id):
     return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
 
+
 @login_required
-def carrera_detail(request, est_id, car_id):
+def ciclo_detail(request, est_id, ciclo_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = _get_carrera(est_id, car_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carreras = ciclo.carreras.all().order_by('nombre')
+    form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
+    return render(request, 'aulapro/ciclo_detail.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carreras': carreras,
+        'form_carrera': form,
+    })
+
+
+
+
+@login_required
+@user_passes_test(_can_manage)
+def carrera_create(request, est_id, ciclo_id):
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    form = CarreraForm(request.POST or None, initial={'ciclo_escolar': ciclo, 'activo': True})
+    if request.method == 'POST' and form.is_valid():
+        carrera = form.save(commit=False)
+        carrera.ciclo_escolar = ciclo
+        carrera.save()
+        messages.success(request, 'Carrera creada correctamente.')
+        return redirect('empleados:ciclo_detail', est_id=est_id, ciclo_id=ciclo_id)
+
+    return render(request, 'empleados/carrera_form.html', {
+        'form': form,
+        'titulo': f'Nueva carrera - {ciclo.nombre}',
+    })
+
+@login_required
+def carrera_detail(request, est_id, ciclo_id, car_id):
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
     grados = Grado.objects.filter(carrera=carrera).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'ciclo': ciclo,
         'carrera': carrera,
         'grados': grados,
     })
 
 
 @login_required
-def grado_detail(request, est_id, car_id, grado_id):
+def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
-    carrera = _get_carrera(est_id, car_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
     grado = _get_grado(est_id, car_id, grado_id)
 
     ciclo_activo = establecimiento.get_ciclo_activo()
@@ -221,6 +264,7 @@ def grado_detail(request, est_id, car_id, grado_id):
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
         'establecimiento': establecimiento,
+        'ciclo': ciclo,
         'carrera': carrera,
         'grado': grado,
         'matriculas': matriculas.order_by('-created_at', 'alumno__apellidos'),
@@ -235,8 +279,8 @@ def grado_detail(request, est_id, car_id, grado_id):
 
 @login_required
 @require_GET
-def buscar_alumno(request, grado_id):
-    get_object_or_404(Grado, pk=grado_id)
+def buscar_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     codigo = (request.GET.get('codigo') or '').strip()
     if not codigo:
@@ -265,12 +309,12 @@ def buscar_alumno(request, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 @require_POST
-def matricular_alumno(request, grado_id):
-    grado = get_object_or_404(Grado.objects.select_related('carrera', 'carrera__establecimiento'), pk=grado_id)
-    if not grado.carrera or not grado.carrera.establecimiento_id:
+def matricular_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    if not grado.carrera or not grado.carrera.ciclo_escolar_id:
         return JsonResponse({'ok': False, 'error': 'El grado no tiene establecimiento asociado.'}, status=400)
 
-    establecimiento = grado.carrera.establecimiento
+    establecimiento = grado.carrera.ciclo_escolar.establecimiento
     ciclo_activo = establecimiento.get_ciclo_activo()
     if not ciclo_activo:
         return JsonResponse({'ok': False, 'error': 'No hay ciclo escolar activo en este establecimiento. Activa uno para matricular.'}, status=409)
@@ -287,7 +331,7 @@ def matricular_alumno(request, grado_id):
         other = Matricula.objects.filter(
             alumno=alumno,
             ciclo_escolar=ciclo_activo,
-            grado__carrera__establecimiento=establecimiento,
+            grado__carrera__ciclo_escolar__establecimiento=establecimiento,
         ).exclude(grado=grado).exists()
         if other:
             return JsonResponse({'ok': False, 'error': 'El alumno ya está matriculado en otro grado de este establecimiento para el ciclo activo.'}, status=409)

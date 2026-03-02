@@ -19,11 +19,10 @@ class EstablecimientoAdmin(admin.ModelAdmin):
 
 @admin.register(Carrera)
 class CarreraAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "establecimiento", "activo")
-    list_filter = ("establecimiento", "activo")
-    search_fields = ("nombre", "establecimiento__nombre")
+    list_display = ("nombre", "ciclo_escolar", "activo")
+    list_filter = ("ciclo_escolar", "activo")
+    search_fields = ("nombre", "ciclo_escolar__nombre", "ciclo_escolar__establecimiento__nombre")
 
-from .models import Alumno, Carrera, ConfiguracionGeneral, Establecimiento, Grado, Matricula
 
 @admin.register(Grado)
 class GradoAdmin(admin.ModelAdmin):

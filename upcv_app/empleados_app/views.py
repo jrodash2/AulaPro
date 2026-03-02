@@ -212,13 +212,13 @@ def credencial_empleados(request):
 def empleado_detalle(request, id):
     empleado = get_object_or_404(Empleado, id=id)
     configuracion = ConfiguracionGeneral.objects.first()
-    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__establecimiento").first()
+    matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento").first()
     establecimiento = None
     grado_gafete = None
     if matricula_activa and matricula_activa.grado:
         grado_gafete = matricula_activa.grado
         if matricula_activa.grado.carrera:
-            establecimiento = matricula_activa.grado.carrera.establecimiento
+            establecimiento = matricula_activa.grado.carrera.ciclo_escolar.establecimiento
 
     layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
     orientation = str(layout.get("canvas", {}).get("orientation") or _orientation_for_establecimiento(establecimiento)).upper()
@@ -275,17 +275,19 @@ def editar_establecimiento(request, pk):
 
 @login_required
 def lista_carreras(request):
-    carreras = Carrera.objects.select_related("establecimiento")
+    carreras = Carrera.objects.select_related("ciclo_escolar", "ciclo_escolar__establecimiento")
     return render(request, "empleados/carrera_lista.html", {"carreras": carreras})
 
 
 @login_required
 def crear_carrera(request):
-    form = CarreraForm(request.POST or None)
+    ciclo_id = request.GET.get("ciclo_escolar") or request.POST.get("ciclo_escolar")
+    initial = {"ciclo_escolar": ciclo_id} if ciclo_id else None
+    form = CarreraForm(request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        carrera = form.save()
         messages.success(request, "Carrera creada.")
-        return redirect("empleados:carrera_lista")
+        return redirect("empleados:ciclo_detail", est_id=carrera.ciclo_escolar.establecimiento_id, ciclo_id=carrera.ciclo_escolar_id)
     return render(request, "empleados/carrera_form.html", {"form": form, "titulo": "Crear carrera"})
 
 
@@ -294,15 +296,15 @@ def editar_carrera(request, pk):
     carrera = get_object_or_404(Carrera, pk=pk)
     form = CarreraForm(request.POST or None, instance=carrera)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        carrera = form.save()
         messages.success(request, "Carrera actualizada.")
-        return redirect("empleados:carrera_lista")
+        return redirect("empleados:ciclo_detail", est_id=carrera.ciclo_escolar.establecimiento_id, ciclo_id=carrera.ciclo_escolar_id)
     return render(request, "empleados/carrera_form.html", {"form": form, "titulo": "Editar carrera"})
 
 
 @login_required
 def lista_grados(request):
-    grados = Grado.objects.select_related("carrera", "carrera__establecimiento")
+    grados = Grado.objects.select_related("carrera", "carrera__ciclo_escolar__establecimiento")
     return render(request, "empleados/grado_lista.html", {"grados": grados})
 
 
@@ -338,13 +340,13 @@ def matricula_view(request):
         messages.success(request, "Matrícula registrada.")
         return redirect("empleados:matricula")
 
-    matriculas = Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento")
+    matriculas = Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento")
     grado_id = request.GET.get("grado")
     ciclo = request.GET.get("ciclo")
     ciclo_escolar_id = request.GET.get("ciclo_escolar")
     estado = request.GET.get("estado")
     if establecimiento_id:
-        matriculas = matriculas.filter(grado__carrera__establecimiento_id=establecimiento_id)
+        matriculas = matriculas.filter(grado__carrera__ciclo_escolar__establecimiento_id=establecimiento_id)
     if carrera_id:
         matriculas = matriculas.filter(grado__carrera_id=carrera_id)
     if grado_id:
@@ -357,7 +359,7 @@ def matricula_view(request):
         matriculas = matriculas.filter(estado=estado)
 
     establecimientos = Establecimiento.objects.filter(activo=True)
-    carreras = Carrera.objects.filter(establecimiento_id=establecimiento_id, activo=True) if establecimiento_id else Carrera.objects.none()
+    carreras = Carrera.objects.filter(ciclo_escolar__establecimiento_id=establecimiento_id, activo=True) if establecimiento_id else Carrera.objects.none()
     grados = Grado.objects.filter(carrera_id=carrera_id, activo=True) if carrera_id else Grado.objects.none()
 
     return render(
@@ -378,8 +380,8 @@ def matricula_view(request):
 def editor_gafete(request, establecimiento_id):
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
     matricula_demo = (
-        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento")
-        .filter(grado__carrera__establecimiento=establecimiento, estado="activo")
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento")
+        .filter(grado__carrera__ciclo_escolar__establecimiento=establecimiento, estado="activo")
         .order_by("-created_at")
         .first()
     )
@@ -598,10 +600,10 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
 @login_required
 def gafete_jpg(request, matricula_id):
     matricula = get_object_or_404(
-        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__establecimiento"),
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
         pk=matricula_id,
     )
-    establecimiento = matricula.grado.carrera.establecimiento if matricula.grado and matricula.grado.carrera else None
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
     if not establecimiento:
         return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
 
