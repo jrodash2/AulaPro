@@ -109,6 +109,8 @@
   #editorCanvas .canvas-overlay { pointer-events:none; }
 </style>
 
+
+<input type="hidden" id="layout_json" value="{{ layout_json|escape }}">
 <script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
 <script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
 <script>
