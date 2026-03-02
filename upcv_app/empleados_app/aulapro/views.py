@@ -14,6 +14,22 @@ from .forms import MatriculaFiltroForm
 ALLOW_MULTI_GRADE_PER_CYCLE = False
 
 
+BASE_GAFETE_W = 1011
+BASE_GAFETE_H = 639
+
+
+def _canvas_for_orientation(orientation):
+    return (BASE_GAFETE_W, BASE_GAFETE_H) if orientation == 'H' else (BASE_GAFETE_H, BASE_GAFETE_W)
+
+
+def _resolve_gafete_dimensions(establecimiento, layout):
+    orientation = str((layout or {}).get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
+    if orientation not in ('H', 'V'):
+        orientation = 'H'
+    gafete_w, gafete_h = _canvas_for_orientation(orientation)
+    return orientation, gafete_w, gafete_h
+
+
 def _can_manage(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
