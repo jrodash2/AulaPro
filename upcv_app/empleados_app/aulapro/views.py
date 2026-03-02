@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import IntegrityError, transaction
@@ -14,6 +15,22 @@ from .forms import MatriculaFiltroForm
 ALLOW_MULTI_GRADE_PER_CYCLE = False
 
 
+BASE_GAFETE_W = 1011
+BASE_GAFETE_H = 639
+
+
+def _canvas_for_orientation(orientation):
+    return (BASE_GAFETE_W, BASE_GAFETE_H) if orientation == 'H' else (BASE_GAFETE_H, BASE_GAFETE_W)
+
+
+def _resolve_gafete_dimensions(establecimiento, layout):
+    orientation = str((layout or {}).get('canvas', {}).get('orientation') or ('V' if (establecimiento.gafete_alto or 0) > (establecimiento.gafete_ancho or 0) else 'H')).upper()
+    if orientation not in ('H', 'V'):
+        orientation = 'H'
+    gafete_w, gafete_h = _canvas_for_orientation(orientation)
+    return orientation, gafete_w, gafete_h
+
+
 def _can_manage(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
@@ -25,6 +42,13 @@ def _get_establecimiento(est_id):
 def _get_ciclo(est_id, ciclo_id):
     return get_object_or_404(CicloEscolar.objects.select_related('establecimiento'), pk=ciclo_id, establecimiento_id=est_id)
 
+def _get_carrera(est_id, ciclo_id, car_id):
+    return get_object_or_404(
+        Carrera.objects.select_related('ciclo_escolar', 'ciclo_escolar__establecimiento'),
+        pk=car_id,
+        ciclo_escolar_id=ciclo_id,
+        ciclo_escolar__establecimiento_id=est_id,
+    )
 
 def _get_carrera(est_id, ciclo_id, car_id):
     return get_object_or_404(
