@@ -2,15 +2,17 @@
   const cfg = window.gafeteEditorSimple;
   if (!cfg) return;
 
+  console.log('✅ gafete_editor.js cargado');
+
   const canvas = document.getElementById('editor-gafete-canvas');
   const scaleWrapper = document.getElementById('gafete-scale-wrapper');
   if (!canvas) return;
 
+  console.log('canvas:', canvas);
+
   const layout = JSON.parse(document.getElementById('layout-data').textContent || '{}');
   const defaultLayout = JSON.parse(document.getElementById('default-layout-data').textContent || '{}');
-  const layoutJsonInput = document.getElementById('layout-json-hidden');
-
-  console.log('Editor canvas found:', canvas);
+  const layoutJsonInput = document.getElementById('layout_json');
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
@@ -32,17 +34,17 @@
   const photoRadius = document.getElementById('photo-radius');
 
   let items = Array.from(canvas.querySelectorAll('.gafete-item[data-key]'));
-  console.log('Draggables:', canvas.querySelectorAll('.draggable[data-key]').length);
+  console.log('items:', items.length);
 
   let activeEl = null;
   let dragState = null;
 
-  if (!Array.isArray(layout.enabled_fields)) layout.enabled_fields = Object.keys(layout.items || {});
+  if (!layout.items || typeof layout.items !== 'object') layout.items = {};
+  if (!Array.isArray(layout.enabled_fields)) layout.enabled_fields = Object.keys(layout.items);
 
   function syncLayoutJsonField() {
     if (!layoutJsonInput) return;
     layoutJsonInput.value = JSON.stringify({ layout });
-    console.log('layout_json updated length:', layoutJsonInput.value.length);
   }
 
   function syncCanvasSizeFromLayout() {
@@ -92,27 +94,34 @@
     el.style.textAlign = cfgItem.align || 'left';
   }
 
-  function renderChecklist() {
-    checklist.innerHTML = '';
-    const labels = { photo: 'Foto', nombres: 'Nombres', apellidos: 'Apellidos', codigo_alumno: 'Código alumno', grado: 'Grado', grado_descripcion: 'Descripción grado', cui: 'CUI', telefono: 'Teléfono emergencia', establecimiento: 'Establecimiento', sitio_web: 'Sitio web' };
-    Object.keys(layout.items || {}).forEach((key) => {
-      const id = `field-${key}`;
-      const wrap = document.createElement('div');
-      wrap.className = 'form-check';
-      wrap.innerHTML = `<input class="form-check-input" type="checkbox" id="${id}" ${isEnabled(key) ? 'checked' : ''}><label class="form-check-label" for="${id}">${labels[key] || key}</label>`;
-      wrap.querySelector('input').addEventListener('change', (ev) => {
+  function updateFieldToggleState() {
+    checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
+      const key = input.dataset.field;
+      const cfgItem = itemCfg(key);
+      input.checked = !!cfgItem && isEnabled(key) && cfgItem.visible !== false;
+    });
+  }
+
+  function bindChecklist() {
+    checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
+      input.addEventListener('change', (ev) => {
+        const key = ev.target.dataset.field;
+        const cfgItem = itemCfg(key);
+        if (!cfgItem) return;
+
         if (ev.target.checked) {
           if (!layout.enabled_fields.includes(key)) layout.enabled_fields.push(key);
-          layout.items[key].visible = true;
+          cfgItem.visible = true;
         } else {
           layout.enabled_fields = layout.enabled_fields.filter((f) => f !== key);
-          layout.items[key].visible = false;
+          cfgItem.visible = false;
         }
+
+        console.log('toggle field', key, ev.target.checked);
         const el = canvas.querySelector(`.gafete-item[data-key="${key}"]`);
-        if (el) applyStyle(el, layout.items[key], key);
+        if (el) applyStyle(el, cfgItem, key);
         syncLayoutJsonField();
       });
-      checklist.appendChild(wrap);
     });
   }
 
@@ -189,6 +198,7 @@
       const cfgItem = itemCfg(key);
       if (cfgItem) applyStyle(el, cfgItem, key);
     });
+    updateFieldToggleState();
   }
 
   function beginDrag(ev, el) {
@@ -197,7 +207,6 @@
     const cfgItem = itemCfg(key);
     if (!cfgItem) return;
 
-    setActive(el);
     const rect = canvas.getBoundingClientRect();
     const scaleX = rect.width / (layout.canvas.width || rect.width || 1);
     const scaleY = rect.height / (layout.canvas.height || rect.height || 1);
@@ -220,14 +229,14 @@
       scaleY,
     };
 
+    setActive(el);
     el.setPointerCapture(ev.pointerId);
     el.classList.add('dragging');
-    console.log('drag start', key);
     ev.preventDefault();
   }
 
   function onDragMove(ev) {
-    if (!dragState) return;
+    if (!dragState || ev.pointerId !== dragState.pointerId) return;
     const cfgItem = itemCfg(dragState.key);
     if (!cfgItem) return;
 
@@ -251,19 +260,25 @@
     hint.textContent = `x: ${newLeft}, y: ${newTop}`;
   }
 
-  function endDrag() {
+  function endDrag(ev) {
     if (!dragState) return;
-    const cfgItem = itemCfg(dragState.key);
-    if (cfgItem) {
-      console.log('drag end', dragState.key, cfgItem.x, cfgItem.y);
-      syncLayoutJsonField();
+    if (ev && ev.pointerId !== dragState.pointerId) return;
+
+    const finishedState = dragState;
+    const cfgItem = itemCfg(finishedState.key);
+    if (cfgItem) syncLayoutJsonField();
+    finishedState.el.classList.remove('dragging');
+    try {
+      if (finishedState.el.hasPointerCapture(finishedState.pointerId)) finishedState.el.releasePointerCapture(finishedState.pointerId);
+    } catch (e) {
+      // no-op
     }
-    dragState.el.classList.remove('dragging');
+
     dragState = null;
   }
 
   syncCanvasSizeFromLayout();
-  renderChecklist();
+  bindChecklist();
   applyAllStyles();
   fitScale();
   syncLayoutJsonField();
@@ -274,13 +289,18 @@
     if (!target || !canvas.contains(target)) return;
     beginDrag(ev, target);
   });
-  canvas.addEventListener('pointermove', onDragMove);
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
+
   canvas.addEventListener('click', (ev) => {
+    if (dragState && dragState.moved) return;
     const target = ev.target.closest('.gafete-item[data-key]');
     if (target) setActive(target);
     else setActive(null);
+  });
+
+  items.forEach((el) => {
+    el.addEventListener('pointermove', onDragMove);
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
   });
 
   document.getElementById('refresh-size').addEventListener('click', fitScale);
@@ -307,8 +327,8 @@
     layout.canvas = JSON.parse(JSON.stringify(defaultLayout.canvas));
     layout.enabled_fields = JSON.parse(JSON.stringify(defaultLayout.enabled_fields || []));
     layout.items = JSON.parse(JSON.stringify(defaultLayout.items || {}));
-    renderChecklist();
     applyAllStyles();
+    updateFieldToggleState();
     syncCanvasSizeFromLayout();
     fitScale();
     setActive(null);

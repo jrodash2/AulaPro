@@ -392,6 +392,18 @@ def editor_gafete(request, establecimiento_id):
     layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
     if not isinstance(layout.get("enabled_fields"), list):
         layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
+    available_fields = [
+        {"key": "photo", "label": "Foto"},
+        {"key": "nombres", "label": "Nombres"},
+        {"key": "apellidos", "label": "Apellidos"},
+        {"key": "codigo_alumno", "label": "Código alumno"},
+        {"key": "grado", "label": "Grado"},
+        {"key": "grado_descripcion", "label": "Descripción grado"},
+        {"key": "cui", "label": "CUI"},
+        {"key": "telefono", "label": "Teléfono emergencia"},
+        {"key": "establecimiento", "label": "Establecimiento"},
+        {"key": "sitio_web", "label": "Sitio web"},
+    ]
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
         request,
@@ -403,6 +415,8 @@ def editor_gafete(request, establecimiento_id):
             "layout": layout,
             "layout_json": json.dumps(layout),
             "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
+            "available_fields": available_fields,
+            "enabled_fields": layout.get("enabled_fields", []),
             "configuracion": configuracion,
             "is_editor": True,
             "canvas_width": canvas_width,

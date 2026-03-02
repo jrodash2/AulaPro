@@ -37,7 +37,14 @@
 
             <div class="mb-3">
               <label class="form-label d-block">Campos visibles</label>
-              <div id="enabled-fields-checklist" class="d-flex flex-column gap-1"></div>
+              <div id="enabled-fields-checklist" class="d-flex flex-column gap-1">
+                {% for f in available_fields %}
+                  <div class="form-check my-1">
+                    <input class="form-check-input field-toggle" type="checkbox" id="field_{{ f.key }}" data-field="{{ f.key }}" {% if f.key in enabled_fields %}checked{% endif %}>
+                    <label class="form-check-label" for="field_{{ f.key }}">{{ f.label }}</label>
+                  </div>
+                {% endfor %}
+              </div>
             </div>
 
             <div id="text-props">
@@ -95,7 +102,9 @@
   #editor-gafete-canvas .gafete-item:hover { cursor: move; border-color: rgba(115, 102, 255, .6); }
   #editor-gafete-canvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
   #editor-gafete-canvas .gafete-bg { z-index: 1; pointer-events: none; }
-  #editor-gafete-canvas .gafete-item { z-index: 5; pointer-events: auto; cursor: move; }
+  #editor-gafete-canvas .gafete-item { z-index: 5; pointer-events: auto; cursor: move; touch-action: none; }
+  #editor-gafete-canvas .gafete-item.dragging { opacity: .9; }
+  #editor-gafete-canvas .canvas-overlay { pointer-events: none; }
 </style>
 
 
