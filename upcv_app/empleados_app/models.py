@@ -83,19 +83,16 @@ class Establecimiento(models.Model):
         return base
 
     def get_ciclo_activo(self):
-        return self.ciclos_escolares.filter(es_activo=True).order_by("-anio", "-id").first()
+        return self.ciclos_escolares.filter(activo=True).order_by("-anio", "-id").first()
 
 
 class CicloEscolar(models.Model):
-    ESTADOS = (("activo", "Activo"), ("inactivo", "Inactivo"))
-
     establecimiento = models.ForeignKey(Establecimiento, on_delete=models.CASCADE, related_name="ciclos_escolares")
     nombre = models.CharField(max_length=50)
     anio = models.PositiveIntegerField(null=True, blank=True)
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField(null=True, blank=True)
-    es_activo = models.BooleanField(default=False)
-    estado = models.CharField(max_length=10, choices=ESTADOS, default="activo")
+    activo = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-anio", "-id"]
@@ -103,12 +100,12 @@ class CicloEscolar(models.Model):
             models.UniqueConstraint(fields=["establecimiento", "nombre"], name="uq_ciclo_nombre_establecimiento"),
             models.UniqueConstraint(
                 fields=["establecimiento"],
-                condition=Q(es_activo=True),
+                condition=Q(activo=True),
                 name="uq_ciclo_activo_por_establecimiento",
             ),
         ]
         indexes = [
-            models.Index(fields=["establecimiento", "es_activo"]),
+            models.Index(fields=["establecimiento", "activo"]),
             models.Index(fields=["establecimiento", "anio"]),
         ]
 

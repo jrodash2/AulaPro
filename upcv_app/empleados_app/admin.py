@@ -46,6 +46,6 @@ class ConfiguracionGeneralAdmin(admin.ModelAdmin):
 
 @admin.register(CicloEscolar)
 class CicloEscolarAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "establecimiento", "anio", "estado", "es_activo")
-    list_filter = ("establecimiento", "estado", "es_activo")
+    list_display = ("nombre", "establecimiento", "anio", "activo")
+    list_filter = ("establecimiento", "activo")
     search_fields = ("nombre", "establecimiento__nombre")

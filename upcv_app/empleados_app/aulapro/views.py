@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import CarreraForm, CicloEscolarForm
+from empleados_app.forms import CarreraForm, CicloEscolarForm, GradoForm
 from empleados_app.models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
 
 from .forms import MatriculaFiltroForm
@@ -77,21 +77,12 @@ def ciclo_create(request, est_id):
     if request.method == 'POST' and form.is_valid():
         ciclo = form.save(commit=False)
         ciclo.establecimiento = establecimiento
-        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+        ciclo.activo = bool(form.cleaned_data.get('activo'))
 
-        try:
-            with transaction.atomic():
-                if ciclo.es_activo:
-                    establecimiento.ciclos_escolares.filter(es_activo=True).update(es_activo=False)
-                ciclo.save()
-        except IntegrityError:
-            messages.error(request, 'No se pudo crear el ciclo: ya existe un ciclo activo para este establecimiento.')
-            return render(request, 'aulapro/ciclos_form.html', {
-                'establecimiento': establecimiento,
-                'form': form,
-                'titulo': 'Nuevo ciclo escolar',
-                'accion': 'Guardar ciclo',
-            })
+        with transaction.atomic():
+            if ciclo.activo:
+                establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
+            ciclo.save()
 
         messages.success(request, 'Ciclo escolar creado correctamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -114,22 +105,12 @@ def ciclo_update(request, est_id, ciclo_id):
     if request.method == 'POST' and form.is_valid():
         ciclo = form.save(commit=False)
         ciclo.establecimiento = establecimiento
-        ciclo.es_activo = bool(form.cleaned_data.get('es_activo'))
+        ciclo.activo = bool(form.cleaned_data.get('activo'))
 
-        try:
-            with transaction.atomic():
-                if ciclo.es_activo:
-                    establecimiento.ciclos_escolares.filter(es_activo=True).exclude(pk=ciclo.pk).update(es_activo=False)
-                ciclo.save()
-        except IntegrityError:
-            messages.error(request, 'No se pudo actualizar: ya existe otro ciclo activo para este establecimiento.')
-            return render(request, 'aulapro/ciclos_form.html', {
-                'establecimiento': establecimiento,
-                'form': form,
-                'ciclo': ciclo,
-                'titulo': 'Editar ciclo escolar',
-                'accion': 'Guardar cambios',
-            })
+        with transaction.atomic():
+            if ciclo.activo:
+                establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
+            ciclo.save()
 
         messages.success(request, 'Ciclo escolar actualizado correctamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -151,10 +132,9 @@ def ciclo_activar(request, est_id, ciclo_id):
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
     try:
         with transaction.atomic():
-            establecimiento.ciclos_escolares.update(es_activo=False)
-            ciclo.es_activo = True
-            ciclo.estado = 'activo'
-            ciclo.save(update_fields=['es_activo', 'estado'])
+            establecimiento.ciclos_escolares.update(activo=False)
+            ciclo.activo = True
+            ciclo.save(update_fields=['activo'])
     except IntegrityError:
         messages.error(request, 'No se pudo activar el ciclo por un conflicto de integridad. Intente nuevamente.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
@@ -174,7 +154,7 @@ def ciclo_delete(request, est_id, ciclo_id):
         messages.warning(request, 'No se puede eliminar el ciclo porque tiene matrículas asociadas.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
-    if ciclo.es_activo:
+    if ciclo.activo:
         messages.warning(request, 'No se puede eliminar el ciclo activo. Active otro ciclo primero.')
         return redirect('empleados:ciclos_list', est_id=establecimiento.id)
 
@@ -226,10 +206,31 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
         'ciclo': ciclo,
-        'ciclo': ciclo,
         'carrera': carrera,
         'grados': grados,
     })
+
+
+@login_required
+@user_passes_test(_can_manage)
+def grado_create(request, est_id, ciclo_id, car_id):
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    form = GradoForm(request.POST or None, initial={'carrera': carrera, 'activo': True})
+    if request.method == 'POST' and form.is_valid():
+        grado = form.save(commit=False)
+        grado.carrera = carrera
+        grado.save()
+        messages.success(request, 'Grado creado correctamente.')
+        return redirect('empleados:carrera_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id)
+
+    return render(request, 'empleados/grado_form.html', {
+        'form': form,
+        'titulo': f'Nuevo grado - {carrera.nombre}',
+        'ciclo': ciclo,
+        'carrera': carrera,
+    })
+
 
 
 @login_required
@@ -237,7 +238,7 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
-    grado = _get_grado(est_id, car_id, grado_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     ciclo_activo = establecimiento.get_ciclo_activo()
     filtro_form = MatriculaFiltroForm(request.GET or None, establecimiento=establecimiento)

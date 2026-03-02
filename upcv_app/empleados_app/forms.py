@@ -84,7 +84,7 @@ class GradoForm(BaseRihoForm):
 class CicloEscolarForm(BaseRihoForm):
     class Meta:
         model = CicloEscolar
-        fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "estado", "es_activo"]
+        fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "activo"]
         widgets = {
             "fecha_inicio": forms.DateInput(attrs={"type": "date"}),
             "fecha_fin": forms.DateInput(attrs={"type": "date"}),
