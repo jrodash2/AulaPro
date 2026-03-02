@@ -20,7 +20,7 @@
           <div class="card-body">
             <div class="gafete-editor-viewport">
               <div id="gafete-scale-wrapper">
-                {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-canvas' is_editor=True canvas_width=canvas_width canvas_height=canvas_height %}
+                {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editor-gafete-canvas' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
               </div>
             </div>
             <small id="coords-hint" class="text-muted d-block mt-2"></small>
@@ -33,17 +33,18 @@
           <div class="card-body">
             <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
 
-                        <div class="mb-3">
-              <label class="form-label d-block">Orientación</label>
-              <div class="d-flex gap-3">
-                <div class="form-check"><input class="form-check-input" type="radio" name="canvas-orientation" id="orient-h" value="H"><label class="form-check-label" for="orient-h">Horizontal</label></div>
-                <div class="form-check"><input class="form-check-input" type="radio" name="canvas-orientation" id="orient-v" value="V"><label class="form-check-label" for="orient-v">Vertical</label></div>
-              </div>
-            </div>
+                        
 
             <div class="mb-3">
               <label class="form-label d-block">Campos visibles</label>
-              <div id="enabled-fields-checklist" class="d-flex flex-column gap-1"></div>
+              <div id="enabled-fields-checklist" class="d-flex flex-column gap-1">
+                {% for f in available_fields %}
+                  <div class="form-check my-1">
+                    <input class="form-check-input field-toggle" type="checkbox" id="field_{{ f.key }}" data-field="{{ f.key }}" {% if f.key in enabled_fields %}checked{% endif %}>
+                    <label class="form-check-label" for="field_{{ f.key }}">{{ f.label }}</label>
+                  </div>
+                {% endfor %}
+              </div>
             </div>
 
             <div id="text-props">
@@ -97,11 +98,17 @@
 
   .gafete-editor-viewport { overflow:auto; max-width:100%; }
   #gafete-scale-wrapper { transform-origin: top left; width: fit-content; }
-  #editor-canvas .gafete-item { position:absolute; user-select:none; border: 1px dashed transparent; }
-  #editor-canvas .gafete-item:hover { cursor: move; border-color: rgba(115, 102, 255, .6); }
-  #editor-canvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
+  #editor-gafete-canvas .gafete-item { position:absolute; user-select:none; border: 1px dashed transparent; }
+  #editor-gafete-canvas .gafete-item:hover { cursor: move; border-color: rgba(115, 102, 255, .6); }
+  #editor-gafete-canvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
+  #editor-gafete-canvas .gafete-bg { z-index: 1; pointer-events: none; }
+  #editor-gafete-canvas .gafete-item { z-index: 5; pointer-events: auto; cursor: move; touch-action: none; }
+  #editor-gafete-canvas .gafete-item.dragging { opacity: .9; }
+  #editor-gafete-canvas .canvas-overlay { pointer-events: none; }
 </style>
 
+
+<input type="hidden" id="layout_json" value="{{ layout_json|escape }}">
 <script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
 <script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
 <script>
