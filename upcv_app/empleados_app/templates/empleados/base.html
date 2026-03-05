@@ -82,7 +82,7 @@
             </div>
           </form>
           <div class="header-logo-wrapper col-auto p-0">  
-            <div class="logo-wrapper"> <a href="index.html"><img class="img-fluid for-light" src="{% static 'assets/images/logo/logo_dark.png' %}" alt="logo-light"><img class="img-fluid for-dark" src="{% static 'assets/images/logo/upcv.png' %}" alt="logo-dark"></a></div>
+            <div class="logo-wrapper"> <a href="{% url 'empleados:home' %}">{% if info_general and info_general.logotipo %}<img class="img-fluid for-light" src="{{ info_general.logotipo.url }}" alt="logo-light"><img class="img-fluid for-dark" src="{{ info_general.logotipo.url }}" alt="logo-dark">{% else %}<img class="img-fluid for-light" src="{% static 'assets/images/logo/logo_dark.png' %}" alt="logo-light"><img class="img-fluid for-dark" src="{% static 'assets/images/logo/upcv.png' %}" alt="logo-dark">{% endif %}</a></div>
             <div class="toggle-sidebar"> <i class="status_toggle middle sidebar-toggle" data-feather="align-center"></i></div>
           </div>
           <div class="left-header col-xxl-5 col-xl-6 col-lg-5 col-md-4 col-sm-3 p-0">
@@ -121,19 +121,16 @@
               </li>
 
               <li class="profile-nav onhover-dropdown"> 
-                <div class="media profile-media"><img class="b-r-10" src="{% static 'assets/images/dashboard/profile2.png' %}" alt="">
+                <div class="media profile-media">{% if user_profile_foto_url %}<img class="b-r-10" src="{{ user_profile_foto_url }}" alt="perfil" style="width:40px;height:40px;object-fit:cover;">{% else %}<img class="b-r-10" src="{% static 'assets/images/dashboard/profile2.png' %}" alt="perfil">{% endif %}
                   <div class="media-body d-xxl-block d-none box-col-none">
                     <div class="d-flex align-items-center gap-2"> <span>{{ user.first_name }} {{ user.last_name }} </span><i class="middle fa fa-angle-down"> </i></div>
-                    
-
-
-<ul>
-  {% for group in user.groups.all %}
-    <p class="mb-0 font-roboto">{{ group.name }}</p>
-  {% empty %}
-    <li>No tiene roles.</li>
-  {% endfor %}
-</ul>
+                    <div>
+                      {% for group in user.groups.all %}
+                        <p class="mb-0 font-roboto">{{ group.name }}</p>
+                      {% empty %}
+                        <p class="mb-0 font-roboto">Sin grupo</p>
+                      {% endfor %}
+                    </div>
                   </div>
                 </div>
                 <ul class="profile-dropdown onhover-show-div">
@@ -159,7 +156,7 @@
       <div class="page-body-wrapper">
         <!-- Page Sidebar Start-->
         <div class="sidebar-wrapper" data-layout="stroke-svg">
-          <div class="logo-wrapper"><a href="{% url 'empleados:home' %}"><img class="img-fluid" src="{% static 'assets/images/logo/upcv.png' %}" alt=""></a>
+          <div class="logo-wrapper"><a href="{% url 'empleados:home' %}">{% if info_general and info_general.logotipo %}<img class="img-fluid" src="{{ info_general.logotipo.url }}" alt="{{ info_general.nombre_institucion|default:'AulaPro' }}">{% else %}<img class="img-fluid" src="{% static 'assets/images/logo/upcv.png' %}" alt="AulaPro">{% endif %}</a>
             <div class="back-btn"><i class="fa fa-angle-left"> </i></div>
             <div class="toggle-sidebar"><i class="status_toggle middle sidebar-toggle" data-feather="grid"> </i></div>
           </div>
@@ -178,7 +175,7 @@
                 </li>
                 <li class="sidebar-main-title">
                   <div>
-                    <h6 >AulaPro Escolar</h6>
+                    <h6 >{{ info_general.nombre_institucion|default:"AulaPro Escolar" }}</h6>
                   </div>
                 </li>
                 {% if user.is_authenticated %}
@@ -206,7 +203,7 @@
                   </svg><span>Configuración</span></a>
                 <ul class="sidebar-submenu">
                
-                  <li><a href="#">Usuarios</a></li>
+                  <li><a href="{% url 'empleados:usuarios_list' %}">Usuarios</a></li>
                   <li><a href="#">Manuales</a></li>
                   <li><a href="{% url 'empleados:configuracion_general' %}">Config.General</a></li>
                 </ul>
