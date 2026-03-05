@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import NoReverseMatch
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -136,7 +137,23 @@ def signin(request):
         return render(request, "empleados/login.html", {"form": AuthenticationForm, "error": "Usuario o Password es Incorrecto"})
 
     auth_login(request, user)
-    return redirect("empleados:dahsboard")
+
+    if user.groups.filter(name="Administrador").exists():
+        redirect_name = "dashboard"
+    elif user.groups.filter(name="Gestor").exists():
+        redirect_name = "dashboard_gestor"
+    elif user.groups.filter(name="Departamento").exists():
+        redirect_name = "dashboard_departamento"
+    else:
+        redirect_name = "dashboard"
+
+    for target in (redirect_name, "empleados:dahsboard"):
+        try:
+            return redirect(target)
+        except NoReverseMatch:
+            continue
+
+    raise
 
 
 def signout(request):
