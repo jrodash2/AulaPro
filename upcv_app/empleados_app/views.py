@@ -7,6 +7,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.http import HttpResponse, JsonResponse
@@ -22,6 +23,8 @@ from .forms import (
     EstablecimientoForm,
     GradoForm,
     MatriculaForm,
+    UsuarioCreateForm,
+    UsuarioUpdateForm,
 )
 from .gafete_utils import canvas_for_orientation, orientation_for_establecimiento, resolve_gafete_dimensions
 from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
@@ -162,9 +165,30 @@ def signout(request):
 
 
 @login_required
-def usuarios(request):
-    return render(request, "empleados/usuarios.html")
+def usuarios_list(request):
+    usuarios = User.objects.prefetch_related("groups").all().order_by("username")
+    return render(request, "empleados/usuarios_list.html", {"usuarios": usuarios})
 
+
+@login_required
+def usuarios_create(request):
+    form = UsuarioCreateForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Usuario creado correctamente.")
+        return redirect("empleados:usuarios_list")
+    return render(request, "empleados/usuarios_form.html", {"form": form, "titulo": "Nuevo Usuario"})
+
+
+@login_required
+def usuarios_update(request, pk):
+    usuario = get_object_or_404(User, pk=pk)
+    form = UsuarioUpdateForm(request.POST or None, instance=usuario)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Usuario actualizado correctamente.")
+        return redirect("empleados:usuarios_list")
+    return render(request, "empleados/usuarios_form.html", {"form": form, "titulo": "Editar Usuario", "usuario": usuario})
 
 
 @login_required

@@ -1,0 +1,82 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+
+{% block content %}
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6">
+          <h4>Usuarios</h4>
+        </div>
+        <div class="col-6 text-end">
+          <a class="btn btn-primary" href="{% url 'empleados:usuarios_create' %}">Nuevo Usuario</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0">
+        <h5>Listado de usuarios</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive custom-scrollbar">
+          <table class="display" id="basic-9">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Nombres</th>
+                <th>Apellidos</th>
+                <th>Email</th>
+                <th>Activo</th>
+                <th>Grupos</th>
+                <th>Creado</th>
+                <th>Último Login</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for usuario in usuarios %}
+              <tr>
+                <td>{{ usuario.username }}</td>
+                <td>{{ usuario.first_name|default:'-' }}</td>
+                <td>{{ usuario.last_name|default:'-' }}</td>
+                <td>{{ usuario.email|default:'-' }}</td>
+                <td>
+                  {% if usuario.is_active %}
+                    <span class="badge badge-light-success">Sí</span>
+                  {% else %}
+                    <span class="badge badge-light-danger">No</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% for grupo in usuario.groups.all %}
+                    <span class="badge badge-light-primary">{{ grupo.name }}</span>
+                  {% empty %}
+                    -
+                  {% endfor %}
+                </td>
+                <td>{{ usuario.date_joined|date:'d/m/Y H:i'|default:'-' }}</td>
+                <td>{{ usuario.last_login|date:'d/m/Y H:i'|default:'-' }}</td>
+                <td>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:usuarios_update' usuario.id %}">Editar</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="9">Sin registros</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
