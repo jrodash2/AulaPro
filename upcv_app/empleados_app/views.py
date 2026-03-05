@@ -219,6 +219,8 @@ def usuarios_update(request, pk):
 
 @login_required
 def dahsboard(request):
+    if request.user.groups.filter(name="Docente").exists():
+        return redirect("empleados:docente_dashboard")
     return render(request, "empleados/dahsboard.html")
 
 

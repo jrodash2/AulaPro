@@ -2,9 +2,15 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
+
+try:
+    from xhtml2pdf import pisa
+except Exception:  # pragma: no cover
+    pisa = None
 from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
@@ -63,6 +69,22 @@ def _get_carrera(est_id, ciclo_id, car_id):
         ciclo_escolar__establecimiento_id=est_id,
     )
 
+
+
+
+def _render_pdf_response(template_name, context, filename):
+    html = render_to_string(template_name, context)
+    if pisa is None:
+        response = HttpResponse(html, content_type='text/html; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.html"'
+        return response
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
+    pisa_status = pisa.CreatePDF(html, dest=response)
+    if pisa_status.err:
+        return HttpResponse(html, content_type='text/html; charset=utf-8')
+    return response
 
 def _get_grado(est_id, ciclo_id, car_id, grado_id):
     return get_object_or_404(
@@ -542,6 +564,117 @@ def tomar_asistencia(request, curso_docente_id):
         'fecha': fecha,
         'detalles': detalles,
     })
+
+
+@login_required
+@user_passes_test(_is_docente)
+def docente_curso_historial(request, curso_docente_id):
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    asistencias = Asistencia.objects.filter(curso_docente=curso_docente).order_by('-fecha')
+    rows = []
+    for a in asistencias:
+        total = a.detalles.count()
+        presentes = a.detalles.filter(presente=True).count()
+        ausentes = total - presentes
+        rows.append({'asistencia': a, 'total': total, 'presentes': presentes, 'ausentes': ausentes})
+    return render(request, 'docentes/historial_asistencias.html', {
+        'curso_docente': curso_docente,
+        'curso': curso_docente.curso,
+        'rows': rows,
+    })
+
+
+@login_required
+@user_passes_test(_is_docente)
+def docente_asistencia_detail(request, asistencia_id):
+    asistencia = get_object_or_404(
+        Asistencia.objects.select_related('curso_docente', 'curso_docente__docente', 'curso_docente__curso', 'curso_docente__curso__grado'),
+        pk=asistencia_id,
+        curso_docente__docente=request.user,
+    )
+    detalles = asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres')
+    presentes = detalles.filter(presente=True).count()
+    ausentes = detalles.count() - presentes
+    return render(request, 'docentes/asistencia_detail.html', {
+        'asistencia': asistencia,
+        'curso_docente': asistencia.curso_docente,
+        'curso': asistencia.curso_docente.curso,
+        'detalles': detalles,
+        'presentes': presentes,
+        'ausentes': ausentes,
+    })
+
+
+@login_required
+@user_passes_test(_is_docente)
+def docente_asistencia_pdf(request, asistencia_id):
+    asistencia = get_object_or_404(
+        Asistencia.objects.select_related(
+            'curso_docente', 'curso_docente__docente', 'curso_docente__curso',
+            'curso_docente__curso__grado', 'curso_docente__curso__grado__carrera',
+            'curso_docente__curso__grado__carrera__ciclo_escolar',
+            'curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento'
+        ),
+        pk=asistencia_id,
+        curso_docente__docente=request.user,
+    )
+    detalles = asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres')
+    presentes = detalles.filter(presente=True).count()
+    ausentes = detalles.count() - presentes
+    context = {
+        'asistencia': asistencia,
+        'curso_docente': asistencia.curso_docente,
+        'curso': asistencia.curso_docente.curso,
+        'grado': asistencia.curso_docente.curso.grado,
+        'establecimiento': asistencia.curso_docente.curso.grado.carrera.ciclo_escolar.establecimiento if asistencia.curso_docente.curso.grado and asistencia.curso_docente.curso.grado.carrera else None,
+        'detalles': detalles,
+        'presentes': presentes,
+        'ausentes': ausentes,
+    }
+    return _render_pdf_response('pdf/asistencia_pdf.html', context, f"asistencia_{asistencia.id}")
+
+
+@login_required
+@user_passes_test(_is_docente)
+def docente_alumno_historial(request, curso_docente_id, alumno_id):
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    alumno = get_object_or_404(Empleado, pk=alumno_id)
+    detalles = AsistenciaDetalle.objects.select_related('asistencia').filter(
+        asistencia__curso_docente=curso_docente,
+        alumno=alumno,
+    ).order_by('-asistencia__fecha')
+    presentes = detalles.filter(presente=True).count()
+    ausentes = detalles.count() - presentes
+    return render(request, 'docentes/alumno_historial.html', {
+        'curso_docente': curso_docente,
+        'curso': curso_docente.curso,
+        'alumno': alumno,
+        'detalles': detalles,
+        'presentes': presentes,
+        'ausentes': ausentes,
+    })
+
+
+@login_required
+@user_passes_test(_is_docente)
+def docente_alumno_historial_pdf(request, curso_docente_id, alumno_id):
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    alumno = get_object_or_404(Empleado, pk=alumno_id)
+    detalles = AsistenciaDetalle.objects.select_related('asistencia').filter(
+        asistencia__curso_docente=curso_docente,
+        alumno=alumno,
+    ).order_by('-asistencia__fecha')
+    presentes = detalles.filter(presente=True).count()
+    ausentes = detalles.count() - presentes
+    context = {
+        'curso_docente': curso_docente,
+        'curso': curso_docente.curso,
+        'alumno': alumno,
+        'detalles': detalles,
+        'presentes': presentes,
+        'ausentes': ausentes,
+    }
+    return _render_pdf_response('pdf/alumno_historial_pdf.html', context, f"historial_alumno_{alumno.id}")
 
 
 @login_required
