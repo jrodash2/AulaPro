@@ -217,5 +217,13 @@ class ConfiguracionGeneral(models.Model):
         return self.nombre_institucion
 
 
+class Perfil(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="perfil")
+    foto = models.ImageField(upload_to="perfil_usuario/", null=True, blank=True)
+
+    def __str__(self):
+        return f"Perfil de {self.user.username}"
+
+
 # Alias de compatibilidad para evitar rupturas en imports antiguos
 Alumno = Empleado

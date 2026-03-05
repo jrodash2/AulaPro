@@ -122,6 +122,7 @@ class MatriculaForm(BaseRihoForm):
 
 
 class UsuarioCreateForm(UserCreationForm):
+    foto = forms.ImageField(required=False)
     first_name = forms.CharField(max_length=150, required=False)
     last_name = forms.CharField(max_length=150, required=False)
     email = forms.EmailField(required=False)
@@ -134,10 +135,11 @@ class UsuarioCreateForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("username", "first_name", "last_name", "email", "password1", "password2", "is_active", "groups")
+        fields = ("username", "first_name", "last_name", "email", "password1", "password2", "is_active", "groups", "foto")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["foto"].widget.attrs["class"] = "form-control"
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs["class"] = "form-check-input"
@@ -158,6 +160,7 @@ class UsuarioCreateForm(UserCreationForm):
 
 
 class UsuarioUpdateForm(forms.ModelForm):
+    foto = forms.ImageField(required=False)
     groups = forms.ModelMultipleChoiceField(
         queryset=Group.objects.all().order_by("name"),
         required=False,
@@ -166,10 +169,11 @@ class UsuarioUpdateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ("username", "first_name", "last_name", "email", "is_active", "groups")
+        fields = ("username", "first_name", "last_name", "email", "is_active", "groups", "foto")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["foto"].widget.attrs["class"] = "form-control"
         self.fields["groups"].initial = self.instance.groups.all()
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):

@@ -8,4 +8,15 @@ def info_general(request):
         config = ConfiguracionGeneral.objects.order_by("id").first()
     except (OperationalError, ProgrammingError):
         config = None
-    return {"info_general": config}
+
+    user_profile_foto_url = ""
+    user = getattr(request, "user", None)
+    if user and getattr(user, "is_authenticated", False):
+        try:
+            perfil = user.perfil
+            if perfil and perfil.foto:
+                user_profile_foto_url = perfil.foto.url
+        except Exception:
+            user_profile_foto_url = ""
+
+    return {"info_general": config, "user_profile_foto_url": user_profile_foto_url}

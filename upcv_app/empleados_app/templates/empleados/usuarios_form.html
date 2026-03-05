@@ -21,7 +21,7 @@
         <h5>Datos del usuario</h5>
       </div>
       <div class="card-body">
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="row g-3">
             <div class="col-md-6">
@@ -47,6 +47,13 @@
             <div class="col-md-6">
               <label class="form-label">Grupos</label>
               {{ form.groups }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Foto de perfil</label>
+              {{ form.foto }}
+              {% if perfil_foto_url %}
+                <div class="mt-2"><img src="{{ perfil_foto_url }}" alt="Foto actual" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;"></div>
+              {% endif %}
             </div>
 
             {% if form.password1 %}
