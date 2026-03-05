@@ -225,5 +225,68 @@ class Perfil(models.Model):
         return f"Perfil de {self.user.username}"
 
 
+class Curso(models.Model):
+    grado = models.ForeignKey(Grado, on_delete=models.CASCADE, related_name="cursos")
+    nombre = models.CharField(max_length=150)
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return f"{self.nombre} - {self.grado.nombre}"
+
+
+class CursoDocente(models.Model):
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name="docentes_asignados")
+    docente = models.ForeignKey(User, on_delete=models.CASCADE, related_name="cursos_asignados")
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["curso", "docente"], name="uq_curso_docente"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.docente_id and not self.docente.groups.filter(name="Docente").exists():
+            raise ValidationError("El usuario asignado debe pertenecer al grupo Docente.")
+
+    def __str__(self):
+        return f"{self.curso.nombre} / {self.docente.username}"
+
+
+class Asistencia(models.Model):
+    curso_docente = models.ForeignKey(CursoDocente, on_delete=models.CASCADE, related_name="asistencias")
+    fecha = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["curso_docente", "fecha"], name="uq_asistencia_curso_docente_fecha"),
+        ]
+        ordering = ["-fecha", "-id"]
+
+    def __str__(self):
+        return f"{self.curso_docente} - {self.fecha}"
+
+
+class AsistenciaDetalle(models.Model):
+    asistencia = models.ForeignKey(Asistencia, on_delete=models.CASCADE, related_name="detalles")
+    alumno = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name="asistencias_detalle")
+    presente = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["asistencia", "alumno"], name="uq_asistencia_alumno"),
+        ]
+
+    def __str__(self):
+        return f"{self.alumno} - {'Presente' if self.presente else 'Ausente'}"
+
+
 # Alias de compatibilidad para evitar rupturas en imports antiguos
 Alumno = Empleado

@@ -23,6 +23,14 @@ urlpatterns = [
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/', views.grado_detail, name='grado_detail'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/editar/', views.grado_update, name='grado_update'),
 
+    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/cursos/', views.cursos_list, name='cursos_list'),
+    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/cursos/nuevo/', views.curso_create, name='curso_create'),
+    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/cursos/<int:curso_id>/editar/', views.curso_update, name='curso_update'),
+    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/cursos/<int:curso_id>/asignar-docente/', views.curso_asignar_docente, name='curso_asignar_docente'),
+
+    path('docente/dashboard/', views.docente_dashboard, name='docente_dashboard'),
+    path('docente/cursos/<int:curso_docente_id>/', views.docente_curso_detail, name='docente_curso_detail'),
+    path('docente/cursos/<int:curso_docente_id>/asistencia/', views.tomar_asistencia, name='tomar_asistencia'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/buscar-alumno/', views.buscar_alumno, name='buscar_alumno'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricular/', views.matricular_alumno, name='matricular_alumno'),
     path('matriculas/<int:matricula_id>/desmatricular/', views.desmatricular_alumno, name='desmatricular_alumno'),

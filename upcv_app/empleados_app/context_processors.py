@@ -10,6 +10,7 @@ def info_general(request):
         config = None
 
     user_profile_foto_url = ""
+    is_docente = False
     user = getattr(request, "user", None)
     if user and getattr(user, "is_authenticated", False):
         try:
@@ -18,5 +19,10 @@ def info_general(request):
                 user_profile_foto_url = perfil.foto.url
         except Exception:
             user_profile_foto_url = ""
+        is_docente = user.groups.filter(name="Docente").exists()
 
-    return {"info_general": config, "user_profile_foto_url": user_profile_foto_url}
+    return {
+        "info_general": config,
+        "user_profile_foto_url": user_profile_foto_url,
+        "is_docente": is_docente,
+    }

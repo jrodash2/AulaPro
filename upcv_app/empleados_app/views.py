@@ -142,7 +142,9 @@ def signin(request):
 
     auth_login(request, user)
 
-    if user.groups.filter(name="Administrador").exists():
+    if user.groups.filter(name="Docente").exists():
+        redirect_name = "docente_dashboard"
+    elif user.groups.filter(name="Administrador").exists():
         redirect_name = "dashboard"
     elif user.groups.filter(name="Gestor").exists():
         redirect_name = "dashboard_gestor"

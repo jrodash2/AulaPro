@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, User
 
-from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula
 
 
 class BaseRihoForm(forms.ModelForm):
@@ -187,3 +187,29 @@ class UsuarioUpdateForm(forms.ModelForm):
         if commit:
             user.groups.set(self.cleaned_data.get("groups"))
         return user
+
+
+class CursoForm(BaseRihoForm):
+    class Meta:
+        model = Curso
+        fields = ["nombre", "descripcion", "activo"]
+
+
+class AsignarDocenteForm(forms.Form):
+    docente = forms.ModelChoiceField(queryset=User.objects.none(), required=True)
+    activo = forms.BooleanField(required=False, initial=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["docente"].queryset = User.objects.filter(groups__name="Docente").order_by("first_name", "last_name", "username").distinct()
+        self.fields["docente"].widget.attrs["class"] = "form-control"
+        self.fields["activo"].widget.attrs["class"] = "form-check-input"
+
+    def save(self, curso):
+        docente = self.cleaned_data["docente"]
+        activo = self.cleaned_data.get("activo", True)
+        asignacion, _ = CursoDocente.objects.get_or_create(curso=curso, docente=docente)
+        asignacion.activo = activo
+        asignacion.full_clean()
+        asignacion.save()
+        return asignacion
