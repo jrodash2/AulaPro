@@ -1,6 +1,8 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import Group, User
 
-from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula
 
 
 class BaseRihoForm(forms.ModelForm):
@@ -117,3 +119,97 @@ class MatriculaForm(BaseRihoForm):
         self.fields["alumno"].queryset = alumnos.order_by("apellidos", "nombres")
         self.fields["grado"].queryset = grados.order_by("nombre")
         self.fields["ciclo_escolar"].queryset = ciclos.order_by("-anio", "-id")
+
+
+class UsuarioCreateForm(UserCreationForm):
+    foto = forms.ImageField(required=False)
+    first_name = forms.CharField(max_length=150, required=False)
+    last_name = forms.CharField(max_length=150, required=False)
+    email = forms.EmailField(required=False)
+    is_active = forms.BooleanField(required=False, initial=True)
+    groups = forms.ModelMultipleChoiceField(
+        queryset=Group.objects.all().order_by("name"),
+        required=False,
+        widget=forms.SelectMultiple(attrs={"class": "form-control"}),
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("username", "first_name", "last_name", "email", "password1", "password2", "is_active", "groups", "foto")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["foto"].widget.attrs["class"] = "form-control"
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = "form-check-input"
+            else:
+                current = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = f"{current} form-control".strip()
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.first_name = self.cleaned_data.get("first_name", "")
+        user.last_name = self.cleaned_data.get("last_name", "")
+        user.email = self.cleaned_data.get("email", "")
+        user.is_active = self.cleaned_data.get("is_active", True)
+        if commit:
+            user.save()
+            user.groups.set(self.cleaned_data.get("groups"))
+        return user
+
+
+class UsuarioUpdateForm(forms.ModelForm):
+    foto = forms.ImageField(required=False)
+    groups = forms.ModelMultipleChoiceField(
+        queryset=Group.objects.all().order_by("name"),
+        required=False,
+        widget=forms.SelectMultiple(attrs={"class": "form-control"}),
+    )
+
+    class Meta:
+        model = User
+        fields = ("username", "first_name", "last_name", "email", "is_active", "groups", "foto")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["foto"].widget.attrs["class"] = "form-control"
+        self.fields["groups"].initial = self.instance.groups.all()
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = "form-check-input"
+            else:
+                current = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = f"{current} form-control".strip()
+
+    def save(self, commit=True):
+        user = super().save(commit=commit)
+        if commit:
+            user.groups.set(self.cleaned_data.get("groups"))
+        return user
+
+
+class CursoForm(BaseRihoForm):
+    class Meta:
+        model = Curso
+        fields = ["nombre", "descripcion", "activo"]
+
+
+class AsignarDocenteForm(forms.Form):
+    docente = forms.ModelChoiceField(queryset=User.objects.none(), required=True)
+    activo = forms.BooleanField(required=False, initial=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["docente"].queryset = User.objects.filter(groups__name="Docente").order_by("first_name", "last_name", "username").distinct()
+        self.fields["docente"].widget.attrs["class"] = "form-control"
+        self.fields["activo"].widget.attrs["class"] = "form-check-input"
+
+    def save(self, curso):
+        docente = self.cleaned_data["docente"]
+        activo = self.cleaned_data.get("activo", True)
+        asignacion, _ = CursoDocente.objects.get_or_create(curso=curso, docente=docente)
+        asignacion.activo = activo
+        asignacion.full_clean()
+        asignacion.save()
+        return asignacion

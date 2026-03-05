@@ -61,6 +61,7 @@
       <h5>Alumnos matriculados</h5>
       <div class="d-flex gap-2">
         <a class="btn btn-outline-primary" href="{% url 'empleados:grado_update' establecimiento.id ciclo.id carrera.id grado.id %}"><i class="fa fa-edit"></i> Editar grado</a>
+        <a class="btn btn-outline-info" href="{% url 'empleados:cursos_list' establecimiento.id ciclo.id carrera.id grado.id %}"><i class="fa fa-book"></i> Cursos</a>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#matricularModal" type="button"><i class="fa fa-user-plus"></i> Matricular</button>
       </div>
     </div>

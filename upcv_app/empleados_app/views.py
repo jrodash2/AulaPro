@@ -7,10 +7,13 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
+from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import NoReverseMatch
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -21,9 +24,11 @@ from .forms import (
     EstablecimientoForm,
     GradoForm,
     MatriculaForm,
+    UsuarioCreateForm,
+    UsuarioUpdateForm,
 )
 from .gafete_utils import canvas_for_orientation, orientation_for_establecimiento, resolve_gafete_dimensions
-from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula
+from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
 
 
 def _can_manage_design(user):
@@ -136,12 +141,80 @@ def signin(request):
         return render(request, "empleados/login.html", {"form": AuthenticationForm, "error": "Usuario o Password es Incorrecto"})
 
     auth_login(request, user)
-    return redirect("empleados:dahsboard")
+
+    if user.groups.filter(name="Docente").exists():
+        redirect_name = "docente_dashboard"
+    elif user.groups.filter(name="Administrador").exists():
+        redirect_name = "dashboard"
+    elif user.groups.filter(name="Gestor").exists():
+        redirect_name = "dashboard_gestor"
+    elif user.groups.filter(name="Departamento").exists():
+        redirect_name = "dashboard_departamento"
+    else:
+        redirect_name = "dashboard"
+
+    for target in (redirect_name, "empleados:dahsboard"):
+        try:
+            return redirect(target)
+        except NoReverseMatch:
+            continue
+
+    raise
 
 
 def signout(request):
     logout(request)
     return redirect("empleados:signin")
+
+
+@login_required
+def usuarios_list(request):
+    usuarios = User.objects.prefetch_related("groups").all().order_by("username")
+    usuarios_rows = []
+    for usuario in usuarios:
+        try:
+            perfil = usuario.perfil
+            foto_url = perfil.foto.url if perfil and perfil.foto else ""
+        except ObjectDoesNotExist:
+            foto_url = ""
+        usuarios_rows.append({"usuario": usuario, "foto_url": foto_url})
+    return render(request, "empleados/usuarios_list.html", {"usuarios_rows": usuarios_rows})
+
+
+@login_required
+def usuarios_create(request):
+    form = UsuarioCreateForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        usuario = form.save()
+        perfil, _ = Perfil.objects.get_or_create(user=usuario)
+        foto = form.cleaned_data.get("foto")
+        if foto:
+            perfil.foto = foto
+            perfil.save()
+        messages.success(request, "Usuario creado correctamente.")
+        return redirect("empleados:usuarios_list")
+    return render(request, "empleados/usuarios_form.html", {"form": form, "titulo": "Nuevo Usuario", "perfil_foto_url": ""})
+
+
+@login_required
+def usuarios_update(request, pk):
+    usuario = get_object_or_404(User, pk=pk)
+    form = UsuarioUpdateForm(request.POST or None, request.FILES or None, instance=usuario)
+    if request.method == "POST" and form.is_valid():
+        usuario = form.save()
+        perfil, _ = Perfil.objects.get_or_create(user=usuario)
+        foto = form.cleaned_data.get("foto")
+        if foto:
+            perfil.foto = foto
+            perfil.save()
+        messages.success(request, "Usuario actualizado correctamente.")
+        return redirect("empleados:usuarios_list")
+    try:
+        perfil = usuario.perfil
+    except ObjectDoesNotExist:
+        perfil = None
+    perfil_foto_url = perfil.foto.url if perfil and perfil.foto else ""
+    return render(request, "empleados/usuarios_form.html", {"form": form, "titulo": "Editar Usuario", "usuario": usuario, "perfil_foto_url": perfil_foto_url})
 
 
 @login_required
