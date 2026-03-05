@@ -1,0 +1,5 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Historial alumno</h4></div><div class="col-6 text-end"><a class="btn btn-outline-danger" href="{% url 'empleados:docente_alumno_historial_pdf' curso_docente.id alumno.id %}">Descargar PDF Historial del alumno</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>{{ alumno.apellidos }}, {{ alumno.nombres }} · Presentes: {{ presentes }} · Ausentes: {{ ausentes }}</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-striped"><thead><tr><th>Fecha</th><th>Estado</th></tr></thead><tbody>{% for d in detalles %}<tr><td>{{ d.asistencia.fecha|date:'d/m/Y' }}</td><td>{% if d.presente %}<span class="badge badge-light-success">Presente</span>{% else %}<span class="badge badge-light-danger">Ausente</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="2">Sin historial.</td></tr>{% endfor %}</tbody></table></div></div></div></div></div>
+{% endblock %}

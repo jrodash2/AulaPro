@@ -1,0 +1,9 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Mis cursos</h4></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Cursos asignados</h5></div><div class="card-body"><div class="table-responsive custom-scrollbar"><table class="display" id="basic-9"><thead><tr><th>Curso</th><th>Grado</th><th>Carrera</th><th>Establecimiento</th><th>Acción</th></tr></thead><tbody>{% for cd in cursos_docente %}<tr><td>{{ cd.curso.nombre }}</td><td>{{ cd.curso.grado.nombre }}</td><td>{{ cd.curso.grado.carrera.nombre|default:'-' }}</td><td>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</td><td><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}">Abrir</a></td></tr>{% empty %}<tr><td colspan="5">No tienes cursos asignados.</td></tr>{% endfor %}</tbody></table></div></div></div></div></div>
+{% endblock %}
