@@ -261,8 +261,11 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
 @login_required
 @user_passes_test(_can_manage)
 def grado_create(request, est_id, ciclo_id, car_id):
-    ciclo = _get_ciclo(est_id, ciclo_id)
-    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    establecimiento = get_object_or_404(Establecimiento, id=est_id)
+    ciclo = get_object_or_404(CicloEscolar, id=ciclo_id, establecimiento=establecimiento)
+    carrera = get_object_or_404(Carrera, id=car_id, ciclo_escolar=ciclo)
+    grado = None
+
     form = GradoForm(request.POST or None, initial={'carrera': carrera, 'activo': True})
     if request.method == 'POST' and form.is_valid():
         grado = form.save(commit=False)
@@ -272,10 +275,12 @@ def grado_create(request, est_id, ciclo_id, car_id):
         return redirect('empleados:carrera_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id)
 
     return render(request, 'aulapro/grados/form.html', {
-        'form': form,
-        'titulo': f'Nuevo grado - {carrera.nombre}',
+        'establecimiento': establecimiento,
         'ciclo': ciclo,
         'carrera': carrera,
+        'grado': grado,
+        'titulo': f'Nuevo grado - {carrera.nombre}',
+        'form': form,
     })
 
 
