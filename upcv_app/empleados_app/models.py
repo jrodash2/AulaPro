@@ -259,14 +259,46 @@ class CursoDocente(models.Model):
         return f"{self.curso.nombre} / {self.docente.username}"
 
 
+class PeriodoAcademico(models.Model):
+    TIPO_BIMESTRE = "BIMESTRE"
+    TIPO_TRIMESTRE = "TRIMESTRE"
+    TIPO_SEMESTRE = "SEMESTRE"
+    TIPO_CHOICES = (
+        (TIPO_BIMESTRE, "Bimestre"),
+        (TIPO_TRIMESTRE, "Trimestre"),
+        (TIPO_SEMESTRE, "Semestre"),
+    )
+
+    curso_docente = models.ForeignKey(CursoDocente, on_delete=models.CASCADE, related_name="periodos")
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, default=TIPO_BIMESTRE)
+    numero = models.PositiveSmallIntegerField()
+    nombre = models.CharField(max_length=80)
+    fecha_inicio = models.DateField(null=True, blank=True)
+    fecha_fin = models.DateField(null=True, blank=True)
+    activo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["tipo", "numero"]
+        constraints = [
+            models.UniqueConstraint(fields=["curso_docente", "tipo", "numero"], name="uq_periodo_curso_docente_tipo_numero"),
+        ]
+
+    def __str__(self):
+        return self.nombre
+
+
 class Asistencia(models.Model):
     curso_docente = models.ForeignKey(CursoDocente, on_delete=models.CASCADE, related_name="asistencias")
+    periodo = models.ForeignKey(PeriodoAcademico, on_delete=models.CASCADE, related_name="asistencias", null=True, blank=True)
     fecha = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["curso_docente", "fecha"], name="uq_asistencia_curso_docente_fecha"),
+            models.UniqueConstraint(fields=["periodo", "fecha"], name="uq_asistencia_periodo_fecha"),
         ]
         ordering = ["-fecha", "-id"]
 

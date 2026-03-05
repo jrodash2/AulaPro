@@ -30,8 +30,10 @@ urlpatterns = [
 
     path('docente/dashboard/', views.docente_dashboard, name='docente_dashboard'),
     path('docente/cursos/<int:curso_docente_id>/', views.docente_curso_detail, name='docente_curso_detail'),
-    path('docente/cursos/<int:curso_docente_id>/asistencia/', views.tomar_asistencia, name='tomar_asistencia'),
-    path('docente/cursos/<int:curso_docente_id>/historial/', views.docente_curso_historial, name='docente_curso_historial'),
+    path('docente/cursos/<int:curso_docente_id>/asistencia/', views.docente_asistencia_home, name='docente_asistencia_home'),
+    path('docente/periodos/<int:periodo_id>/', views.docente_periodo_detail, name='docente_periodo_detail'),
+    path('docente/periodos/<int:periodo_id>/tomar-asistencia/', views.tomar_asistencia, name='tomar_asistencia'),
+    path('docente/periodos/<int:periodo_id>/historial/', views.docente_historial_asistencias, name='docente_historial_asistencias'),
     path('docente/asistencias/<int:asistencia_id>/', views.docente_asistencia_detail, name='docente_asistencia_detail'),
     path('docente/asistencias/<int:asistencia_id>/pdf/', views.docente_asistencia_pdf, name='docente_asistencia_pdf'),
     path('docente/cursos/<int:curso_docente_id>/alumnos/<int:alumno_id>/historial/', views.docente_alumno_historial, name='docente_alumno_historial'),
