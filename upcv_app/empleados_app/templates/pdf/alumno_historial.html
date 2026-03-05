@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+@page { size: A4; margin: 24px; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
+.header { border-bottom: 1px solid #999; padding-bottom: 8px; margin-bottom: 12px; }
+.title { font-size: 16px; font-weight: bold; }
+.meta { margin: 3px 0; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #999; padding: 6px; }
+th { background: #efefef; }
+.right { text-align: right; }
+</style></head><body>
+<div class="header">
+  <div class="title">{{ info_general.nombre_institucion|default:'AulaPro Escolar' }}</div>
+  <div class="meta"><strong>Historial de asistencia por alumno</strong></div>
+  <div class="meta"><strong>Alumno:</strong> {{ alumno.apellidos }}, {{ alumno.nombres }} ({{ alumno.codigo_personal|default:'-' }})</div>
+  <div class="meta"><strong>Curso:</strong> {{ curso.nombre }} | <strong>Grado:</strong> {{ curso.grado.nombre|default:'-' }}</div>
+  <div class="meta"><strong>Docente:</strong> {{ curso_docente.docente.get_full_name|default:curso_docente.docente.username }}</div>
+</div>
+<table>
+  <thead><tr><th>No.</th><th>Fecha</th><th>Periodo</th><th>Estado</th></tr></thead>
+  <tbody>
+    {% for d in detalles %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ d.asistencia.fecha|date:'d/m/Y' }}</td>
+      <td>{{ d.asistencia.periodo.nombre|default:'Sin periodo' }}</td>
+      <td>{% if d.presente %}Presente{% else %}Ausente{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="right"><strong>Totales:</strong> Presentes {{ presentes }} · Ausentes {{ ausentes }}</p>
+</body></html>
