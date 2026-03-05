@@ -162,6 +162,12 @@ def signout(request):
 
 
 @login_required
+def usuarios(request):
+    return render(request, "empleados/usuarios.html")
+
+
+
+@login_required
 def dahsboard(request):
     return render(request, "empleados/dahsboard.html")
 

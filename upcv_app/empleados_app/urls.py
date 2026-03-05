@@ -12,6 +12,7 @@ urlpatterns = [
     path("logout/", views.signout, name="logout"),
     path("dahsboard/", views.dahsboard, name="dahsboard"),
     path("config_general/", views.configuracion_general, name="configuracion_general"),
+    path("usuarios/", views.usuarios, name="usuarios"),
 
     path("alumnos/crear/", views.crear_empleado, name="crear_empleado"),
     path("alumnos/lista/", views.lista_empleados, name="empleado_lista"),
