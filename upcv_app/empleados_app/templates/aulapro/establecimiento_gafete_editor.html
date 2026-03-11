@@ -106,6 +106,29 @@
   #editorCanvas .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
   #editorCanvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
   #editorCanvas .gafete-item.dragging { opacity: .9; }
+
+  #editorCanvas .grado-gafete {
+    width: 280px;
+    max-width: 320px;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.2;
+    white-space: normal !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    column-count: 2;
+    column-gap: 10px;
+  }
+
+  #editorCanvas .grado-gafete span {
+    display: block;
+  }
+
+  @media (max-width: 500px) {
+    #editorCanvas .grado-gafete {
+      column-count: 3;
+    }
+  }
   #editorCanvas .canvas-overlay { pointer-events:none; }
 </style>
 

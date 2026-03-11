@@ -10,7 +10,7 @@ from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
-from django.core.exceptions import ObjectDoesNotExist
+from django.db import OperationalError, ProgrammingError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch
@@ -171,13 +171,17 @@ def signout(request):
 def usuarios_list(request):
     usuarios = User.objects.prefetch_related("groups").all().order_by("username")
     usuarios_rows = []
+
     for usuario in usuarios:
+        foto_url = ""
         try:
-            perfil = usuario.perfil
-            foto_url = perfil.foto.url if perfil and perfil.foto else ""
-        except ObjectDoesNotExist:
+            perfil, _ = Perfil.objects.get_or_create(user=usuario)
+            foto_url = perfil.foto.url if perfil.foto else ""
+        except (ProgrammingError, OperationalError):
             foto_url = ""
+
         usuarios_rows.append({"usuario": usuario, "foto_url": foto_url})
+
     return render(request, "empleados/usuarios_list.html", {"usuarios_rows": usuarios_rows})
 
 
@@ -209,9 +213,10 @@ def usuarios_update(request, pk):
             perfil.save()
         messages.success(request, "Usuario actualizado correctamente.")
         return redirect("empleados:usuarios_list")
+    perfil = None
     try:
-        perfil = usuario.perfil
-    except ObjectDoesNotExist:
+        perfil, _ = Perfil.objects.get_or_create(user=usuario)
+    except (ProgrammingError, OperationalError):
         perfil = None
     perfil_foto_url = perfil.foto.url if perfil and perfil.foto else ""
     return render(request, "empleados/usuarios_form.html", {"form": form, "titulo": "Editar Usuario", "usuario": usuario, "perfil_foto_url": perfil_foto_url})

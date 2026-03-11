@@ -9,6 +9,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Drop the historical partial unique constraint before renaming the field
+        # used by its condition (`es_activo` -> `activo`).
+        migrations.RemoveConstraint(
+            model_name='cicloescolar',
+            name='uq_ciclo_activo_por_establecimiento',
+        ),
         migrations.RenameField(
             model_name='cicloescolar',
             old_name='es_activo',
@@ -25,10 +31,6 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name='cicloescolar',
             index=models.Index(fields=['establecimiento', 'activo'], name='empleados_a_estable_fe504c_idx'),
-        ),
-        migrations.RemoveConstraint(
-            model_name='cicloescolar',
-            name='uq_ciclo_activo_por_establecimiento',
         ),
         migrations.AddConstraint(
             model_name='cicloescolar',
