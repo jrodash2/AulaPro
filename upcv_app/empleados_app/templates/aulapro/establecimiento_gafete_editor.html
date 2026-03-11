@@ -196,12 +196,18 @@ window.gafeteEditorSimple = {
     return (best ? best.parts : [text]).join('<br>');
   }
 
+  function formatGradoTexts(scopeSelector) {
+    const root = document.querySelector(scopeSelector);
+    if (!root) return;
+    root.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
+      const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!raw) return;
+      gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    const gradoTextEl = document.querySelector('#editorCanvas .gafete-item[data-key="grado"] .grado-texto');
-    if (!gradoTextEl) return;
-    const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
-    if (!raw) return;
-    gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
+    formatGradoTexts('#editorCanvas');
   });
 })();
 </script>
