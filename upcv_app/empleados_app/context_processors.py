@@ -11,6 +11,8 @@ def info_general(request):
 
     user_profile_foto_url = ""
     is_docente = False
+    is_admin_total = False
+    is_docente_only = False
     user = getattr(request, "user", None)
     if user and getattr(user, "is_authenticated", False):
         try:
@@ -20,9 +22,13 @@ def info_general(request):
         except Exception:
             user_profile_foto_url = ""
         is_docente = user.groups.filter(name="Docente").exists()
+        is_admin_total = user.is_superuser or user.is_staff or user.groups.filter(name="Administrador").exists() or user.groups.filter(name="Admin_gafetes").exists()
+        is_docente_only = is_docente and not is_admin_total
 
     return {
         "info_general": config,
         "user_profile_foto_url": user_profile_foto_url,
         "is_docente": is_docente,
+        "is_admin_total": is_admin_total,
+        "is_docente_only": is_docente_only,
     }

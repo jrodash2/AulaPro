@@ -35,6 +35,14 @@ def _can_manage_design(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
 
 
+def _is_docente(user):
+    return bool(user and user.is_authenticated and user.groups.filter(name="Docente").exists())
+
+
+def _can_access_backoffice(user):
+    return bool(user and user.is_authenticated and not _is_docente(user))
+
+
 def _validate_layout_payload(payload, forced_orientation=None):
     if not isinstance(payload, dict):
         raise ValueError("Formato inválido")
@@ -168,6 +176,7 @@ def signout(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def usuarios_list(request):
     usuarios = User.objects.prefetch_related("groups").all().order_by("username")
     usuarios_rows = []
@@ -186,6 +195,7 @@ def usuarios_list(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def usuarios_create(request):
     form = UsuarioCreateForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -201,6 +211,7 @@ def usuarios_create(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def usuarios_update(request, pk):
     usuario = get_object_or_404(User, pk=pk)
     form = UsuarioUpdateForm(request.POST or None, request.FILES or None, instance=usuario)
@@ -224,12 +235,13 @@ def usuarios_update(request, pk):
 
 @login_required
 def dahsboard(request):
-    if request.user.groups.filter(name="Docente").exists():
+    if _is_docente(request.user):
         return redirect("empleados:docente_dashboard")
     return render(request, "empleados/dahsboard.html")
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def configuracion_general(request):
     configuracion, _ = ConfiguracionGeneral.objects.get_or_create(id=1)
     form = ConfiguracionGeneralForm(request.POST or None, request.FILES or None, instance=configuracion)
@@ -241,6 +253,7 @@ def configuracion_general(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def crear_empleado(request):
     form = EmpleadoForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -253,6 +266,7 @@ def crear_empleado(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def editar_empleado(request, e_id):
     empleado = get_object_or_404(Empleado, pk=e_id)
     form = EmpleadoEditForm(request.POST or None, request.FILES or None, instance=empleado)
@@ -264,18 +278,21 @@ def editar_empleado(request, e_id):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def lista_empleados(request):
     empleados = Empleado.objects.all().order_by("-created_at")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def credencial_empleados(request):
     empleados = Empleado.objects.all()
     return render(request, "empleados/credencial_empleados.html", {"empleados": empleados})
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def empleado_detalle(request, id):
     empleado = get_object_or_404(Empleado, id=id)
     configuracion = ConfiguracionGeneral.objects.first()
@@ -313,6 +330,7 @@ def empleado_detalle(request, id):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def lista_establecimientos(request):
     establecimientos = Establecimiento.objects.all()
     return render(request, "empleados/establecimiento_lista.html", {"establecimientos": establecimientos})
@@ -342,12 +360,14 @@ def editar_establecimiento(request, pk):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def lista_carreras(request):
     carreras = Carrera.objects.select_related("ciclo_escolar", "ciclo_escolar__establecimiento")
     return render(request, "empleados/carrera_lista.html", {"carreras": carreras})
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def crear_carrera(request):
     ciclo_id = request.GET.get("ciclo_escolar") or request.POST.get("ciclo_escolar")
     initial = {"ciclo_escolar": ciclo_id} if ciclo_id else None
@@ -363,6 +383,7 @@ def crear_carrera(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def editar_carrera(request, pk):
     carrera = get_object_or_404(Carrera, pk=pk)
     form = CarreraForm(request.POST or None, instance=carrera)
@@ -376,12 +397,14 @@ def editar_carrera(request, pk):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def lista_grados(request):
     grados = Grado.objects.select_related("carrera", "carrera__ciclo_escolar__establecimiento")
     return render(request, "empleados/grado_lista.html", {"grados": grados})
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def crear_grado(request):
     form = GradoForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -396,6 +419,7 @@ def crear_grado(request):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def editar_grado(request, pk):
     grado = get_object_or_404(Grado, pk=pk)
     form = GradoForm(request.POST or None, instance=grado)
@@ -409,6 +433,7 @@ def editar_grado(request, pk):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def matricula_view(request):
     establecimiento_id = request.GET.get("establecimiento") or request.POST.get("establecimiento")
     carrera_id = request.GET.get("carrera") or request.POST.get("carrera")
@@ -691,6 +716,7 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def gafete_jpg(request, matricula_id):
     matricula = get_object_or_404(
         Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
@@ -712,6 +738,7 @@ def gafete_jpg(request, matricula_id):
 
 
 @login_required
+@user_passes_test(_can_access_backoffice)
 def descargar_gafete_jpg(request, matricula_id):
     return gafete_jpg(request, matricula_id)
 

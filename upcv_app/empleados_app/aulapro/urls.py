@@ -34,6 +34,7 @@ urlpatterns = [
     path('docente/periodos/<int:periodo_id>/', views.docente_periodo_detail, name='docente_periodo_detail'),
     path('docente/periodos/<int:periodo_id>/tomar-asistencia/', views.tomar_asistencia, name='tomar_asistencia'),
     path('docente/periodos/<int:periodo_id>/historial/', views.docente_historial_asistencias, name='docente_historial_asistencias'),
+    path('docente/periodos/<int:periodo_id>/eliminar/', views.docente_periodo_delete, name='docente_periodo_delete'),
     path('docente/asistencias/<int:asistencia_id>/', views.docente_asistencia_detail, name='docente_asistencia_detail'),
     path('docente/asistencias/<int:asistencia_id>/pdf/', views.docente_asistencia_pdf, name='docente_asistencia_pdf'),
     path('docente/cursos/<int:curso_docente_id>/alumnos/<int:alumno_id>/historial/', views.docente_alumno_historial, name='docente_alumno_historial'),
