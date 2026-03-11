@@ -44,12 +44,14 @@ class Migration(migrations.Migration):
             name='ciclo_escolar',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='carreras', to='empleados_app.cicloescolar'),
         ),
-        migrations.RemoveField(
-            model_name='carrera',
-            name='establecimiento',
-        ),
+        # IMPORTANT: update unique_together before removing `establecimiento` so
+        # historical model states remain renderable during this migration step.
         migrations.AlterUniqueTogether(
             name='carrera',
             unique_together={('ciclo_escolar', 'nombre')},
+        ),
+        migrations.RemoveField(
+            model_name='carrera',
+            name='establecimiento',
         ),
     ]
