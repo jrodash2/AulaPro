@@ -88,7 +88,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'Gafcomebsa',  # Cambia esto por el nombre de tu base de datos
         'USER': 'postgres',
-        'PASSWORD': 'Jrodash2*',  # La contraseña que configuraste
+        'PASSWORD': 'Jrodash2#',  # La contraseña que configuraste
         'HOST': 'localhost',
         'PORT': '5432',  # O el puerto que hayas configurado
     }
