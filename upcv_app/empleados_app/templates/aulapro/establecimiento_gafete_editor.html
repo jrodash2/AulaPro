@@ -106,6 +106,29 @@
   #editorCanvas .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
   #editorCanvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
   #editorCanvas .gafete-item.dragging { opacity: .9; }
+
+  #editorCanvas .grado-gafete {
+    width: 260px;
+    max-width: 260px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.15;
+    white-space: normal !important;
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+  }
+
+  #editorCanvas .grado-gafete .grado-texto {
+    width: 100%;
+    text-align: center;
+    display: block;
+  }
   #editorCanvas .canvas-overlay { pointer-events:none; }
 </style>
 
@@ -120,4 +143,66 @@ window.gafeteEditorSimple = {
 };
 </script>
 <script src="{% static 'aulapro/js/gafete_editor_v3.js' %}"></script>
+
+<script>
+(function () {
+  function balancedLineBreaks(text, maxLines) {
+    const words = (text || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '';
+    if (words.length <= 2) return words.join(' ');
+
+    const n = words.length;
+    let best = null;
+
+    function score(parts) {
+      const lengths = parts.map((p) => p.length);
+      const maxLen = Math.max(...lengths);
+      const minLen = Math.min(...lengths);
+      const spread = maxLen - minLen;
+      return maxLen * 100 + spread;
+    }
+
+    function buildParts(cuts) {
+      const parts = [];
+      let start = 0;
+      for (const cut of cuts) {
+        parts.push(words.slice(start, cut).join(' '));
+        start = cut;
+      }
+      parts.push(words.slice(start).join(' '));
+      return parts;
+    }
+
+    // 2 lines
+    if (maxLines >= 2) {
+      for (let i = 1; i < n; i++) {
+        const parts = buildParts([i]);
+        const candidate = { parts, s: score(parts) };
+        if (!best || candidate.s < best.s) best = candidate;
+      }
+    }
+
+    // 3 lines
+    if (maxLines >= 3 && n >= 3) {
+      for (let i = 1; i < n - 1; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const parts = buildParts([i, j]);
+          const candidate = { parts, s: score(parts) };
+          if (!best || candidate.s < best.s) best = candidate;
+        }
+      }
+    }
+
+    return (best ? best.parts : [text]).join('<br>');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const gradoTextEl = document.querySelector('#editorCanvas .gafete-item[data-key="grado"] .grado-texto');
+    if (!gradoTextEl) return;
+    const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return;
+    gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
+  });
+})();
+</script>
 {% endblock %}
