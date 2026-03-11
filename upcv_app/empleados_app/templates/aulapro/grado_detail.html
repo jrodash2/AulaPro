@@ -204,6 +204,72 @@ window.matriculaModalConfig = {
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+(function () {
+  function balancedLineBreaks(text, maxLines) {
+    const words = (text || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '';
+    if (words.length <= 2) return words.join(' ');
+
+    const n = words.length;
+    let best = null;
+
+    function score(parts) {
+      const lengths = parts.map((p) => p.length);
+      const maxLen = Math.max(...lengths);
+      const minLen = Math.min(...lengths);
+      return maxLen * 100 + (maxLen - minLen);
+    }
+
+    function buildParts(cuts) {
+      const parts = [];
+      let start = 0;
+      for (const cut of cuts) {
+        parts.push(words.slice(start, cut).join(' '));
+        start = cut;
+      }
+      parts.push(words.slice(start).join(' '));
+      return parts;
+    }
+
+    if (maxLines >= 2) {
+      for (let i = 1; i < n; i++) {
+        const parts = buildParts([i]);
+        const candidate = { parts, s: score(parts) };
+        if (!best || candidate.s < best.s) best = candidate;
+      }
+    }
+
+    if (maxLines >= 3 && n >= 3) {
+      for (let i = 1; i < n - 1; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const parts = buildParts([i, j]);
+          const candidate = { parts, s: score(parts) };
+          if (!best || candidate.s < best.s) best = candidate;
+        }
+      }
+    }
+
+    return (best ? best.parts : [text]).join('<br>');
+  }
+
+  function formatAllGradoTexts() {
+    document.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
+      const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!raw) return;
+      gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', formatAllGradoTexts);
+  } else {
+    formatAllGradoTexts();
+  }
+})();
+</script>
+
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_export_fix.js' %}"></script>
