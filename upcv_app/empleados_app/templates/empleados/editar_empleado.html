@@ -33,29 +33,40 @@
             <div class="col-md-4"><label class="form-label">CUI</label>{{ form.cui }}</div>
             <div class="col-md-4"><label class="form-label">Teléfono</label>{{ form.tel }}</div>
 
-            <div class="col-md-6">
+            <div class="col-lg-6">
               <label class="form-label">Imagen</label>
               {{ form.imagen }}
-              <div class="d-flex gap-2 mt-2 flex-wrap">
-                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-abrir-camara">Tomar foto</button>
+
+              <div class="foto-captura-wrap mt-2">
+                <button type="button" id="btn-abrir-camara" class="btn btn-outline-primary btn-sm">Abrir cámara</button>
+
+                <div id="camara-box" class="mt-3" style="display:none;">
+                  <div class="camera-preview-card">
+                    <video id="camera-video" autoplay playsinline muted></video>
+                  </div>
+
+                  <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <button type="button" id="btn-capturar-foto" class="btn btn-primary btn-sm">Capturar foto</button>
+                    <button type="button" id="btn-cerrar-camara" class="btn btn-outline-danger btn-sm">Cerrar cámara</button>
+                  </div>
+                </div>
+
+                <canvas id="camera-canvas" style="display:none;"></canvas>
               </div>
+
               <small id="camera-feedback" class="text-muted d-block mt-2"></small>
+            </div>
+
+            <div class="col-lg-6">
+              <label class="form-label d-block">Vista previa</label>
+              <div class="preview-foto-box">
+                <img id="preview-foto" src="{% if empleado.imagen %}{{ empleado.imagen.url }}{% else %}{% static 'assets/images/dashboard/profile2.png' %}{% endif %}" alt="Vista previa de foto">
+              </div>
             </div>
 
             <div class="col-md-6 d-flex align-items-center gap-2 mt-4">
               {{ form.activo }}
               <label class="form-label mb-0">Activo</label>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label d-block">Vista previa</label>
-              <img
-                id="preview-imagen"
-                src="{% if empleado.imagen %}{{ empleado.imagen.url }}{% else %}{% static 'assets/images/dashboard/profile2.png' %}{% endif %}"
-                alt="Vista previa de alumno"
-                class="img-thumbnail"
-                style="width: 180px; height: 220px; object-fit: cover;"
-              >
             </div>
           </div>
 
@@ -68,67 +79,78 @@
   </div>
 </div>
 
-<div class="modal fade" id="cameraModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Capturar foto</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="ratio ratio-4x3 bg-dark rounded overflow-hidden">
-          <video id="camera-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
-        </div>
-        <canvas id="camera-canvas" class="d-none"></canvas>
-        <small id="camera-modal-feedback" class="text-muted d-block mt-2"></small>
-      </div>
-      <div class="modal-footer">
-        <button type="button" id="btn-capturar-foto" class="btn btn-primary">Capturar</button>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    </div>
-  </div>
-</div>
+<style>
+  .camera-preview-card {
+    width: 320px;
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #camera-video {
+    width: 100%;
+    height: auto;
+    display: block;
+    min-height: 220px;
+    object-fit: cover;
+  }
+
+  .preview-foto-box {
+    width: 180px;
+    height: 220px;
+    border: 1px solid #d9d9d9;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #preview-foto {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+</style>
 
 <script>
 (function () {
   const inputImagen = document.getElementById('id_imagen');
-  const previewImagen = document.getElementById('preview-imagen');
+  const previewFoto = document.getElementById('preview-foto');
   const btnAbrirCamara = document.getElementById('btn-abrir-camara');
   const btnCapturarFoto = document.getElementById('btn-capturar-foto');
+  const btnCerrarCamara = document.getElementById('btn-cerrar-camara');
+  const camaraBox = document.getElementById('camara-box');
   const video = document.getElementById('camera-video');
   const canvas = document.getElementById('camera-canvas');
-  const cameraFeedback = document.getElementById('camera-feedback');
-  const cameraModalFeedback = document.getElementById('camera-modal-feedback');
-  const modalEl = document.getElementById('cameraModal');
-  const cameraModal = (window.bootstrap && modalEl) ? new bootstrap.Modal(modalEl) : null;
+  const feedback = document.getElementById('camera-feedback');
+
   let mediaStream = null;
 
   function setMessage(message, isError) {
-    cameraFeedback.textContent = message || '';
-    cameraFeedback.classList.toggle('text-danger', !!isError);
-    cameraFeedback.classList.toggle('text-muted', !isError);
+    feedback.textContent = message || '';
+    feedback.classList.toggle('text-danger', !!isError);
+    feedback.classList.toggle('text-muted', !isError);
   }
 
-  function setModalMessage(message, isError) {
-    cameraModalFeedback.textContent = message || '';
-    cameraModalFeedback.classList.toggle('text-danger', !!isError);
-    cameraModalFeedback.classList.toggle('text-muted', !isError);
-  }
-
-  function stopStream() {
+  function stopCamera() {
     if (mediaStream) {
       mediaStream.getTracks().forEach((track) => track.stop());
       mediaStream = null;
     }
     video.srcObject = null;
+    camaraBox.style.display = 'none';
   }
 
   function updatePreviewFromFile(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function (event) {
-      previewImagen.src = event.target.result;
+      previewFoto.src = event.target.result;
     };
     reader.readAsDataURL(file);
   }
@@ -140,14 +162,13 @@
     setMessage('Foto seleccionada desde archivo.', false);
   });
 
-  async function openCamera() {
+  btnAbrirCamara.addEventListener('click', async function () {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setMessage('Este navegador no soporta cámara. Puedes subir una foto manualmente.', true);
+      setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
       return;
     }
 
     setMessage('', false);
-    setModalMessage('', false);
 
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -155,20 +176,16 @@
         audio: false,
       });
       video.srcObject = mediaStream;
-      if (cameraModal) {
-        cameraModal.show();
-      }
+      camaraBox.style.display = 'block';
     } catch (error) {
-      setMessage('No fue posible abrir la cámara. Verifica permisos o disponibilidad del dispositivo.', true);
-      console.error('Error abriendo cámara:', error);
+      setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
+      console.error('Error accediendo a cámara:', error);
     }
-  }
-
-  btnAbrirCamara.addEventListener('click', openCamera);
+  });
 
   btnCapturarFoto.addEventListener('click', function () {
     if (!mediaStream) {
-      setModalMessage('Primero debes abrir la cámara.', true);
+      setMessage('Primero debes abrir la cámara.', true);
       return;
     }
 
@@ -176,45 +193,43 @@
     const height = video.videoHeight;
 
     if (!width || !height) {
-      setModalMessage('La cámara aún no está lista. Intenta nuevamente.', true);
+      setMessage('La cámara aún no está lista. Intenta de nuevo.', true);
       return;
     }
 
     canvas.width = width;
     canvas.height = height;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, width, height);
 
     canvas.toBlob(function (blob) {
       if (!blob) {
-        setModalMessage('No se pudo capturar la foto. Intenta nuevamente.', true);
+        setMessage('No se pudo capturar la foto. Intenta nuevamente.', true);
         return;
       }
-
-      const capturedFile = new File([blob], `foto_capturada_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
       if (typeof DataTransfer === 'undefined') {
-        setModalMessage('Tu navegador no permite adjuntar captura automáticamente. Usa la carga manual.', true);
+        setMessage('Este navegador no permite adjuntar la captura automáticamente. Usa carga manual.', true);
         return;
       }
 
-      const transfer = new DataTransfer();
-      transfer.items.add(capturedFile);
-      inputImagen.files = transfer.files;
-      updatePreviewFromFile(capturedFile);
-      setMessage('Foto capturada correctamente. Guarda para aplicar cambios.', false);
+      const capturedFile = new File([blob], `foto_alumno_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(capturedFile);
+      inputImagen.files = dt.files;
 
-      if (cameraModal) cameraModal.hide();
-      stopStream();
+      updatePreviewFromFile(capturedFile);
+      setMessage('Foto capturada correctamente. Ahora guarda el formulario.', false);
+      stopCamera();
     }, 'image/jpeg', 0.95);
   });
 
-  if (modalEl) {
-    modalEl.addEventListener('hidden.bs.modal', function () {
-      stopStream();
-      setModalMessage('', false);
-    });
-  }
+  btnCerrarCamara.addEventListener('click', function () {
+    stopCamera();
+    setMessage('Cámara cerrada.', false);
+  });
+
+  window.addEventListener('beforeunload', stopCamera);
 })();
 </script>
 {% endblock %}
