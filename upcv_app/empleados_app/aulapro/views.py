@@ -46,6 +46,16 @@ def _is_docente(user):
     return user.groups.filter(name="Docente").exists()
 
 
+def _can_view_attendance(user):
+    return _is_docente(user) or _can_manage(user)
+
+
+def _attendance_filter_for_user(user, prefix=""):
+    if _is_docente(user):
+        return {f"{prefix}docente": user}
+    return {}
+
+
 def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
@@ -124,12 +134,14 @@ def _get_grado(est_id, ciclo_id, car_id, grado_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def establecimientos_list(request):
     establecimientos = Establecimiento.objects.all()
     return render(request, 'aulapro/establecimientos_list.html', {'establecimientos': establecimientos})
 
 
 @login_required
+@user_passes_test(_can_manage)
 def establecimiento_detail(request, est_id):
     establecimiento = _get_establecimiento(est_id)
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
@@ -158,6 +170,7 @@ def establecimiento_update(request, est_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def ciclos_list(request, est_id):
     establecimiento = _get_establecimiento(est_id)
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
@@ -264,6 +277,7 @@ def ciclo_delete(request, est_id, ciclo_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def ciclo_detail(request, est_id, ciclo_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
@@ -299,6 +313,7 @@ def carrera_create(request, est_id, ciclo_id):
     })
 
 @login_required
+@user_passes_test(_can_manage)
 def carrera_detail(request, est_id, ciclo_id, car_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
@@ -368,6 +383,7 @@ def carrera_update(request, est_id, ciclo_id, car_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def grados_list(request, est_id, ciclo_id, car_id):
     return carrera_detail(request, est_id, ciclo_id, car_id)
 
@@ -398,6 +414,7 @@ def grado_update(request, est_id, ciclo_id, car_id, grado_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
@@ -443,6 +460,7 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
 
 @login_required
+@user_passes_test(_can_manage)
 def cursos_list(request, est_id, ciclo_id, car_id, grado_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
@@ -536,22 +554,25 @@ def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id)
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_dashboard(request):
     cursos_docente = CursoDocente.objects.select_related(
-        'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento'
-    ).filter(docente=request.user, activo=True, curso__activo=True).order_by('curso__nombre')
+        'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento', 'docente'
+    ).filter(activo=True, curso__activo=True)
+    if _is_docente(request.user):
+        cursos_docente = cursos_docente.filter(docente=request.user)
+    cursos_docente = cursos_docente.order_by('curso__nombre')
     return render(request, 'docentes/dashboard.html', {'cursos_docente': cursos_docente})
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_curso_detail(request, curso_docente_id):
     curso_docente = get_object_or_404(
         CursoDocente.objects.select_related('curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento'),
         pk=curso_docente_id,
-        docente=request.user,
         activo=True,
+        **_attendance_filter_for_user(request.user),
     )
     grado = curso_docente.curso.grado
     alumnos = Empleado.objects.filter(matriculas__grado=grado).distinct().order_by('apellidos', 'nombres')
@@ -564,18 +585,23 @@ def docente_curso_detail(request, curso_docente_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_asistencia_home(request, curso_docente_id):
-    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, activo=True, **_attendance_filter_for_user(request.user))
     accion = request.GET.get('generar')
     if accion in {'bimestres', 'semestres'}:
         tipo, total = (PeriodoAcademico.TIPO_BIMESTRE, 4) if accion == 'bimestres' else (PeriodoAcademico.TIPO_SEMESTRE, 2)
+        if PeriodoAcademico.objects.filter(curso_docente=curso_docente, tipo=tipo).exists():
+            etiqueta = 'bimestre' if tipo == PeriodoAcademico.TIPO_BIMESTRE else 'semestre'
+            messages.warning(request, f'Ya existe un {etiqueta} creado. Debe eliminarlo antes de crear uno nuevo.')
+            return redirect('empleados:docente_asistencia_home', curso_docente_id=curso_docente.id)
         for i in range(1, total + 1):
-            PeriodoAcademico.objects.get_or_create(
+            PeriodoAcademico.objects.create(
                 curso_docente=curso_docente,
                 tipo=tipo,
                 numero=i,
-                defaults={'nombre': f"{tipo.title()} {i}", 'activo': True},
+                nombre=f"{tipo.title()} {i}",
+                activo=True,
             )
         messages.success(request, 'Periodos generados correctamente.')
         return redirect('empleados:docente_asistencia_home', curso_docente_id=curso_docente.id)
@@ -589,9 +615,9 @@ def docente_asistencia_home(request, curso_docente_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_periodo_detail(request, periodo_id):
-    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado'), pk=periodo_id, curso_docente__docente=request.user)
+    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado'), pk=periodo_id, **_attendance_filter_for_user(request.user, 'curso_docente__'))
     return render(request, 'docentes/asistencia/periodo_detail.html', {
         'periodo': periodo,
         'curso_docente': periodo.curso_docente,
@@ -600,9 +626,9 @@ def docente_periodo_detail(request, periodo_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def tomar_asistencia(request, periodo_id):
-    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado'), pk=periodo_id, curso_docente__docente=request.user, activo=True)
+    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado'), pk=periodo_id, activo=True, **_attendance_filter_for_user(request.user, 'curso_docente__'))
     curso_docente = periodo.curso_docente
     fecha = request.POST.get('fecha') or request.GET.get('fecha') or str(timezone.localdate())
     grado = curso_docente.curso.grado
@@ -632,9 +658,9 @@ def tomar_asistencia(request, periodo_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_historial_asistencias(request, periodo_id):
-    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso'), pk=periodo_id, curso_docente__docente=request.user)
+    periodo = get_object_or_404(PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso'), pk=periodo_id, **_attendance_filter_for_user(request.user, 'curso_docente__'))
     asistencias = Asistencia.objects.filter(periodo=periodo).order_by('-fecha')
     rows = []
     for a in asistencias:
@@ -651,12 +677,12 @@ def docente_historial_asistencias(request, periodo_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_asistencia_detail(request, asistencia_id):
     asistencia = get_object_or_404(
         Asistencia.objects.select_related('curso_docente', 'curso_docente__docente', 'curso_docente__curso', 'periodo'),
         pk=asistencia_id,
-        curso_docente__docente=request.user,
+        **_attendance_filter_for_user(request.user, 'curso_docente__'),
     )
     detalles = asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres')
     presentes = detalles.filter(presente=True).count()
@@ -673,7 +699,7 @@ def docente_asistencia_detail(request, asistencia_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_asistencia_pdf(request, asistencia_id):
     asistencia = get_object_or_404(
         Asistencia.objects.select_related(
@@ -683,7 +709,7 @@ def docente_asistencia_pdf(request, asistencia_id):
             'curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento'
         ),
         pk=asistencia_id,
-        curso_docente__docente=request.user,
+        **_attendance_filter_for_user(request.user, 'curso_docente__'),
     )
     detalles = asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres')
     presentes = detalles.filter(presente=True).count()
@@ -704,9 +730,9 @@ def docente_asistencia_pdf(request, asistencia_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_alumno_historial(request, curso_docente_id, alumno_id):
-    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, activo=True, **_attendance_filter_for_user(request.user))
     alumno = get_object_or_404(Empleado, pk=alumno_id)
     detalles = AsistenciaDetalle.objects.select_related('asistencia', 'asistencia__periodo').filter(
         asistencia__curso_docente=curso_docente,
@@ -736,9 +762,9 @@ def docente_alumno_historial(request, curso_docente_id, alumno_id):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def docente_alumno_historial_pdf(request, curso_docente_id, alumno_id):
-    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, docente=request.user, activo=True)
+    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, activo=True, **_attendance_filter_for_user(request.user))
     alumno = get_object_or_404(Empleado, pk=alumno_id)
     detalles = AsistenciaDetalle.objects.select_related('asistencia', 'asistencia__periodo').filter(
         asistencia__curso_docente=curso_docente,
@@ -761,6 +787,32 @@ def docente_alumno_historial_pdf(request, curso_docente_id, alumno_id):
 
 
 @login_required
+@user_passes_test(_can_view_attendance)
+@require_POST
+def docente_periodo_delete(request, periodo_id):
+    periodo = get_object_or_404(
+        PeriodoAcademico.objects.select_related('curso_docente', 'curso_docente__curso'),
+        pk=periodo_id,
+        **_attendance_filter_for_user(request.user, 'curso_docente__'),
+    )
+    curso_docente_id = periodo.curso_docente_id
+    total_asistencias = periodo.asistencias.count()
+    confirmed = (request.POST.get('confirm_delete') == '1')
+
+    if total_asistencias and not confirmed:
+        messages.warning(request, 'Este periodo tiene asistencias asociadas. Confirme la eliminación para continuar.')
+        return redirect('empleados:docente_asistencia_home', curso_docente_id=curso_docente_id)
+
+    if total_asistencias:
+        messages.warning(request, f'Se eliminarán {total_asistencias} asistencias asociadas al periodo.')
+
+    periodo.delete()
+    messages.success(request, 'Periodo eliminado correctamente.')
+    return redirect('empleados:docente_asistencia_home', curso_docente_id=curso_docente_id)
+
+
+@login_required
+@user_passes_test(_can_manage)
 @require_GET
 def buscar_alumno(request, est_id, ciclo_id, car_id, grado_id):
     _get_grado(est_id, ciclo_id, car_id, grado_id)

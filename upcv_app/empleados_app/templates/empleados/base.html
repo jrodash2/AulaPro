@@ -179,6 +179,15 @@
                   </div>
                 </li>
                 {% if user.is_authenticated %}
+                {% if is_docente_only %}
+                <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
+                    <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
+                    <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Docente</span></a>
+                  <ul class="sidebar-submenu">
+                    <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
+                  </ul>
+                </li>
+                {% else %}
                 <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
                     <svg class="stroke-icon">
                       <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-home"></use>
@@ -192,7 +201,6 @@
                     <li><a href="{% url 'empleados:empleado_credencial' %}">Gafetes</a></li>
                   </ul>
                 </li>
- 
 
                 <li class="sidebar-list"><i class="fa fa-thumb-tack"></i><a class="sidebar-link sidebar-title" href="#">
                   <svg class="stroke-icon">
@@ -202,13 +210,12 @@
                     <use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-gallery"></use>
                   </svg><span>Configuración</span></a>
                 <ul class="sidebar-submenu">
-               
                   <li><a href="{% url 'empleados:usuarios_list' %}">Usuarios</a></li>
                   <li><a href="#">Manuales</a></li>
                   <li><a href="{% url 'empleados:configuracion_general' %}">Config.General</a></li>
                 </ul>
               </li>
-              
+
                 <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Académico</span></a>
@@ -217,10 +224,9 @@
                   </ul>
                 </li>
 
-                {% if is_docente %}
                 <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
-                    <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Docente</span></a>
+                    <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Asistencia</span></a>
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
                   </ul>

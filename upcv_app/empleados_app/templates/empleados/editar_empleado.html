@@ -1,14 +1,235 @@
 {% extends 'empleados/base.html' %}
+{% load static %}
 {% block content %}
-<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Editar Alumno</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'empleados:dahsboard' %}"><svg class="stroke-icon"><use href="../assets/svg/icon-sprite.svg#stroke-home"></use></svg></a></li><li class="breadcrumb-item">Alumnos</li><li class="breadcrumb-item active">Editar</li></ol></div></div></div></div>
-<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Actualizar datos del alumno</h5></div><div class="card-body"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3">
-<div class="col-md-4"><label class="form-label">Código personal</label>{{ form.codigo_personal }}</div>
-<div class="col-md-4"><label class="form-label">Nombres</label>{{ form.nombres }}</div>
-<div class="col-md-4"><label class="form-label">Apellidos</label>{{ form.apellidos }}</div>
-<div class="col-md-4"><label class="form-label">Fecha de nacimiento</label>{{ form.fecha_nacimiento }}</div>
-<div class="col-md-4"><label class="form-label">CUI</label>{{ form.cui }}</div>
-<div class="col-md-4"><label class="form-label">Teléfono</label>{{ form.tel }}</div>
-<div class="col-md-6"><label class="form-label">Imagen</label>{{ form.imagen }}</div>
-<div class="col-md-6 d-flex align-items-center gap-2 mt-4">{{ form.activo }}<label class="form-label mb-0">Activo</label></div>
-</div><div class="form-footer text-end mt-4"><button class="btn btn-primary" type="submit">Guardar Cambios</button></div></form></div></div></div></div>
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Editar Alumno</h4></div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'empleados:dahsboard' %}"><svg class="stroke-icon"><use href="../assets/svg/icon-sprite.svg#stroke-home"></use></svg></a></li>
+            <li class="breadcrumb-item">Alumnos</li>
+            <li class="breadcrumb-item active">Editar</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0">
+        <h5>Actualizar datos del alumno</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" enctype="multipart/form-data" id="editar-alumno-form">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-4"><label class="form-label">Código personal</label>{{ form.codigo_personal }}</div>
+            <div class="col-md-4"><label class="form-label">Nombres</label>{{ form.nombres }}</div>
+            <div class="col-md-4"><label class="form-label">Apellidos</label>{{ form.apellidos }}</div>
+            <div class="col-md-4"><label class="form-label">Fecha de nacimiento</label>{{ form.fecha_nacimiento }}</div>
+            <div class="col-md-4"><label class="form-label">CUI</label>{{ form.cui }}</div>
+            <div class="col-md-4"><label class="form-label">Teléfono</label>{{ form.tel }}</div>
+
+            <div class="col-lg-6">
+              <label class="form-label">Imagen</label>
+              {{ form.imagen }}
+
+              <div class="foto-captura-wrap mt-2">
+                <button type="button" id="btn-abrir-camara" class="btn btn-outline-primary btn-sm">Abrir cámara</button>
+
+                <div id="camara-box" class="mt-3" style="display:none;">
+                  <div class="camera-preview-card">
+                    <video id="camera-video" autoplay playsinline muted></video>
+                  </div>
+
+                  <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <button type="button" id="btn-capturar-foto" class="btn btn-primary btn-sm">Capturar foto</button>
+                    <button type="button" id="btn-cerrar-camara" class="btn btn-outline-danger btn-sm">Cerrar cámara</button>
+                  </div>
+                </div>
+
+                <canvas id="camera-canvas" style="display:none;"></canvas>
+              </div>
+
+              <small id="camera-feedback" class="text-muted d-block mt-2"></small>
+            </div>
+
+            <div class="col-lg-6">
+              <label class="form-label d-block">Vista previa</label>
+              <div class="preview-foto-box">
+                <img id="preview-foto" src="{% if empleado.imagen %}{{ empleado.imagen.url }}{% else %}{% static 'assets/images/dashboard/profile2.png' %}{% endif %}" alt="Vista previa de foto">
+              </div>
+            </div>
+
+            <div class="col-md-6 d-flex align-items-center gap-2 mt-4">
+              {{ form.activo }}
+              <label class="form-label mb-0">Activo</label>
+            </div>
+          </div>
+
+          <div class="form-footer text-end mt-4">
+            <button class="btn btn-primary" type="submit">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .camera-preview-card {
+    width: 320px;
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #camera-video {
+    width: 100%;
+    height: auto;
+    display: block;
+    min-height: 220px;
+    object-fit: cover;
+  }
+
+  .preview-foto-box {
+    width: 180px;
+    height: 220px;
+    border: 1px solid #d9d9d9;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #preview-foto {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+</style>
+
+<script>
+(function () {
+  const inputImagen = document.getElementById('id_imagen');
+  const previewFoto = document.getElementById('preview-foto');
+  const btnAbrirCamara = document.getElementById('btn-abrir-camara');
+  const btnCapturarFoto = document.getElementById('btn-capturar-foto');
+  const btnCerrarCamara = document.getElementById('btn-cerrar-camara');
+  const camaraBox = document.getElementById('camara-box');
+  const video = document.getElementById('camera-video');
+  const canvas = document.getElementById('camera-canvas');
+  const feedback = document.getElementById('camera-feedback');
+
+  let mediaStream = null;
+
+  function setMessage(message, isError) {
+    feedback.textContent = message || '';
+    feedback.classList.toggle('text-danger', !!isError);
+    feedback.classList.toggle('text-muted', !isError);
+  }
+
+  function stopCamera() {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+      mediaStream = null;
+    }
+    video.srcObject = null;
+    camaraBox.style.display = 'none';
+  }
+
+  function updatePreviewFromFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      previewFoto.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  inputImagen.addEventListener('change', function () {
+    const file = inputImagen.files && inputImagen.files[0];
+    if (!file) return;
+    updatePreviewFromFile(file);
+    setMessage('Foto seleccionada desde archivo.', false);
+  });
+
+  btnAbrirCamara.addEventListener('click', async function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
+      return;
+    }
+
+    setMessage('', false);
+
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false,
+      });
+      video.srcObject = mediaStream;
+      camaraBox.style.display = 'block';
+    } catch (error) {
+      setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
+      console.error('Error accediendo a cámara:', error);
+    }
+  });
+
+  btnCapturarFoto.addEventListener('click', function () {
+    if (!mediaStream) {
+      setMessage('Primero debes abrir la cámara.', true);
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      setMessage('La cámara aún no está lista. Intenta de nuevo.', true);
+      return;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, width, height);
+
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        setMessage('No se pudo capturar la foto. Intenta nuevamente.', true);
+        return;
+      }
+
+      if (typeof DataTransfer === 'undefined') {
+        setMessage('Este navegador no permite adjuntar la captura automáticamente. Usa carga manual.', true);
+        return;
+      }
+
+      const capturedFile = new File([blob], `foto_alumno_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const dt = new DataTransfer();
+      dt.items.add(capturedFile);
+      inputImagen.files = dt.files;
+
+      updatePreviewFromFile(capturedFile);
+      setMessage('Foto capturada correctamente. Ahora guarda el formulario.', false);
+      stopCamera();
+    }, 'image/jpeg', 0.95);
+  });
+
+  btnCerrarCamara.addEventListener('click', function () {
+    stopCamera();
+    setMessage('Cámara cerrada.', false);
+  });
+
+  window.addEventListener('beforeunload', stopCamera);
+})();
+</script>
 {% endblock %}
