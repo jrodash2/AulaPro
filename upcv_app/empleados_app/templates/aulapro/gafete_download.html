@@ -5,11 +5,65 @@
   <meta charset="utf-8">
   <title>Descargar gafete</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  {% include 'empleados/partials_gafete_estilos.html' %}
   <style>body{margin:0;padding:8px}</style>
 </head>
 <body>
   {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height %}
   <script>
+    function balancedLineBreaks(text, maxLines) {
+      const words = (text || '').trim().split(/\s+/).filter(Boolean);
+      if (!words.length) return '';
+      if (words.length <= 2) return words.join(' ');
+
+      const n = words.length;
+      let best = null;
+
+      function score(parts) {
+        const lengths = parts.map((p) => p.length);
+        const maxLen = Math.max(...lengths);
+        const minLen = Math.min(...lengths);
+        return maxLen * 100 + (maxLen - minLen);
+      }
+
+      function buildParts(cuts) {
+        const parts = [];
+        let start = 0;
+        for (const cut of cuts) {
+          parts.push(words.slice(start, cut).join(' '));
+          start = cut;
+        }
+        parts.push(words.slice(start).join(' '));
+        return parts;
+      }
+
+      if (maxLines >= 2) {
+        for (let i = 1; i < n; i++) {
+          const parts = buildParts([i]);
+          const candidate = { parts, s: score(parts) };
+          if (!best || candidate.s < best.s) best = candidate;
+        }
+      }
+
+      if (maxLines >= 3 && n >= 3) {
+        for (let i = 1; i < n - 1; i++) {
+          for (let j = i + 1; j < n; j++) {
+            const parts = buildParts([i, j]);
+            const candidate = { parts, s: score(parts) };
+            if (!best || candidate.s < best.s) best = candidate;
+          }
+        }
+      }
+
+      return (best ? best.parts : [text]).join('<br>');
+    }
+
+    document.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
+      const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!raw) return;
+      gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
+    });
+
     const element = document.getElementById('download-canvas');
     html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
       const link = document.createElement('a');

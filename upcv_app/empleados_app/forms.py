@@ -39,6 +39,13 @@ class EmpleadoForm(BaseRihoForm):
             "fecha_nacimiento": forms.DateInput(attrs={"type": "date"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["imagen"].widget.attrs.update({
+            "accept": "image/*",
+            "capture": "user",
+        })
+
 
 class EmpleadoEditForm(EmpleadoForm):
     pass
