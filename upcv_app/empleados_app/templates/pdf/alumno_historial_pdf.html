@@ -1,7 +1,0 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:12px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:6px;}</style></head><body>
-<h2>Historial de asistencia por alumno</h2>
-<p><strong>Alumno:</strong> {{ alumno.apellidos }}, {{ alumno.nombres }} | <strong>Código:</strong> {{ alumno.codigo_personal|default:'-' }}</p>
-<p><strong>Curso:</strong> {{ curso.nombre }} | <strong>Grado:</strong> {{ curso.grado.nombre|default:'-' }} | <strong>Docente:</strong> {{ curso_docente.docente.get_full_name|default:curso_docente.docente.username }}</p>
-<table><thead><tr><th>Fecha</th><th>Estado</th></tr></thead><tbody>{% for d in detalles %}<tr><td>{{ d.asistencia.fecha|date:'d/m/Y' }}</td><td>{% if d.presente %}Presente{% else %}Ausente{% endif %}</td></tr>{% endfor %}</tbody></table>
-<p><strong>Totales:</strong> Presentes {{ presentes }} | Ausentes {{ ausentes }}</p>
-</body></html>
