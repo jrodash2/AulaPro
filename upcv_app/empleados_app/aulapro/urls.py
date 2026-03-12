@@ -22,7 +22,6 @@ urlpatterns = [
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/nuevo/', views.grado_create, name='grado_create'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/', views.grado_detail, name='grado_detail'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricula-masiva/', views.matricula_masiva_grado, name='matricula_masiva_grado'),
-    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricula-masiva/buscar/', views.matricula_masiva_grado_buscar, name='matricula_masiva_grado_buscar'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/editar/', views.grado_update, name='grado_update'),
 
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/cursos/', views.cursos_list, name='cursos_list'),
