@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, User
 
-from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .permissions import es_gestor
 
 
 class BaseRihoForm(forms.ModelForm):
@@ -168,10 +169,15 @@ class UsuarioCreateForm(UserCreationForm):
         required=False,
         widget=forms.SelectMultiple(attrs={"class": "form-control"}),
     )
+    establecimiento_gestionado = forms.ModelChoiceField(
+        queryset=Establecimiento.objects.filter(activo=True).order_by("nombre"),
+        required=False,
+        empty_label="Sin asignación",
+    )
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = ("username", "first_name", "last_name", "email", "password1", "password2", "is_active", "groups", "foto")
+        fields = ("username", "first_name", "last_name", "email", "password1", "password2", "is_active", "groups", "establecimiento_gestionado", "foto")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -182,6 +188,14 @@ class UsuarioCreateForm(UserCreationForm):
             else:
                 current = field.widget.attrs.get("class", "")
                 field.widget.attrs["class"] = f"{current} form-control".strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        groups = cleaned_data.get("groups")
+        establecimiento = cleaned_data.get("establecimiento_gestionado")
+        if groups and any(group.name == "Gestor" for group in groups) and not establecimiento:
+            self.add_error("establecimiento_gestionado", "Debe asignar un establecimiento para usuarios Gestor.")
+        return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -192,6 +206,9 @@ class UsuarioCreateForm(UserCreationForm):
         if commit:
             user.save()
             user.groups.set(self.cleaned_data.get("groups"))
+            perfil, _ = Perfil.objects.get_or_create(user=user)
+            perfil.establecimiento_gestionado = self.cleaned_data.get("establecimiento_gestionado") if es_gestor(user) else None
+            perfil.save(update_fields=["establecimiento_gestionado"])
         return user
 
 
@@ -202,15 +219,22 @@ class UsuarioUpdateForm(forms.ModelForm):
         required=False,
         widget=forms.SelectMultiple(attrs={"class": "form-control"}),
     )
+    establecimiento_gestionado = forms.ModelChoiceField(
+        queryset=Establecimiento.objects.filter(activo=True).order_by("nombre"),
+        required=False,
+        empty_label="Sin asignación",
+    )
 
     class Meta:
         model = User
-        fields = ("username", "first_name", "last_name", "email", "is_active", "groups", "foto")
+        fields = ("username", "first_name", "last_name", "email", "is_active", "groups", "establecimiento_gestionado", "foto")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["foto"].widget.attrs["class"] = "form-control"
         self.fields["groups"].initial = self.instance.groups.all()
+        perfil, _ = Perfil.objects.get_or_create(user=self.instance)
+        self.fields["establecimiento_gestionado"].initial = perfil.establecimiento_gestionado
         for field in self.fields.values():
             if isinstance(field.widget, forms.CheckboxInput):
                 field.widget.attrs["class"] = "form-check-input"
@@ -218,10 +242,21 @@ class UsuarioUpdateForm(forms.ModelForm):
                 current = field.widget.attrs.get("class", "")
                 field.widget.attrs["class"] = f"{current} form-control".strip()
 
+    def clean(self):
+        cleaned_data = super().clean()
+        groups = cleaned_data.get("groups")
+        establecimiento = cleaned_data.get("establecimiento_gestionado")
+        if groups and any(group.name == "Gestor" for group in groups) and not establecimiento:
+            self.add_error("establecimiento_gestionado", "Debe asignar un establecimiento para usuarios Gestor.")
+        return cleaned_data
+
     def save(self, commit=True):
         user = super().save(commit=commit)
         if commit:
             user.groups.set(self.cleaned_data.get("groups"))
+            perfil, _ = Perfil.objects.get_or_create(user=user)
+            perfil.establecimiento_gestionado = self.cleaned_data.get("establecimiento_gestionado") if es_gestor(user) else None
+            perfil.save(update_fields=["establecimiento_gestionado"])
         return user
 
 

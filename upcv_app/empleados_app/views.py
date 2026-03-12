@@ -30,18 +30,44 @@ from .forms import (
 )
 from .gafete_utils import canvas_for_orientation, orientation_for_establecimiento, resolve_gafete_dimensions
 from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .permissions import (
+    es_admin_total,
+    es_docente,
+    es_gestor,
+    filtrar_por_establecimiento_usuario,
+    obtener_establecimiento_usuario,
+    puede_acceder_backoffice,
+    puede_administrar_configuracion,
+    puede_operar_establecimiento,
+    usuario_puede_ver_establecimiento,
+)
 
 
 def _can_manage_design(user):
-    return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
+    return es_admin_total(user) or es_gestor(user)
 
 
 def _is_docente(user):
-    return bool(user and user.is_authenticated and user.groups.filter(name="Docente").exists())
+    return es_docente(user)
 
 
 def _can_access_backoffice(user):
-    return bool(user and user.is_authenticated and not _is_docente(user))
+    return puede_acceder_backoffice(user)
+
+
+def _can_access_admin_config(user):
+    return puede_administrar_configuracion(user)
+
+
+def _can_manage_establecimiento(user):
+    return puede_operar_establecimiento(user)
+
+
+def _deny_if_not_allowed_establecimiento(request, establecimiento_id):
+    if not usuario_puede_ver_establecimiento(request.user, establecimiento_id):
+        messages.error(request, "No tiene permisos para acceder a ese establecimiento.")
+        return redirect("empleados:dahsboard")
+    return None
 
 
 def _validate_layout_payload(payload, forced_orientation=None):
@@ -177,7 +203,7 @@ def signout(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_admin_config)
 def usuarios_list(request):
     usuarios = User.objects.prefetch_related("groups").all().order_by("username")
     usuarios_rows = []
@@ -196,7 +222,7 @@ def usuarios_list(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_admin_config)
 def usuarios_create(request):
     form = UsuarioCreateForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -212,7 +238,7 @@ def usuarios_create(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_admin_config)
 def usuarios_update(request, pk):
     usuario = get_object_or_404(User, pk=pk)
     form = UsuarioUpdateForm(request.POST or None, request.FILES or None, instance=usuario)
@@ -239,9 +265,11 @@ def dahsboard(request):
     if _is_docente(request.user):
         return redirect("empleados:docente_dashboard")
 
-    ciclo_activo = CicloEscolar.objects.select_related('establecimiento').filter(activo=True).order_by('-anio', '-id').first()
+    ciclos = CicloEscolar.objects.select_related('establecimiento')
+    ciclos = filtrar_por_establecimiento_usuario(ciclos, request.user, 'establecimiento_id')
+    ciclo_activo = ciclos.filter(activo=True).order_by('-anio', '-id').first()
     if not ciclo_activo:
-        ciclo_activo = CicloEscolar.objects.select_related('establecimiento').order_by('-anio', '-id').first()
+        ciclo_activo = ciclos.order_by('-anio', '-id').first()
 
     alumnos_por_grado_labels = []
     alumnos_por_grado_series = []
@@ -342,7 +370,7 @@ def dahsboard(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_admin_config)
 def configuracion_general(request):
     configuracion, _ = ConfiguracionGeneral.objects.get_or_create(id=1)
     form = ConfiguracionGeneralForm(request.POST or None, request.FILES or None, instance=configuracion)
@@ -357,9 +385,14 @@ def configuracion_general(request):
 @user_passes_test(_can_access_backoffice)
 def crear_empleado(request):
     form = EmpleadoForm(request.POST or None, request.FILES or None)
+    establecimiento_usuario = obtener_establecimiento_usuario(request.user)
+    if establecimiento_usuario:
+        form.fields["grado"].queryset = form.fields["grado"].queryset.filter(carrera__ciclo_escolar__establecimiento=establecimiento_usuario)
     if request.method == "POST" and form.is_valid():
         empleado = form.save(commit=False)
         empleado.user = request.user
+        if establecimiento_usuario:
+            empleado.establecimiento = establecimiento_usuario
         empleado.save()
         messages.success(request, "Alumno creado correctamente.")
         return redirect("empleados:empleado_lista")
@@ -370,6 +403,10 @@ def crear_empleado(request):
 @user_passes_test(_can_access_backoffice)
 def editar_empleado(request, e_id):
     empleado = get_object_or_404(Empleado, pk=e_id)
+    if empleado.establecimiento_id:
+        denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
+        if denied:
+            return denied
     form = EmpleadoEditForm(request.POST or None, request.FILES or None, instance=empleado)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -382,6 +419,7 @@ def editar_empleado(request, e_id):
 @user_passes_test(_can_access_backoffice)
 def lista_empleados(request):
     empleados = Empleado.objects.all().order_by("-created_at")
+    empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
@@ -389,6 +427,7 @@ def lista_empleados(request):
 @user_passes_test(_can_access_backoffice)
 def credencial_empleados(request):
     empleados = Empleado.objects.all()
+    empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
     return render(request, "empleados/credencial_empleados.html", {"empleados": empleados})
 
 
@@ -396,6 +435,10 @@ def credencial_empleados(request):
 @user_passes_test(_can_access_backoffice)
 def empleado_detalle(request, id):
     empleado = get_object_or_404(Empleado, id=id)
+    if empleado.establecimiento_id:
+        denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
+        if denied:
+            return denied
     configuracion = ConfiguracionGeneral.objects.first()
     matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento").first()
     establecimiento = None
@@ -434,11 +477,12 @@ def empleado_detalle(request, id):
 @user_passes_test(_can_access_backoffice)
 def lista_establecimientos(request):
     establecimientos = Establecimiento.objects.all()
+    establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, "id")
     return render(request, "empleados/establecimiento_lista.html", {"establecimientos": establecimientos})
 
 
 @login_required
-@user_passes_test(_can_manage_design)
+@user_passes_test(_can_access_admin_config)
 def crear_establecimiento(request):
     form = EstablecimientoForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -449,7 +493,7 @@ def crear_establecimiento(request):
 
 
 @login_required
-@user_passes_test(_can_manage_design)
+@user_passes_test(_can_access_admin_config)
 def editar_establecimiento(request, pk):
     establecimiento = get_object_or_404(Establecimiento, pk=pk)
     form = EstablecimientoForm(request.POST or None, request.FILES or None, instance=establecimiento)
@@ -464,6 +508,7 @@ def editar_establecimiento(request, pk):
 @user_passes_test(_can_access_backoffice)
 def lista_carreras(request):
     carreras = Carrera.objects.select_related("ciclo_escolar", "ciclo_escolar__establecimiento")
+    carreras = filtrar_por_establecimiento_usuario(carreras, request.user, "ciclo_escolar__establecimiento_id")
     return render(request, "empleados/carrera_lista.html", {"carreras": carreras})
 
 
@@ -501,6 +546,7 @@ def editar_carrera(request, pk):
 @user_passes_test(_can_access_backoffice)
 def lista_grados(request):
     grados = Grado.objects.select_related("carrera", "carrera__ciclo_escolar__establecimiento")
+    grados = filtrar_por_establecimiento_usuario(grados, request.user, "carrera__ciclo_escolar__establecimiento_id")
     return render(request, "empleados/grado_lista.html", {"grados": grados})
 
 
@@ -546,6 +592,7 @@ def matricula_view(request):
         return redirect("empleados:matricula")
 
     matriculas = Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento")
+    matriculas = filtrar_por_establecimiento_usuario(matriculas, request.user, "grado__carrera__ciclo_escolar__establecimiento_id")
     grado_id = request.GET.get("grado")
     ciclo = request.GET.get("ciclo")
     ciclo_escolar_id = request.GET.get("ciclo_escolar")
@@ -564,6 +611,7 @@ def matricula_view(request):
         matriculas = matriculas.filter(estado=estado)
 
     establecimientos = Establecimiento.objects.filter(activo=True)
+    establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, "id")
     carreras = Carrera.objects.filter(ciclo_escolar__establecimiento_id=establecimiento_id, activo=True) if establecimiento_id else Carrera.objects.none()
     grados = Grado.objects.filter(carrera_id=carrera_id, activo=True) if carrera_id else Grado.objects.none()
 
@@ -583,6 +631,9 @@ def matricula_view(request):
 @login_required
 @user_passes_test(_can_manage_design)
 def editor_gafete(request, establecimiento_id):
+    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
+    if denied:
+        return denied
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
     matricula_demo = (
         Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento")
@@ -638,6 +689,9 @@ def editor_gafete(request, establecimiento_id):
 @user_passes_test(_can_manage_design)
 @require_POST
 def guardar_diseno_gafete(request, establecimiento_id):
+    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
+    if denied:
+        return denied
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -824,6 +878,10 @@ def gafete_jpg(request, matricula_id):
         pk=matricula_id,
     )
     establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if establecimiento:
+        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
+        if denied:
+            return denied
     if not establecimiento:
         return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
 
@@ -847,6 +905,9 @@ def descargar_gafete_jpg(request, matricula_id):
 @login_required
 @user_passes_test(_can_manage_design)
 def resetear_diseno_gafete(request, establecimiento_id):
+    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
+    if denied:
+        return denied
     establecimiento = get_object_or_404(Establecimiento, pk=establecimiento_id)
     establecimiento.gafete_layout_json = {}
     establecimiento.gafete_ancho, establecimiento.gafete_alto = canvas_for_orientation("H")

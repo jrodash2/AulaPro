@@ -14,6 +14,14 @@ from django.views.decorators.http import require_GET, require_POST
 from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
 from empleados_app.gafete_utils import resolve_gafete_dimensions
 from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, PeriodoAcademico
+from empleados_app.permissions import (
+    es_admin_total,
+    es_docente,
+    es_gestor,
+    filtrar_por_establecimiento_usuario,
+    obtener_establecimiento_usuario,
+    usuario_puede_ver_establecimiento,
+)
 
 from .excel import autosize_columns, style_table_header, style_table_row, style_title, workbook_to_response
 from .forms import MatriculaFiltroForm
@@ -38,11 +46,11 @@ def _resolve_gafete_dimensions(establecimiento, layout):
 
 
 def _can_manage(user):
-    return user.is_superuser or user.is_staff or user.groups.filter(name="Admin_gafetes").exists()
+    return es_admin_total(user) or es_gestor(user)
 
 
 def _is_docente(user):
-    return user.groups.filter(name="Docente").exists()
+    return es_docente(user)
 
 
 def _can_view_attendance(user):
@@ -55,7 +63,19 @@ def _attendance_filter_for_user(user, prefix=""):
             f"{prefix}docente": user,
             f"{prefix}curso__grado__carrera__ciclo_escolar__activo": True,
         }
+    if es_gestor(user):
+        establecimiento = obtener_establecimiento_usuario(user)
+        if not establecimiento:
+            return {f"{prefix}pk__in": []}
+        return {f"{prefix}curso__grado__carrera__ciclo_escolar__establecimiento_id": establecimiento.id}
     return {}
+
+
+def _ensure_establecimiento_access(request, est_id):
+    if not usuario_puede_ver_establecimiento(request.user, est_id):
+        messages.error(request, 'No tiene permisos para ese establecimiento.')
+        return redirect('empleados:dahsboard')
+    return None
 
 
 def _display_name_for_person(person):
@@ -207,12 +227,16 @@ def _get_grado(est_id, ciclo_id, car_id, grado_id):
 @user_passes_test(_can_manage)
 def establecimientos_list(request):
     establecimientos = Establecimiento.objects.all()
+    establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, 'id')
     return render(request, 'aulapro/establecimientos_list.html', {'establecimientos': establecimientos})
 
 
 @login_required
 @user_passes_test(_can_manage)
 def establecimiento_detail(request, est_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
     return render(request, 'aulapro/establecimiento_detail.html', {
@@ -225,6 +249,9 @@ def establecimiento_detail(request, est_id):
 @login_required
 @user_passes_test(_can_manage)
 def establecimiento_update(request, est_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     form = EstablecimientoForm(request.POST or None, request.FILES or None, instance=establecimiento)
     if request.method == 'POST' and form.is_valid():
@@ -242,6 +269,9 @@ def establecimiento_update(request, est_id):
 @login_required
 @user_passes_test(_can_manage)
 def ciclos_list(request, est_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
     return render(request, 'aulapro/ciclos_list.html', {
@@ -253,6 +283,9 @@ def ciclos_list(request, est_id):
 @login_required
 @user_passes_test(_can_manage)
 def ciclo_create(request, est_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     form = CicloEscolarForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -287,6 +320,9 @@ def ciclo_create(request, est_id):
 @login_required
 @user_passes_test(_can_manage)
 def ciclo_update(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
     form = CicloEscolarForm(request.POST or None, instance=ciclo)
@@ -317,6 +353,9 @@ def ciclo_update(request, est_id, ciclo_id):
 @user_passes_test(_can_manage)
 @require_POST
 def ciclo_activar(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
     try:
@@ -336,6 +375,9 @@ def ciclo_activar(request, est_id, ciclo_id):
 @user_passes_test(_can_manage)
 @require_POST
 def ciclo_delete(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = get_object_or_404(CicloEscolar, pk=ciclo_id, establecimiento=establecimiento)
 
@@ -356,6 +398,9 @@ def ciclo_delete(request, est_id, ciclo_id):
 @login_required
 @user_passes_test(_can_manage)
 def ciclo_detail(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carreras = ciclo.carreras.all().order_by('nombre')
@@ -373,6 +418,9 @@ def ciclo_detail(request, est_id, ciclo_id):
 @login_required
 @user_passes_test(_can_manage)
 def carrera_create(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     ciclo = _get_ciclo(est_id, ciclo_id)
     form = CarreraForm(request.POST or None, initial={'ciclo_escolar': ciclo, 'activo': True})
     if request.method == 'POST' and form.is_valid():
@@ -392,6 +440,9 @@ def carrera_create(request, est_id, ciclo_id):
 @login_required
 @user_passes_test(_can_manage)
 def carrera_detail(request, est_id, ciclo_id, car_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -407,6 +458,9 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
 @login_required
 @user_passes_test(_can_manage)
 def grado_create(request, est_id, ciclo_id, car_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = get_object_or_404(Establecimiento, id=est_id)
     ciclo = get_object_or_404(CicloEscolar, id=ciclo_id, establecimiento=establecimiento)
     carrera = get_object_or_404(Carrera, id=car_id, ciclo_escolar=ciclo)
@@ -433,12 +487,18 @@ def grado_create(request, est_id, ciclo_id, car_id):
 
 @login_required
 def carreras_list(request, est_id, ciclo_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     return ciclo_detail(request, est_id, ciclo_id)
 
 
 @login_required
 @user_passes_test(_can_manage)
 def carrera_update(request, est_id, ciclo_id, car_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -462,12 +522,18 @@ def carrera_update(request, est_id, ciclo_id, car_id):
 @login_required
 @user_passes_test(_can_manage)
 def grados_list(request, est_id, ciclo_id, car_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     return carrera_detail(request, est_id, ciclo_id, car_id)
 
 
 @login_required
 @user_passes_test(_can_manage)
 def grado_update(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -493,6 +559,9 @@ def grado_update(request, est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -539,6 +608,9 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def cursos_list(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -556,6 +628,9 @@ def cursos_list(request, est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def curso_create(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -582,6 +657,9 @@ def curso_create(request, est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def curso_update(request, est_id, ciclo_id, car_id, grado_id, curso_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -608,6 +686,9 @@ def curso_update(request, est_id, ciclo_id, car_id, grado_id, curso_id):
 @login_required
 @user_passes_test(_can_manage)
 def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
@@ -1125,6 +1206,9 @@ def docente_periodo_delete(request, periodo_id):
 @user_passes_test(_can_manage)
 @require_GET
 def buscar_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     codigo = (request.GET.get('codigo') or '').strip()
@@ -1155,6 +1239,9 @@ def buscar_alumno(request, est_id, ciclo_id, car_id, grado_id):
 @user_passes_test(_can_manage)
 @require_POST
 def matricular_alumno(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
     grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
     if not grado.carrera or not grado.carrera.ciclo_escolar_id:
         return JsonResponse({'ok': False, 'error': 'El grado no tiene establecimiento asociado.'}, status=400)
