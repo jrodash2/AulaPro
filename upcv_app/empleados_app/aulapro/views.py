@@ -4,19 +4,17 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.template.loader import render_to_string
 from django.utils import timezone
 
-try:
-    from xhtml2pdf import pisa
-except Exception:  # pragma: no cover
-    pisa = None
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
 from empleados_app.gafete_utils import resolve_gafete_dimensions
 from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, PeriodoAcademico
 
+from .excel import autosize_columns, style_table_header, style_table_row, style_title, workbook_to_response
 from .forms import MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_CYCLE = False
@@ -56,6 +54,35 @@ def _attendance_filter_for_user(user, prefix=""):
     return {}
 
 
+def _display_name_for_person(person):
+    if not person:
+        return ''
+
+    get_full_name = getattr(person, 'get_full_name', None)
+    if callable(get_full_name):
+        full_name = (get_full_name() or '').strip()
+        if full_name:
+            return full_name
+
+    nombres = getattr(person, 'nombres', '') or ''
+    apellidos = getattr(person, 'apellidos', '') or ''
+    nombre_empleado = f'{nombres} {apellidos}'.strip()
+    if nombre_empleado:
+        return nombre_empleado
+
+    first_name = getattr(person, 'first_name', '') or ''
+    last_name = getattr(person, 'last_name', '') or ''
+    nombre_usuario = f'{first_name} {last_name}'.strip()
+    if nombre_usuario:
+        return nombre_usuario
+
+    username = getattr(person, 'username', '') or ''
+    if username:
+        return username
+
+    return str(person)
+
+
 def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
@@ -81,47 +108,6 @@ def _get_carrera(est_id, ciclo_id, car_id):
 
 
 
-
-def _minimal_pdf_bytes(message):
-    safe = (message or "PDF no disponible").replace("(", "[").replace(")", "]")
-    content = f"BT /F1 12 Tf 50 780 Td ({safe}) Tj ET"
-    pdf_text = f"""%PDF-1.4
-1 0 obj<< /Type /Catalog /Pages 2 0 R>>endobj
-2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1>>endobj
-3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R>>endobj
-4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica>>endobj
-5 0 obj<< /Length {len(content)} >>stream
-{content}
-endstream endobj
-xref
-0 6
-0000000000 65535 f 
-0000000010 00000 n 
-0000000063 00000 n 
-0000000122 00000 n 
-0000000250 00000 n 
-0000000320 00000 n 
-trailer<< /Size 6 /Root 1 0 R >>
-startxref
-420
-%%EOF"""
-    return pdf_text.encode('latin-1', errors='ignore')
-
-
-def _render_pdf_response(template_name, context, filename):
-    html = render_to_string(template_name, context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
-
-    if pisa is None:
-        response.write(_minimal_pdf_bytes("Librería PDF no disponible en entorno"))
-        return response
-
-    pisa_status = pisa.CreatePDF(html, dest=response)
-    if pisa_status.err:
-        response = HttpResponse(_minimal_pdf_bytes("Error al generar PDF"), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
-    return response
 
 def _get_grado(est_id, ciclo_id, car_id, grado_id):
     return get_object_or_404(
@@ -700,7 +686,7 @@ def docente_asistencia_detail(request, asistencia_id):
 
 @login_required
 @user_passes_test(_can_view_attendance)
-def docente_asistencia_pdf(request, asistencia_id):
+def docente_asistencia_excel(request, asistencia_id):
     asistencia = get_object_or_404(
         Asistencia.objects.select_related(
             'periodo', 'curso_docente', 'curso_docente__docente', 'curso_docente__curso',
@@ -711,22 +697,72 @@ def docente_asistencia_pdf(request, asistencia_id):
         pk=asistencia_id,
         **_attendance_filter_for_user(request.user, 'curso_docente__'),
     )
-    detalles = asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres')
-    presentes = detalles.filter(presente=True).count()
-    ausentes = detalles.count() - presentes
-    context = {
-        'asistencia': asistencia,
-        'periodo': asistencia.periodo,
-        'curso_docente': asistencia.curso_docente,
-        'curso': asistencia.curso_docente.curso,
-        'grado': asistencia.curso_docente.curso.grado,
-        'establecimiento': asistencia.curso_docente.curso.grado.carrera.ciclo_escolar.establecimiento if asistencia.curso_docente.curso.grado and asistencia.curso_docente.curso.grado.carrera else None,
-        'detalles': detalles,
-        'presentes': presentes,
-        'ausentes': ausentes,
-        'info_general': ConfiguracionGeneral.objects.first(),
-    }
-    return _render_pdf_response('pdf/asistencia_dia.html', context, f"asistencia_{asistencia.fecha}")
+    detalles = list(asistencia.detalles.select_related('alumno').order_by('alumno__apellidos', 'alumno__nombres'))
+
+    curso = asistencia.curso_docente.curso
+    docente = asistencia.curso_docente.docente
+    periodo = asistencia.periodo.nombre if asistencia.periodo else 'Sin periodo'
+    ciclo = '-'
+    establecimiento = '-'
+    if curso.grado and curso.grado.carrera and curso.grado.carrera.ciclo_escolar:
+        ciclo = curso.grado.carrera.ciclo_escolar.nombre
+        establecimiento = curso.grado.carrera.ciclo_escolar.establecimiento.nombre
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Asistencia'
+
+    style_title(ws, 1, 'Asistencia')
+
+    encabezado = [
+        ('Curso:', curso.nombre),
+        ('Docente:', _display_name_for_person(docente)),
+        ('Fecha:', asistencia.fecha.strftime('%d/%m/%Y')),
+        ('Periodo:', periodo),
+        ('Ciclo escolar:', ciclo),
+        ('Establecimiento:', establecimiento),
+    ]
+
+    row = 3
+    label_font = Font(bold=True)
+    for label, value in encabezado:
+        ws.cell(row=row, column=1, value=label).font = label_font
+        ws.cell(row=row, column=2, value=value)
+        row += 1
+
+    row += 1
+    headers = ['No.', 'Código / Carné', 'Alumno', 'Estado', 'Observación']
+    style_table_header(ws, row, headers)
+    ws.freeze_panes = f'A{row + 1}'
+
+    presentes = 0
+    ausentes = 0
+    for idx, detalle in enumerate(detalles, start=1):
+        estado = 'Presente' if detalle.presente else 'Ausente'
+        if detalle.presente:
+            presentes += 1
+        else:
+            ausentes += 1
+        style_table_row(
+            ws,
+            row + idx,
+            [
+                idx,
+                detalle.alumno.codigo_personal or '-',
+                f'{detalle.alumno.apellidos}, {detalle.alumno.nombres}',
+                estado,
+                '-',
+            ],
+        )
+
+    total_row = row + len(detalles) + 2
+    ws.cell(row=total_row, column=1, value='Total presentes').font = label_font
+    ws.cell(row=total_row, column=2, value=presentes)
+    ws.cell(row=total_row + 1, column=1, value='Total ausentes').font = label_font
+    ws.cell(row=total_row + 1, column=2, value=ausentes)
+
+    autosize_columns(ws)
+    return workbook_to_response(wb, f'asistencia_{asistencia.fecha}')
 
 
 @login_required
@@ -763,25 +799,62 @@ def docente_alumno_historial(request, curso_docente_id, alumno_id):
 
 @login_required
 @user_passes_test(_can_view_attendance)
-def docente_alumno_historial_pdf(request, curso_docente_id, alumno_id):
-    curso_docente = get_object_or_404(CursoDocente.objects.select_related('curso', 'curso__grado'), pk=curso_docente_id, activo=True, **_attendance_filter_for_user(request.user))
+def docente_alumno_historial_excel(request, curso_docente_id, alumno_id):
+    curso_docente = get_object_or_404(
+        CursoDocente.objects.select_related('curso', 'curso__grado'),
+        pk=curso_docente_id,
+        activo=True,
+        **_attendance_filter_for_user(request.user),
+    )
     alumno = get_object_or_404(Empleado, pk=alumno_id)
-    detalles = AsistenciaDetalle.objects.select_related('asistencia', 'asistencia__periodo').filter(
-        asistencia__curso_docente=curso_docente,
-        alumno=alumno,
-    ).order_by('-asistencia__fecha')
-    presentes = detalles.filter(presente=True).count()
-    ausentes = detalles.count() - presentes
-    context = {
-        'curso_docente': curso_docente,
-        'curso': curso_docente.curso,
-        'alumno': alumno,
-        'detalles': detalles,
-        'presentes': presentes,
-        'ausentes': ausentes,
-        'info_general': ConfiguracionGeneral.objects.first(),
-    }
-    return _render_pdf_response('pdf/alumno_historial.html', context, f"historial_alumno_{alumno.id}")
+    detalles = list(
+        AsistenciaDetalle.objects.select_related('asistencia', 'asistencia__periodo')
+        .filter(asistencia__curso_docente=curso_docente, alumno=alumno)
+        .order_by('-asistencia__fecha')
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Historial alumno'
+
+    style_title(ws, 1, 'Historial de asistencia por alumno')
+    label_font = Font(bold=True)
+    ws.cell(row=3, column=1, value='Curso:').font = label_font
+    ws.cell(row=3, column=2, value=curso_docente.curso.nombre)
+    ws.cell(row=4, column=1, value='Alumno:').font = label_font
+    ws.cell(row=4, column=2, value=f'{alumno.apellidos}, {alumno.nombres}')
+
+    header_row = 6
+    style_table_header(ws, header_row, ['No.', 'Fecha', 'Periodo', 'Estado'])
+    ws.freeze_panes = f'A{header_row + 1}'
+
+    presentes = 0
+    ausentes = 0
+    for idx, detalle in enumerate(detalles, start=1):
+        estado = 'Presente' if detalle.presente else 'Ausente'
+        if detalle.presente:
+            presentes += 1
+        else:
+            ausentes += 1
+        style_table_row(
+            ws,
+            header_row + idx,
+            [
+                idx,
+                detalle.asistencia.fecha.strftime('%d/%m/%Y'),
+                detalle.asistencia.periodo.nombre if detalle.asistencia.periodo else 'Sin periodo',
+                estado,
+            ],
+        )
+
+    total_row = header_row + len(detalles) + 2
+    ws.cell(row=total_row, column=1, value='Total presentes').font = label_font
+    ws.cell(row=total_row, column=2, value=presentes)
+    ws.cell(row=total_row + 1, column=1, value='Total ausentes').font = label_font
+    ws.cell(row=total_row + 1, column=2, value=ausentes)
+
+    autosize_columns(ws)
+    return workbook_to_response(wb, f'historial_alumno_{alumno.id}')
 
 
 
