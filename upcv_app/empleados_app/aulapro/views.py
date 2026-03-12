@@ -1,4 +1,5 @@
 from django import forms
+import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
@@ -29,6 +30,8 @@ from .excel import autosize_columns, style_table_header, style_table_row, style_
 from .forms import MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_CYCLE = False
+
+logger = logging.getLogger(__name__)
 
 
 BASE_GAFETE_W = 1011
@@ -639,7 +642,17 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     if len(q) < 2:
         return JsonResponse({'results': []})
 
+    debug_search = request.GET.get('debug_search') == '1'
+
     alumnos = Empleado.objects.select_related('grado', 'establecimiento')
+    if debug_search:
+        logger.warning(
+            '[matricula_masiva_grado_buscar] q=%r est_id=%s user=%s base_count=%s',
+            q,
+            establecimiento.id,
+            request.user.id,
+            alumnos.count(),
+        )
 
     # Reutiliza la lógica funcional de la matrícula masiva general:
     # una sola cadena `q` buscada en código, nombres o apellidos.
@@ -648,10 +661,10 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
         | Q(nombres__icontains=q)
         | Q(apellidos__icontains=q)
     )
+    if debug_search:
+        logger.warning('[matricula_masiva_grado_buscar] after_text_filter_count=%s', alumnos.count())
 
-    # En la matrícula por grado limitamos al establecimiento actual, sin excluir
-    # alumnos que aún no tengan establecimiento asignado pero sí pertenezcan al mismo
-    # establecimiento por su grado actual.
+    # En la matrícula por grado limitamos al establecimiento actual.
     alumnos = alumnos.filter(
         Q(establecimiento=establecimiento)
         | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
@@ -667,6 +680,12 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
         }
         for alumno in alumnos
     ]
+    if debug_search:
+        logger.warning(
+            '[matricula_masiva_grado_buscar] final_count=%s sample=%s',
+            len(results),
+            results[:5],
+        )
     return JsonResponse({'results': results})
 
 
