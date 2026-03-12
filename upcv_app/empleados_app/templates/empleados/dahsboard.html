@@ -94,7 +94,7 @@
 </div>
 
 <script>
-(function () {
+window.addEventListener("load", function () {
   const labelsGrado = {{ alumnos_por_grado_labels|safe }};
   const seriesGrado = {{ alumnos_por_grado_series|safe }};
   const labelsCarrera = {{ alumnos_por_carrera_labels|safe }};
@@ -172,6 +172,6 @@
       colors: ['#16c7f9']
     }).render();
   } else { renderEmpty('#chart-cursos-docente', 'Sin datos disponibles'); }
-})();
+});
 </script>
 {% endblock %}
