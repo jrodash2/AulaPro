@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, IntegerField, Sum, When
+from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -639,9 +639,22 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     if len(q) < 2:
         return JsonResponse({'results': []})
 
-    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(establecimiento=establecimiento)
-    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, 'establecimiento_id')
-    alumnos = alumnos.filter(Q(codigo_personal__icontains=q) | Q(nombres__icontains=q) | Q(apellidos__icontains=q)).order_by('codigo_personal', 'apellidos', 'nombres')[:15]
+    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(
+        activo=True,
+    ).filter(
+        Q(establecimiento=establecimiento)
+        | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+    )
+
+    term_filters = [
+        Q(codigo_personal__icontains=term) | Q(nombres__icontains=term) | Q(apellidos__icontains=term)
+        for term in q.split()
+        if term
+    ]
+    for term_filter in term_filters:
+        alumnos = alumnos.filter(term_filter)
+
+    alumnos = alumnos.order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
 
     results = [
         {
