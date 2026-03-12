@@ -220,6 +220,13 @@ class ConfiguracionGeneral(models.Model):
 class Perfil(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="perfil")
     foto = models.ImageField(upload_to="perfil_usuario/", null=True, blank=True)
+    establecimiento_gestionado = models.ForeignKey(
+        Establecimiento,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gestores_asignados",
+    )
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
