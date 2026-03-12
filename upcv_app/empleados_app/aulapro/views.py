@@ -51,7 +51,10 @@ def _can_view_attendance(user):
 
 def _attendance_filter_for_user(user, prefix=""):
     if _is_docente(user):
-        return {f"{prefix}docente": user}
+        return {
+            f"{prefix}docente": user,
+            f"{prefix}curso__grado__carrera__ciclo_escolar__activo": True,
+        }
     return {}
 
 
@@ -633,8 +636,27 @@ def docente_dashboard(request):
     cursos_docente = CursoDocente.objects.select_related(
         'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento', 'docente'
     ).filter(activo=True, curso__activo=True)
+
     if _is_docente(request.user):
-        cursos_docente = cursos_docente.filter(docente=request.user)
+        cursos_docente = cursos_docente.filter(
+            docente=request.user,
+            curso__grado__carrera__ciclo_escolar__activo=True,
+        )
+
+        asignaciones_establecimientos = CursoDocente.objects.filter(
+            docente=request.user,
+            activo=True,
+            curso__activo=True,
+        ).values_list('curso__grado__carrera__ciclo_escolar__establecimiento_id', flat=True).distinct()
+
+        if asignaciones_establecimientos and not CicloEscolar.objects.filter(
+            establecimiento_id__in=asignaciones_establecimientos,
+            activo=True,
+        ).exists():
+            messages.info(request, 'No existe un ciclo escolar activo.')
+        elif not cursos_docente.exists():
+            messages.info(request, 'No hay cursos disponibles en el ciclo activo.')
+
     cursos_docente = cursos_docente.order_by('curso__nombre')
     return render(request, 'docentes/dashboard.html', {'cursos_docente': cursos_docente})
 
