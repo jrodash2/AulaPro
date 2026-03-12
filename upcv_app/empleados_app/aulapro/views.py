@@ -54,6 +54,35 @@ def _attendance_filter_for_user(user, prefix=""):
     return {}
 
 
+def _display_name_for_person(person):
+    if not person:
+        return ''
+
+    get_full_name = getattr(person, 'get_full_name', None)
+    if callable(get_full_name):
+        full_name = (get_full_name() or '').strip()
+        if full_name:
+            return full_name
+
+    nombres = getattr(person, 'nombres', '') or ''
+    apellidos = getattr(person, 'apellidos', '') or ''
+    nombre_empleado = f'{nombres} {apellidos}'.strip()
+    if nombre_empleado:
+        return nombre_empleado
+
+    first_name = getattr(person, 'first_name', '') or ''
+    last_name = getattr(person, 'last_name', '') or ''
+    nombre_usuario = f'{first_name} {last_name}'.strip()
+    if nombre_usuario:
+        return nombre_usuario
+
+    username = getattr(person, 'username', '') or ''
+    if username:
+        return username
+
+    return str(person)
+
+
 def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
@@ -687,7 +716,7 @@ def docente_asistencia_excel(request, asistencia_id):
 
     encabezado = [
         ('Curso:', curso.nombre),
-        ('Docente:', f'{docente.nombres} {docente.apellidos}'.strip()),
+        ('Docente:', _display_name_for_person(docente)),
         ('Fecha:', asistencia.fecha.strftime('%d/%m/%Y')),
         ('Periodo:', periodo),
         ('Ciclo escolar:', ciclo),
