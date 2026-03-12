@@ -21,10 +21,10 @@
         <h5>Buscar alumno</h5>
       </div>
       <div class="card-body">
-        <form method="get" class="row g-3 align-items-end">
+        <form method="get" class="row g-3 align-items-end" id="form-busqueda-alumnos">
           <div class="col-md-8">
             <label class="form-label">Código / nombre / apellido</label>
-            <input name="q" type="text" class="form-control" placeholder="Ej. H072YNH, Cristian, Rodríguez" value="{{ q }}">
+            <input id="input-busqueda-alumnos" name="q" type="text" class="form-control" placeholder="Ej. H072YNH, Cristian, Rodríguez" value="{{ q }}">
           </div>
           <div class="col-md-4">
             <button type="submit" class="btn btn-primary">Buscar</button>
@@ -132,4 +132,34 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  const formBusqueda = document.getElementById('form-busqueda-alumnos');
+  const inputBusqueda = document.getElementById('input-busqueda-alumnos');
+
+  if (!formBusqueda || !inputBusqueda) {
+    return;
+  }
+
+  let debounceTimer = null;
+  let ultimoValorEnviado = (inputBusqueda.value || '').trim();
+
+  inputBusqueda.addEventListener('input', function () {
+    const valorActual = (inputBusqueda.value || '').trim();
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () {
+      if (valorActual === ultimoValorEnviado) {
+        return;
+      }
+
+      if (valorActual.length >= 2 || valorActual.length === 0) {
+        ultimoValorEnviado = valorActual;
+        formBusqueda.submit();
+      }
+    }, 500);
+  });
+})();
+</script>
 {% endblock %}
