@@ -1,4 +1,8 @@
 from django.contrib.auth.models import Group
+from django.core.exceptions import FieldError, ObjectDoesNotExist
+from django.db import OperationalError, ProgrammingError
+
+from .models import Perfil
 
 
 ADMIN_GROUPS = ("Administrador", "Admin_gafetes")
@@ -41,15 +45,18 @@ def puede_operar_establecimiento(user):
 def obtener_establecimiento_usuario(user):
     if not user or not user.is_authenticated:
         return None
-    if es_admin_total(user):
-        return None
-    if not es_gestor(user):
+    if es_admin_total(user) or not es_gestor(user):
         return None
 
-    perfil = getattr(user, "perfil", None)
-    if not perfil:
+    try:
+        perfil = Perfil.objects.select_related("establecimiento_gestionado").get(user=user)
+    except (Perfil.DoesNotExist, ObjectDoesNotExist, OperationalError, ProgrammingError, FieldError):
         return None
-    return perfil.establecimiento_gestionado
+
+    try:
+        return getattr(perfil, "establecimiento_gestionado", None)
+    except (OperationalError, ProgrammingError, FieldError):
+        return None
 
 
 def filtrar_por_establecimiento_usuario(queryset, user, lookup):
