@@ -26,16 +26,15 @@
             <label class="form-label">Código / nombre / apellido</label>
             <input id="input-busqueda-alumnos" name="q" type="text" class="form-control" placeholder="Ej. H072YNH, Cristian, Rodríguez" value="{{ q }}">
           </div>
-          <div class="col-md-4">
-            <button type="submit" class="btn btn-primary">Buscar</button>
-            <a href="{% url 'empleados:matricula_masiva_grado' establecimiento.id ciclo.id carrera.id grado.id %}" class="btn btn-outline-secondary">Limpiar</a>
+          <div class="col-md-4 text-md-end">
+            <a href="{% url 'empleados:matricula_masiva_grado' establecimiento.id ciclo.id carrera.id grado.id %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
           </div>
         </form>
 
-        <div class="table-responsive mt-3">
-          <table class="table table-striped">
+        <div class="table-responsive tabla-matricula-responsive mt-3">
+          <table class="table table-striped table-sm align-middle">
             <thead>
-              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Establecimiento</th><th></th></tr>
+              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Establecimiento</th><th class="text-nowrap">Acción</th></tr>
             </thead>
             <tbody>
               {% if q|length < 2 %}
@@ -47,7 +46,7 @@
                     <td>{{ a.nombres }} {{ a.apellidos }}</td>
                     <td>{{ a.grado|default:'-' }}</td>
                     <td>{{ a.establecimiento|default:'-' }}</td>
-                    <td>
+                    <td class="text-nowrap">
                       <form method="post" class="d-inline">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="add">
@@ -78,10 +77,10 @@
         </form>
       </div>
       <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-striped">
+        <div class="table-responsive tabla-matricula-responsive">
+          <table class="table table-striped table-sm align-middle">
             <thead>
-              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Acción</th></tr>
+              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th class="text-nowrap">Acción</th></tr>
             </thead>
             <tbody>
               {% for a in alumnos_seleccionados %}
@@ -89,7 +88,7 @@
                   <td>{{ a.codigo_personal|default:'-' }}</td>
                   <td>{{ a.nombres }} {{ a.apellidos }}</td>
                   <td>{{ a.grado|default:'-' }}</td>
-                  <td>
+                  <td class="text-nowrap">
                     <form method="post" class="d-inline">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="remove">
@@ -132,6 +131,22 @@
     </div>
   </div>
 </div>
+
+<style>
+  .tabla-matricula-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabla-matricula-responsive table {
+    min-width: 760px;
+  }
+
+  .tabla-matricula-responsive th:last-child,
+  .tabla-matricula-responsive td:last-child {
+    white-space: nowrap;
+  }
+</style>
 
 <script>
 (function () {
