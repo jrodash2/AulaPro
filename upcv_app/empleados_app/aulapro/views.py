@@ -639,22 +639,24 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     if len(q) < 2:
         return JsonResponse({'results': []})
 
-    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(
-        activo=True,
-    ).filter(
-        Q(establecimiento=establecimiento)
-        | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+    alumnos = Empleado.objects.select_related('grado', 'establecimiento')
+    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, 'establecimiento_id')
+
+    # Reutiliza la lógica funcional de la matrícula masiva general:
+    # una sola cadena `q` buscada en código, nombres o apellidos.
+    alumnos = alumnos.filter(
+        Q(codigo_personal__icontains=q)
+        | Q(nombres__icontains=q)
+        | Q(apellidos__icontains=q)
     )
 
-    term_filters = [
-        Q(codigo_personal__icontains=term) | Q(nombres__icontains=term) | Q(apellidos__icontains=term)
-        for term in q.split()
-        if term
-    ]
-    for term_filter in term_filters:
-        alumnos = alumnos.filter(term_filter)
-
-    alumnos = alumnos.order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
+    # En la matrícula por grado limitamos al establecimiento actual, sin excluir
+    # alumnos que aún no tengan establecimiento asignado pero sí pertenezcan al mismo
+    # establecimiento por su grado actual.
+    alumnos = alumnos.filter(
+        Q(establecimiento=establecimiento)
+        | Q(establecimiento__isnull=True, grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+    ).order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
 
     results = [
         {
