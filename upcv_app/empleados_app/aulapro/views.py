@@ -34,6 +34,7 @@ ALLOW_MULTI_GRADE_PER_CYCLE = False
 logger = logging.getLogger(__name__)
 
 
+
 BASE_GAFETE_W = 1011
 BASE_GAFETE_H = 639
 
@@ -633,42 +634,17 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     if denied:
         return denied
 
-    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
-    establecimiento = grado.carrera.ciclo_escolar.establecimiento if grado.carrera and grado.carrera.ciclo_escolar else None
-    if not establecimiento:
-        return JsonResponse({'results': []}, status=400)
+    _get_grado(est_id, ciclo_id, car_id, grado_id)
 
     q = (request.GET.get('q') or '').strip()
     if len(q) < 2:
         return JsonResponse({'results': []})
 
-    debug_search = request.GET.get('debug_search') == '1'
-
-    alumnos = Empleado.objects.select_related('grado', 'establecimiento')
-    if debug_search:
-        logger.warning(
-            '[matricula_masiva_grado_buscar] q=%r est_id=%s user=%s base_count=%s',
-            q,
-            establecimiento.id,
-            request.user.id,
-            alumnos.count(),
-        )
-
-    # Reutiliza la lógica funcional de la matrícula masiva general:
-    # una sola cadena `q` buscada en código, nombres o apellidos.
-    alumnos = alumnos.filter(
+    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(
         Q(codigo_personal__icontains=q)
         | Q(nombres__icontains=q)
         | Q(apellidos__icontains=q)
-    )
-    if debug_search:
-        logger.warning('[matricula_masiva_grado_buscar] after_text_filter_count=%s', alumnos.count())
-
-    # En la matrícula por grado limitamos al establecimiento actual.
-    alumnos = alumnos.filter(
-        Q(establecimiento=establecimiento)
-        | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
-    ).order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
+    ).order_by('codigo_personal', 'apellidos', 'nombres')[:15]
 
     results = [
         {
