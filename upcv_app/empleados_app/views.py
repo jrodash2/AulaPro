@@ -10,12 +10,13 @@ from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ValidationError
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     CarreraForm,
@@ -25,6 +26,7 @@ from .forms import (
     EstablecimientoForm,
     GradoForm,
     MatriculaForm,
+    MatriculaMasivaForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
 )
@@ -638,6 +640,103 @@ def matricula_view(request):
             "grados": grados,
         },
     )
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+@require_GET
+def matricula_masiva_buscar_alumnos(request):
+    if _is_docente(request.user):
+        return JsonResponse({"results": []}, status=403)
+
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    alumnos = Empleado.objects.select_related("grado", "establecimiento")
+    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, "establecimiento_id")
+    alumnos = alumnos.filter(Q(codigo_personal__icontains=q) | Q(nombres__icontains=q) | Q(apellidos__icontains=q)).order_by("codigo_personal", "apellidos", "nombres")[:15]
+
+    results = [
+        {
+            "id": alumno.id,
+            "codigo_personal": alumno.codigo_personal or "-",
+            "nombre": f"{alumno.nombres} {alumno.apellidos}".strip(),
+            "grado_actual": str(alumno.grado) if alumno.grado else "-",
+            "establecimiento": str(alumno.establecimiento) if alumno.establecimiento else "-",
+        }
+        for alumno in alumnos
+    ]
+    return JsonResponse({"results": results})
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def matricula_masiva(request):
+    if _is_docente(request.user):
+        return redirect("empleados:dahsboard")
+
+    form = MatriculaMasivaForm(request.POST or None, user=request.user)
+    establecimiento_usuario = obtener_establecimiento_usuario(request.user)
+
+    if request.method == "POST" and form.is_valid():
+        raw_ids = request.POST.get("alumnos_ids", "")
+        alumno_ids = [int(v) for v in raw_ids.split(",") if v.strip().isdigit()]
+        alumno_ids = list(dict.fromkeys(alumno_ids))
+
+        if not alumno_ids:
+            messages.warning(request, "Debe agregar al menos un alumno a la lista.")
+            return render(request, "empleados/matricula_masiva.html", {"form": form})
+
+        grado = form.cleaned_data["grado"]
+        ciclo_escolar = form.cleaned_data["ciclo_escolar"]
+        estado = form.cleaned_data["estado"]
+
+        grado_establecimiento = grado.carrera.ciclo_escolar.establecimiento if grado.carrera else None
+        if not grado_establecimiento or ciclo_escolar.establecimiento_id != grado_establecimiento.id:
+            messages.error(request, "El ciclo escolar debe pertenecer al mismo establecimiento del grado seleccionado.")
+            return render(request, "empleados/matricula_masiva.html", {"form": form})
+
+        if establecimiento_usuario and grado_establecimiento.id != establecimiento_usuario.id:
+            messages.error(request, "No tiene permisos para matricular en un establecimiento diferente al asignado.")
+            return render(request, "empleados/matricula_masiva.html", {"form": form})
+
+        alumnos_qs = Empleado.objects.filter(id__in=alumno_ids)
+        alumnos_qs = filtrar_por_establecimiento_usuario(alumnos_qs, request.user, "establecimiento_id")
+        alumnos_map = {a.id: a for a in alumnos_qs}
+
+        inscritos = 0
+        omitidos = 0
+        errores = 0
+
+        for alumno_id in alumno_ids:
+            alumno = alumnos_map.get(alumno_id)
+            if not alumno:
+                errores += 1
+                continue
+
+            if Matricula.objects.filter(alumno=alumno, grado=grado, ciclo_escolar=ciclo_escolar).exists():
+                omitidos += 1
+                continue
+
+            matricula = Matricula(alumno=alumno, grado=grado, ciclo_escolar=ciclo_escolar, estado=estado)
+            try:
+                matricula.full_clean()
+                matricula.save()
+                inscritos += 1
+            except ValidationError:
+                errores += 1
+
+        if inscritos:
+            messages.success(request, f"{inscritos} alumnos matriculados correctamente")
+        if omitidos:
+            messages.warning(request, f"{omitidos} alumnos ya tenían matrícula y fueron omitidos")
+        if errores:
+            messages.error(request, f"{errores} alumnos no pudieron matricularse por validación o permisos")
+
+        return redirect("empleados:matricula_masiva")
+
+    return render(request, "empleados/matricula_masiva.html", {"form": form})
 
 
 @login_required

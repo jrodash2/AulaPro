@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, User
 
 from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil
-from .permissions import es_gestor
+from .permissions import es_gestor, obtener_establecimiento_usuario
 
 
 class BaseRihoForm(forms.ModelForm):
@@ -156,6 +156,33 @@ class MatriculaForm(BaseRihoForm):
         self.fields["alumno"].queryset = alumnos.order_by("apellidos", "nombres")
         self.fields["grado"].queryset = grados.order_by("nombre")
         self.fields["ciclo_escolar"].queryset = ciclos.order_by("-anio", "-id")
+
+
+class MatriculaMasivaForm(forms.Form):
+    grado = forms.ModelChoiceField(queryset=Grado.objects.none(), required=True)
+    ciclo_escolar = forms.ModelChoiceField(queryset=CicloEscolar.objects.none(), required=True)
+    estado = forms.ChoiceField(choices=Matricula.ESTADOS, required=True, initial="activo")
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        grados = Grado.objects.select_related("carrera", "carrera__ciclo_escolar", "carrera__ciclo_escolar__establecimiento")
+        ciclos = CicloEscolar.objects.select_related("establecimiento")
+
+        establecimiento_usuario = obtener_establecimiento_usuario(user)
+        if establecimiento_usuario:
+            grados = grados.filter(carrera__ciclo_escolar__establecimiento=establecimiento_usuario)
+            ciclos = ciclos.filter(establecimiento=establecimiento_usuario)
+
+        self.fields["grado"].queryset = grados.order_by("nombre")
+        self.fields["ciclo_escolar"].queryset = ciclos.order_by("-anio", "-id")
+
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = "form-check-input"
+            else:
+                current = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = f"{current} form-control".strip()
 
 
 class UsuarioCreateForm(UserCreationForm):
