@@ -91,19 +91,48 @@ class GradoForm(BaseRihoForm):
 
 
 class CicloEscolarForm(BaseRihoForm):
+    DATE_INPUT_FORMATS = ["%d/%m/%Y", "%Y-%m-%d"]
+
+    fecha_inicio = forms.DateField(
+        required=False,
+        input_formats=DATE_INPUT_FORMATS,
+        widget=forms.DateInput(
+            format="%d/%m/%Y",
+            attrs={
+                "placeholder": "dd/mm/aaaa",
+                "autocomplete": "off",
+            },
+        ),
+    )
+    fecha_fin = forms.DateField(
+        required=False,
+        input_formats=DATE_INPUT_FORMATS,
+        widget=forms.DateInput(
+            format="%d/%m/%Y",
+            attrs={
+                "placeholder": "dd/mm/aaaa",
+                "autocomplete": "off",
+            },
+        ),
+    )
+
     class Meta:
         model = CicloEscolar
         fields = ["nombre", "anio", "fecha_inicio", "fecha_fin", "activo"]
-        widgets = {
-            "fecha_inicio": forms.DateInput(attrs={"type": "date"}),
-            "fecha_fin": forms.DateInput(attrs={"type": "date"}),
-        }
 
     def clean_nombre(self):
         nombre = (self.cleaned_data.get("nombre") or "").strip()
         if not nombre:
             raise forms.ValidationError("El nombre del ciclo escolar es obligatorio.")
         return nombre
+
+    def clean(self):
+        cleaned_data = super().clean()
+        fecha_inicio = cleaned_data.get("fecha_inicio")
+        fecha_fin = cleaned_data.get("fecha_fin")
+        if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
+            self.add_error("fecha_fin", "La fecha fin no puede ser menor que la fecha inicio.")
+        return cleaned_data
 
 
 class MatriculaForm(BaseRihoForm):
