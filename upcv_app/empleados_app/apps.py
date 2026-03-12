@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.utils import OperationalError, ProgrammingError
 
 
 class EmpleadosAppConfig(AppConfig):
@@ -7,3 +8,9 @@ class EmpleadosAppConfig(AppConfig):
 
     def ready(self):
         import empleados_app.signals  # noqa: F401
+        try:
+            from empleados_app.permissions import asegurar_grupo_gestor
+
+            asegurar_grupo_gestor()
+        except (OperationalError, ProgrammingError):
+            pass
