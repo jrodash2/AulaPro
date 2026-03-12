@@ -637,7 +637,13 @@ def docente_dashboard(request):
         'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento', 'docente'
     ).filter(activo=True, curso__activo=True)
 
-    if _is_docente(request.user):
+    show_docente_empty_message = False
+    selected_ciclo = None
+    ciclos_disponibles = CicloEscolar.objects.none()
+
+    is_docente_user = _is_docente(request.user)
+
+    if is_docente_user:
         cursos_docente = cursos_docente.filter(
             docente=request.user,
             curso__grado__carrera__ciclo_escolar__activo=True,
@@ -655,10 +661,32 @@ def docente_dashboard(request):
         ).exists():
             messages.info(request, 'No existe un ciclo escolar activo.')
         elif not cursos_docente.exists():
-            messages.info(request, 'No hay cursos disponibles en el ciclo activo.')
+            show_docente_empty_message = True
+    else:
+        ciclos_disponibles = CicloEscolar.objects.select_related('establecimiento').order_by('-activo', '-anio', '-id')
+        ciclo_id = (request.GET.get('ciclo') or '').strip()
+        if ciclo_id:
+            selected_ciclo = ciclos_disponibles.filter(pk=ciclo_id).first()
+        if selected_ciclo is None:
+            selected_ciclo = ciclos_disponibles.filter(activo=True).first() or ciclos_disponibles.first()
+
+        if selected_ciclo:
+            cursos_docente = cursos_docente.filter(curso__grado__carrera__ciclo_escolar=selected_ciclo)
+        else:
+            cursos_docente = cursos_docente.none()
+            messages.info(request, 'No existen ciclos escolares disponibles para filtrar.')
+
+        if selected_ciclo and not cursos_docente.exists():
+            messages.info(request, f'No hay cursos ni asistencias registradas para el ciclo "{selected_ciclo.nombre}".')
 
     cursos_docente = cursos_docente.order_by('curso__nombre')
-    return render(request, 'docentes/dashboard.html', {'cursos_docente': cursos_docente})
+    return render(request, 'docentes/dashboard.html', {
+        'cursos_docente': cursos_docente,
+        'show_docente_empty_message': show_docente_empty_message,
+        'ciclos_disponibles': ciclos_disponibles,
+        'selected_ciclo': selected_ciclo,
+        'is_docente_user': is_docente_user,
+    })
 
 
 @login_required
