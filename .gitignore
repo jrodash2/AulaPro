@@ -23,3 +23,19 @@ staticfiles/
 .DS_Store
 .vscode/
 .idea/
+
+# Binary artifacts disallowed in Codex tasks
+*.xlsx
+*.xls
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.zip
+*.pyc
+*.pyd
+*.so
+*.dll
+*.exe
