@@ -1,6 +1,4 @@
 from django.contrib.auth.models import Group
-from django.core.exceptions import FieldError, ObjectDoesNotExist
-from django.db import OperationalError, ProgrammingError
 
 from .models import Perfil
 
@@ -50,13 +48,10 @@ def obtener_establecimiento_usuario(user):
 
     try:
         perfil = Perfil.objects.select_related("establecimiento_gestionado").get(user=user)
-    except (Perfil.DoesNotExist, ObjectDoesNotExist, OperationalError, ProgrammingError, FieldError):
+    except Perfil.DoesNotExist:
         return None
 
-    try:
-        return getattr(perfil, "establecimiento_gestionado", None)
-    except (OperationalError, ProgrammingError, FieldError):
-        return None
+    return perfil.establecimiento_gestionado
 
 
 def filtrar_por_establecimiento_usuario(queryset, user, lookup):
