@@ -49,6 +49,10 @@
               {{ form.groups }}
             </div>
             <div class="col-md-6">
+              <label class="form-label">Establecimiento para Gestor</label>
+              {{ form.establecimiento_gestionado }}
+            </div>
+            <div class="col-md-6">
               <label class="form-label">Foto de perfil</label>
               {{ form.foto }}
               {% if perfil_foto_url %}

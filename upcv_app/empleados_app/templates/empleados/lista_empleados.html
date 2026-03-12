@@ -25,7 +25,9 @@
     <div class="card">
       <div class="card-header card-no-border pb-0 d-flex justify-content-between">
         <h5>Control de alumnos</h5>
-
+        {% if is_admin_total or is_gestor %}
+        <a href="{% url 'empleados:matricula_masiva' %}" class="btn btn-primary btn-sm">Matrícula masiva</a>
+        {% endif %}
       </div>
       <div class="card-body">
         <div class="table-responsive custom-scrollbar">
