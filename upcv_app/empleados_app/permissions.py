@@ -24,6 +24,10 @@ def es_admin_total(user):
     )
 
 
+def es_admin(user):
+    return es_admin_total(user)
+
+
 def es_gestor(user):
     return bool(user and user.is_authenticated and user.groups.filter(name=GESTOR_GROUP).exists())
 

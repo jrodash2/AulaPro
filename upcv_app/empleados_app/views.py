@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch
 from django.views.decorators.http import require_POST
@@ -44,7 +44,7 @@ from .permissions import (
 
 
 def _can_manage_design(user):
-    return es_admin_total(user) or es_gestor(user)
+    return es_admin_total(user)
 
 
 def _is_docente(user):
@@ -67,6 +67,12 @@ def _deny_if_not_allowed_establecimiento(request, establecimiento_id):
     if not usuario_puede_ver_establecimiento(request.user, establecimiento_id):
         messages.error(request, "No tiene permisos para acceder a ese establecimiento.")
         return redirect("empleados:dahsboard")
+    return None
+
+
+def _forbid_gafetes_for_gestor(request):
+    if es_gestor(request.user):
+        return HttpResponseForbidden("No tiene permiso para acceder a gafetes.")
     return None
 
 
@@ -426,6 +432,9 @@ def lista_empleados(request):
 @login_required
 @user_passes_test(_can_access_backoffice)
 def credencial_empleados(request):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     empleados = Empleado.objects.all()
     empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
     return render(request, "empleados/credencial_empleados.html", {"empleados": empleados})
@@ -434,6 +443,9 @@ def credencial_empleados(request):
 @login_required
 @user_passes_test(_can_access_backoffice)
 def empleado_detalle(request, id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     empleado = get_object_or_404(Empleado, id=id)
     if empleado.establecimiento_id:
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
@@ -629,8 +641,11 @@ def matricula_view(request):
 
 
 @login_required
-@user_passes_test(_can_manage_design)
+@user_passes_test(_can_access_backoffice)
 def editor_gafete(request, establecimiento_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
     if denied:
         return denied
@@ -686,9 +701,12 @@ def editor_gafete(request, establecimiento_id):
 
 
 @login_required
-@user_passes_test(_can_manage_design)
+@user_passes_test(_can_access_backoffice)
 @require_POST
 def guardar_diseno_gafete(request, establecimiento_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
     if denied:
         return denied
@@ -873,6 +891,9 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
 @login_required
 @user_passes_test(_can_access_backoffice)
 def gafete_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     matricula = get_object_or_404(
         Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
         pk=matricula_id,
@@ -899,12 +920,18 @@ def gafete_jpg(request, matricula_id):
 @login_required
 @user_passes_test(_can_access_backoffice)
 def descargar_gafete_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     return gafete_jpg(request, matricula_id)
 
 
 @login_required
-@user_passes_test(_can_manage_design)
+@user_passes_test(_can_access_backoffice)
 def resetear_diseno_gafete(request, establecimiento_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
     denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
     if denied:
         return denied

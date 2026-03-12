@@ -206,7 +206,7 @@
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:crear_empleado' %}">Agregar </a></li>
                     <li><a href="{% url 'empleados:empleado_lista' %}">Listar </a></li>
-                    <li><a href="{% url 'empleados:empleado_credencial' %}">Gafetes</a></li>
+                    {% if is_admin_total %}<li><a href="{% url 'empleados:empleado_credencial' %}">Gafetes</a></li>{% endif %}
                   </ul>
                 </li>
 
