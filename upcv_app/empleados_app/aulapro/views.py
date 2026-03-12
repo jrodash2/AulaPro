@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, IntegerField, Sum, When
 from django.http import HttpResponse, JsonResponse
@@ -618,6 +619,127 @@ def grado_update(request, est_id, ciclo_id, car_id, grado_id):
         'titulo': 'Editar grado',
     })
 
+
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_GET
+def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
+
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    establecimiento = grado.carrera.ciclo_escolar.establecimiento if grado.carrera and grado.carrera.ciclo_escolar else None
+    if not establecimiento:
+        return JsonResponse({'results': []}, status=400)
+
+    q = (request.GET.get('q') or '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+
+    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(establecimiento=establecimiento)
+    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, 'establecimiento_id')
+    alumnos = alumnos.filter(Q(codigo_personal__icontains=q) | Q(nombres__icontains=q) | Q(apellidos__icontains=q)).order_by('codigo_personal', 'apellidos', 'nombres')[:15]
+
+    results = [
+        {
+            'id': alumno.id,
+            'codigo_personal': alumno.codigo_personal or '-',
+            'nombre': f"{alumno.nombres} {alumno.apellidos}".strip(),
+            'grado_actual': str(alumno.grado) if alumno.grado else '-',
+            'establecimiento': str(alumno.establecimiento) if alumno.establecimiento else '-',
+        }
+        for alumno in alumnos
+    ]
+    return JsonResponse({'results': results})
+
+
+@login_required
+@user_passes_test(_can_manage)
+def matricula_masiva_grado(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
+
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+
+    ciclo_escolar = carrera.ciclo_escolar if carrera else None
+    if not ciclo_escolar:
+        messages.error(request, 'El grado no tiene ciclo escolar asociado. No se puede matricular masivamente.')
+        return redirect('empleados:grado_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id)
+
+    establecimiento_usuario = obtener_establecimiento_usuario(request.user)
+    if establecimiento_usuario and establecimiento_usuario.id != establecimiento.id:
+        messages.error(request, 'No tiene permisos para matricular en este establecimiento.')
+        return redirect('empleados:grado_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id)
+
+    if request.method == 'POST':
+        raw_ids = request.POST.get('alumnos_ids', '')
+        estado = request.POST.get('estado', 'activo')
+        alumno_ids = [int(v) for v in raw_ids.split(',') if v.strip().isdigit()]
+        alumno_ids = list(dict.fromkeys(alumno_ids))
+
+        if not alumno_ids:
+            messages.warning(request, 'Debe agregar al menos un alumno a la lista.')
+            return render(request, 'aulapro/matricula_masiva_grado.html', {
+                'establecimiento': establecimiento,
+                'ciclo': ciclo,
+                'carrera': carrera,
+                'grado': grado,
+                'ciclo_escolar_contexto': ciclo_escolar,
+                'estados': Matricula.ESTADOS,
+                'estado_default': estado,
+            })
+
+        alumnos_qs = Empleado.objects.filter(id__in=alumno_ids, establecimiento=establecimiento)
+        alumnos_qs = filtrar_por_establecimiento_usuario(alumnos_qs, request.user, 'establecimiento_id')
+        alumnos_map = {a.id: a for a in alumnos_qs}
+
+        inscritos = 0
+        omitidos = 0
+        errores = 0
+
+        for alumno_id in alumno_ids:
+            alumno = alumnos_map.get(alumno_id)
+            if not alumno:
+                errores += 1
+                continue
+
+            if Matricula.objects.filter(alumno=alumno, grado=grado, ciclo_escolar=ciclo_escolar).exists():
+                omitidos += 1
+                continue
+
+            matricula = Matricula(alumno=alumno, grado=grado, ciclo_escolar=ciclo_escolar, estado=estado)
+            try:
+                matricula.full_clean()
+                matricula.save()
+                inscritos += 1
+            except ValidationError:
+                errores += 1
+
+        if inscritos:
+            messages.success(request, f'{inscritos} alumnos matriculados correctamente.')
+        if omitidos:
+            messages.warning(request, f'{omitidos} alumnos ya tenían matrícula y fueron omitidos.')
+        if errores:
+            messages.error(request, f'{errores} alumnos no pudieron matricularse por validación o permisos.')
+
+        return redirect('empleados:grado_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id)
+
+    return render(request, 'aulapro/matricula_masiva_grado.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carrera': carrera,
+        'grado': grado,
+        'ciclo_escolar_contexto': ciclo_escolar,
+        'estados': Matricula.ESTADOS,
+        'estado_default': 'activo',
+    })
 
 @login_required
 @user_passes_test(_can_manage)

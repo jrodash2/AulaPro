@@ -63,6 +63,7 @@
         <a class="btn btn-outline-primary" href="{% url 'empleados:grado_update' establecimiento.id ciclo.id carrera.id grado.id %}"><i class="fa fa-edit"></i> Editar grado</a>
         <a class="btn btn-outline-info" href="{% url 'empleados:cursos_list' establecimiento.id ciclo.id carrera.id grado.id %}"><i class="fa fa-book"></i> Cursos</a>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#matricularModal" type="button"><i class="fa fa-user-plus"></i> Matricular</button>
+        <a class="btn btn-outline-primary" href="{% url 'empleados:matricula_masiva_grado' establecimiento.id ciclo.id carrera.id grado.id %}"><i class="fa fa-users"></i> Matricular varios alumnos</a>
       </div>
     </div>
     <div class="card-body">
