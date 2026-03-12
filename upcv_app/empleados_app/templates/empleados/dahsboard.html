@@ -1,9 +1,177 @@
-
 {% extends 'alumnos/base.html' %}
 {% load static %}
-{% block title %}Inicio{% endblock %}
+{% block title %}Panel AulaPro{% endblock %}
 
 {% block content %}
-<h3>Panel AulaPro</h3>
-<p>Gestión escolar, matrícula y diseñador de gafetes.</p>
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-sm-6">
+          <h4>Panel AulaPro</h4>
+          <p class="mb-0 text-muted">Indicadores académicos y administrativos del ciclo seleccionado.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    {% if not ciclo_activo %}
+      <div class="alert alert-warning">No hay ciclos escolares disponibles para mostrar estadísticas.</div>
+    {% endif %}
+
+    <div class="row">
+      <div class="col-xl-3 col-sm-6">
+        <div class="card o-hidden small-widget">
+          <div class="card-body total-project border-b-primary border-2">
+            <span class="f-light">Ciclo activo</span>
+            <div class="project-details">
+              <div class="project-counter"><h2>{{ ciclo_stats.nombre }}</h2></div>
+              <span class="f-12 f-w-500">{{ ciclo_stats.establecimiento }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card o-hidden small-widget">
+          <div class="card-body total-project border-b-success border-2">
+            <span class="f-light">Cursos activos</span>
+            <div class="project-details"><div class="project-counter"><h2>{{ ciclo_stats.cursos_total }}</h2></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card o-hidden small-widget">
+          <div class="card-body total-project border-b-warning border-2">
+            <span class="f-light">Alumnos en ciclo</span>
+            <div class="project-details"><div class="project-counter"><h2>{{ ciclo_stats.alumnos_total }}</h2></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card o-hidden small-widget">
+          <div class="card-body total-project border-b-info border-2">
+            <span class="f-light">Asistencias registradas</span>
+            <div class="project-details"><div class="project-counter"><h2>{{ ciclo_stats.asistencias_total }}</h2></div><span class="f-12 f-w-500">Docentes con asignación: {{ ciclo_stats.docentes_total }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card">
+          <div class="card-header pb-0 card-no-border"><h5>Resumen de asistencia del ciclo activo</h5></div>
+          <div class="card-body"><div id="chart-asistencia-resumen" style="min-height: 320px;"></div></div>
+        </div>
+      </div>
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card">
+          <div class="card-header pb-0 card-no-border"><h5>Tendencia de asistencia por fecha</h5></div>
+          <div class="card-body"><div id="chart-asistencia-tendencia" style="min-height: 320px;"></div></div>
+        </div>
+      </div>
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card">
+          <div class="card-header pb-0 card-no-border"><h5>Alumnos por grado</h5></div>
+          <div class="card-body"><div id="chart-alumnos-grado" style="min-height: 320px;"></div></div>
+        </div>
+      </div>
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card">
+          <div class="card-header pb-0 card-no-border"><h5>Alumnos por carrera</h5></div>
+          <div class="card-body"><div id="chart-alumnos-carrera" style="min-height: 320px;"></div></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header pb-0 card-no-border"><h5>Cursos asignados por docente</h5></div>
+          <div class="card-body"><div id="chart-cursos-docente" style="min-height: 360px;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const labelsGrado = {{ alumnos_por_grado_labels|safe }};
+  const seriesGrado = {{ alumnos_por_grado_series|safe }};
+  const labelsCarrera = {{ alumnos_por_carrera_labels|safe }};
+  const seriesCarrera = {{ alumnos_por_carrera_series|safe }};
+  const labelsDocente = {{ cursos_por_docente_labels|safe }};
+  const seriesDocente = {{ cursos_por_docente_series|safe }};
+  const asistenciaResumen = {{ asistencia_resumen_series|safe }};
+  const tendenciaLabels = {{ asistencia_tendencia_labels|safe }};
+  const tendenciaPresentes = {{ asistencia_tendencia_presentes|safe }};
+  const tendenciaAusentes = {{ asistencia_tendencia_ausentes|safe }};
+
+  function renderEmpty(containerId, text) {
+    const el = document.querySelector(containerId);
+    if (el) {
+      el.innerHTML = `<div class="text-muted text-center py-5">${text}</div>`;
+    }
+  }
+
+  if (typeof ApexCharts === 'undefined') {
+    ['#chart-asistencia-resumen', '#chart-asistencia-tendencia', '#chart-alumnos-grado', '#chart-alumnos-carrera', '#chart-cursos-docente']
+      .forEach(id => renderEmpty(id, 'Sin datos disponibles'));
+    return;
+  }
+
+  if ((asistenciaResumen[0] + asistenciaResumen[1]) > 0) {
+    new ApexCharts(document.querySelector('#chart-asistencia-resumen'), {
+      chart: { type: 'donut', height: 320, toolbar: { show: false } },
+      labels: ['Presentes', 'Ausentes'],
+      series: asistenciaResumen,
+      colors: ['#2bcbba', '#ff6b6b'],
+      legend: { position: 'bottom' },
+      dataLabels: { enabled: true }
+    }).render();
+  } else { renderEmpty('#chart-asistencia-resumen', 'Sin datos disponibles'); }
+
+  if (tendenciaLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-asistencia-tendencia'), {
+      chart: { type: 'line', height: 320, toolbar: { show: false } },
+      stroke: { curve: 'smooth', width: 3 },
+      series: [
+        { name: 'Presentes', data: tendenciaPresentes },
+        { name: 'Ausentes', data: tendenciaAusentes }
+      ],
+      xaxis: { categories: tendenciaLabels },
+      colors: ['#4c78ff', '#ff7f50'],
+      legend: { position: 'top' }
+    }).render();
+  } else { renderEmpty('#chart-asistencia-tendencia', 'Sin datos disponibles'); }
+
+  if (labelsGrado.length > 0) {
+    new ApexCharts(document.querySelector('#chart-alumnos-grado'), {
+      chart: { type: 'bar', height: 320, toolbar: { show: false } },
+      plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+      series: [{ name: 'Alumnos', data: seriesGrado }],
+      xaxis: { categories: labelsGrado },
+      colors: ['#7366ff']
+    }).render();
+  } else { renderEmpty('#chart-alumnos-grado', 'Sin datos disponibles'); }
+
+  if (labelsCarrera.length > 0) {
+    new ApexCharts(document.querySelector('#chart-alumnos-carrera'), {
+      chart: { type: 'donut', height: 320, toolbar: { show: false } },
+      labels: labelsCarrera,
+      series: seriesCarrera,
+      legend: { position: 'bottom' }
+    }).render();
+  } else { renderEmpty('#chart-alumnos-carrera', 'Sin datos disponibles'); }
+
+  if (labelsDocente.length > 0) {
+    new ApexCharts(document.querySelector('#chart-cursos-docente'), {
+      chart: { type: 'bar', height: 360, toolbar: { show: false } },
+      plotOptions: { bar: { borderRadius: 4, horizontal: false, columnWidth: '50%' } },
+      series: [{ name: 'Cursos', data: seriesDocente }],
+      xaxis: { categories: labelsDocente, labels: { rotate: -30 } },
+      colors: ['#16c7f9']
+    }).render();
+  } else { renderEmpty('#chart-cursos-docente', 'Sin datos disponibles'); }
+})();
+</script>
 {% endblock %}

@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.db import OperationalError, ProgrammingError
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch
@@ -28,7 +29,7 @@ from .forms import (
     UsuarioUpdateForm,
 )
 from .gafete_utils import canvas_for_orientation, orientation_for_establecimiento, resolve_gafete_dimensions
-from .models import DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
 
 
 def _can_manage_design(user):
@@ -237,7 +238,107 @@ def usuarios_update(request, pk):
 def dahsboard(request):
     if _is_docente(request.user):
         return redirect("empleados:docente_dashboard")
-    return render(request, "empleados/dahsboard.html")
+
+    ciclo_activo = CicloEscolar.objects.select_related('establecimiento').filter(activo=True).order_by('-anio', '-id').first()
+    if not ciclo_activo:
+        ciclo_activo = CicloEscolar.objects.select_related('establecimiento').order_by('-anio', '-id').first()
+
+    alumnos_por_grado_labels = []
+    alumnos_por_grado_series = []
+    alumnos_por_carrera_labels = []
+    alumnos_por_carrera_series = []
+    cursos_por_docente_labels = []
+    cursos_por_docente_series = []
+    asistencia_resumen_series = [0, 0]
+    asistencia_tendencia_labels = []
+    asistencia_tendencia_presentes = []
+    asistencia_tendencia_ausentes = []
+
+    ciclo_stats = {
+        'nombre': ciclo_activo.nombre if ciclo_activo else 'Sin ciclo disponible',
+        'establecimiento': ciclo_activo.establecimiento.nombre if ciclo_activo else '-',
+        'cursos_total': 0,
+        'alumnos_total': 0,
+        'docentes_total': 0,
+        'asistencias_total': 0,
+    }
+
+    if ciclo_activo:
+        matriculas_ciclo = Matricula.objects.filter(ciclo_escolar=ciclo_activo).select_related('grado', 'grado__carrera')
+        alumnos_por_grado_qs = (
+            matriculas_ciclo.values('grado__nombre')
+            .annotate(total=Count('alumno', distinct=True))
+            .order_by('-total', 'grado__nombre')
+        )
+        alumnos_por_grado_labels = [row['grado__nombre'] or 'Sin grado' for row in alumnos_por_grado_qs]
+        alumnos_por_grado_series = [row['total'] for row in alumnos_por_grado_qs]
+
+        alumnos_por_carrera_qs = (
+            matriculas_ciclo.values('grado__carrera__nombre')
+            .annotate(total=Count('alumno', distinct=True))
+            .order_by('-total', 'grado__carrera__nombre')
+        )
+        alumnos_por_carrera_labels = [row['grado__carrera__nombre'] or 'Sin carrera' for row in alumnos_por_carrera_qs]
+        alumnos_por_carrera_series = [row['total'] for row in alumnos_por_carrera_qs]
+
+        cursos_docente_qs = (
+            CursoDocente.objects.filter(
+                activo=True,
+                curso__activo=True,
+                curso__grado__carrera__ciclo_escolar=ciclo_activo,
+            )
+            .values('docente__first_name', 'docente__last_name', 'docente__username')
+            .annotate(total=Count('curso', distinct=True))
+            .order_by('-total', 'docente__username')[:12]
+        )
+        for row in cursos_docente_qs:
+            nombre = f"{(row['docente__first_name'] or '').strip()} {(row['docente__last_name'] or '').strip()}".strip() or row['docente__username']
+            cursos_por_docente_labels.append(nombre)
+            cursos_por_docente_series.append(row['total'])
+
+        asistencia_detalles_qs = AsistenciaDetalle.objects.filter(
+            asistencia__curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo,
+        )
+        presentes_total = asistencia_detalles_qs.filter(presente=True).count()
+        ausentes_total = asistencia_detalles_qs.filter(presente=False).count()
+        asistencia_resumen_series = [presentes_total, ausentes_total]
+
+        tendencia_qs = (
+            Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo)
+            .values('fecha')
+            .annotate(
+                presentes=Count('detalles', filter=Q(detalles__presente=True)),
+                ausentes=Count('detalles', filter=Q(detalles__presente=False)),
+            )
+            .order_by('-fecha')[:14]
+        )
+        tendencia = list(reversed(list(tendencia_qs)))
+        asistencia_tendencia_labels = [row['fecha'].strftime('%d/%m') for row in tendencia]
+        asistencia_tendencia_presentes = [row['presentes'] for row in tendencia]
+        asistencia_tendencia_ausentes = [row['ausentes'] for row in tendencia]
+
+        ciclo_stats.update({
+            'cursos_total': Curso.objects.filter(grado__carrera__ciclo_escolar=ciclo_activo, activo=True).count(),
+            'alumnos_total': matriculas_ciclo.values('alumno_id').distinct().count(),
+            'docentes_total': CursoDocente.objects.filter(curso__grado__carrera__ciclo_escolar=ciclo_activo, activo=True).values('docente_id').distinct().count(),
+            'asistencias_total': Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo).count(),
+        })
+
+    context = {
+        'ciclo_activo': ciclo_activo,
+        'ciclo_stats': ciclo_stats,
+        'alumnos_por_grado_labels': json.dumps(alumnos_por_grado_labels),
+        'alumnos_por_grado_series': json.dumps(alumnos_por_grado_series),
+        'alumnos_por_carrera_labels': json.dumps(alumnos_por_carrera_labels),
+        'alumnos_por_carrera_series': json.dumps(alumnos_por_carrera_series),
+        'cursos_por_docente_labels': json.dumps(cursos_por_docente_labels),
+        'cursos_por_docente_series': json.dumps(cursos_por_docente_series),
+        'asistencia_resumen_series': json.dumps(asistencia_resumen_series),
+        'asistencia_tendencia_labels': json.dumps(asistencia_tendencia_labels),
+        'asistencia_tendencia_presentes': json.dumps(asistencia_tendencia_presentes),
+        'asistencia_tendencia_ausentes': json.dumps(asistencia_tendencia_ausentes),
+    }
+    return render(request, "empleados/dahsboard.html", context)
 
 
 @login_required
