@@ -392,7 +392,7 @@ def configuracion_general(request):
 def crear_empleado(request):
     form = EmpleadoForm(request.POST or None, request.FILES or None)
     establecimiento_usuario = obtener_establecimiento_usuario(request.user)
-    if establecimiento_usuario:
+    if establecimiento_usuario and "grado" in form.fields:
         form.fields["grado"].queryset = form.fields["grado"].queryset.filter(carrera__ciclo_escolar__establecimiento=establecimiento_usuario)
     if request.method == "POST" and form.is_valid():
         empleado = form.save(commit=False)
