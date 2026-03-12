@@ -1,4 +1,5 @@
 from django import forms
+import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
@@ -29,6 +30,8 @@ from .excel import autosize_columns, style_table_header, style_table_row, style_
 from .forms import MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_CYCLE = False
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -653,6 +656,12 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
         }
         for alumno in alumnos
     ]
+    if debug_search:
+        logger.warning(
+            '[matricula_masiva_grado_buscar] final_count=%s sample=%s',
+            len(results),
+            results[:5],
+        )
     return JsonResponse({'results': results})
 
 
