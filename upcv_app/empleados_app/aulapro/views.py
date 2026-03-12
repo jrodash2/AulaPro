@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import IntegrityError, transaction
+from django.db.models import Case, Count, IntegerField, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -660,6 +661,105 @@ def docente_historial_asistencias(request, periodo_id):
         'curso': periodo.curso_docente.curso,
         'rows': rows,
     })
+
+
+@login_required
+@user_passes_test(_can_view_attendance)
+def docente_periodo_historial_excel(request, periodo_id):
+    periodo = get_object_or_404(
+        PeriodoAcademico.objects.select_related(
+            'curso_docente',
+            'curso_docente__docente',
+            'curso_docente__curso',
+            'curso_docente__curso__grado',
+            'curso_docente__curso__grado__carrera',
+            'curso_docente__curso__grado__carrera__ciclo_escolar',
+            'curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento',
+        ),
+        pk=periodo_id,
+        **_attendance_filter_for_user(request.user, 'curso_docente__'),
+    )
+
+    curso_docente = periodo.curso_docente
+    curso = curso_docente.curso
+    grado = curso.grado
+
+    alumnos = list(
+        Empleado.objects.filter(matriculas__grado=grado)
+        .distinct()
+        .order_by('apellidos', 'nombres')
+    )
+
+    resumen_qs = AsistenciaDetalle.objects.filter(asistencia__periodo=periodo).values('alumno_id').annotate(
+        asistencias=Sum(Case(When(presente=True, then=1), default=0, output_field=IntegerField())),
+        inasistencias=Sum(Case(When(presente=False, then=1), default=0, output_field=IntegerField())),
+        total_registros=Count('id'),
+    )
+    resumen_por_alumno = {
+        row['alumno_id']: {
+            'asistencias': row['asistencias'] or 0,
+            'inasistencias': row['inasistencias'] or 0,
+            'total_registros': row['total_registros'] or 0,
+        }
+        for row in resumen_qs
+    }
+
+    total_dias_registrados = Asistencia.objects.filter(periodo=periodo).count()
+    establecimiento = '-'
+    ciclo = '-'
+    if curso.grado and curso.grado.carrera and curso.grado.carrera.ciclo_escolar:
+        ciclo_obj = curso.grado.carrera.ciclo_escolar
+        ciclo = ciclo_obj.nombre
+        establecimiento = ciclo_obj.establecimiento.nombre
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Consolidado'
+
+    style_title(ws, 1, 'Consolidado de asistencia del período', max_col=7)
+    label_font = Font(bold=True)
+
+    encabezado = [
+        ('Curso:', curso.nombre),
+        ('Docente:', _display_name_for_person(curso_docente.docente)),
+        ('Período:', periodo.nombre),
+        ('Ciclo escolar:', ciclo),
+        ('Establecimiento:', establecimiento),
+        ('Fecha de generación:', timezone.localdate().strftime('%d/%m/%Y')),
+        ('Total de días con asistencia registrada:', total_dias_registrados),
+    ]
+
+    row = 3
+    for label, value in encabezado:
+        ws.cell(row=row, column=1, value=label).font = label_font
+        ws.cell(row=row, column=2, value=value)
+        row += 1
+
+    row += 1
+    headers = ['No.', 'Código / carné', 'Alumno', 'Asistencias', 'Inasistencias', 'Total registros', '% Asistencia']
+    style_table_header(ws, row, headers)
+    ws.freeze_panes = f'A{row + 1}'
+
+    for idx, alumno in enumerate(alumnos, start=1):
+        resumen = resumen_por_alumno.get(alumno.id, {'asistencias': 0, 'inasistencias': 0, 'total_registros': 0})
+        total_registros = resumen['total_registros']
+        porcentaje = (resumen['asistencias'] / total_registros * 100) if total_registros else 0
+        style_table_row(
+            ws,
+            row + idx,
+            [
+                idx,
+                alumno.codigo_personal or '-',
+                f'{alumno.apellidos}, {alumno.nombres}',
+                resumen['asistencias'],
+                resumen['inasistencias'],
+                total_registros,
+                f'{porcentaje:.2f}%',
+            ],
+        )
+
+    autosize_columns(ws)
+    return workbook_to_response(wb, f'consolidado_periodo_{periodo.id}')
 
 
 @login_required
