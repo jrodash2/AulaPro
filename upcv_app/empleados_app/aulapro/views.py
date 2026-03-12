@@ -654,7 +654,7 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     # establecimiento por su grado actual.
     alumnos = alumnos.filter(
         Q(establecimiento=establecimiento)
-        | Q(establecimiento__isnull=True, grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+        | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
     ).order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
 
     results = [
