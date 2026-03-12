@@ -80,7 +80,7 @@
 
       <div class="table-responsive">
         <table class="table table-striped">
-          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th>Acciones</th><th></th></tr></thead>
+          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th></th></tr></thead>
           <tbody>
             {% for m in matriculas %}
             {% with m.id|stringformat:"s" as mid %}
@@ -90,6 +90,7 @@
               <td>{{ m.alumno.cui|default:'-' }}</td>
               <td>{{ m.ciclo_escolar.nombre|default:'-' }}</td>
               <td>{% if m.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
+              {% if not is_gestor %}
               <td>
                 <div class="btn-group" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
@@ -100,6 +101,7 @@
                   </button>
                 </div>
               </td>
+              {% endif %}
               <td>
                 <form method="post" action="{% url 'empleados:desmatricular_alumno' m.id %}">{% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -118,6 +120,7 @@
   </div>
 </div>
 
+{% if not is_gestor %}
 {% for m in matriculas %}
 {% with m.id|stringformat:"s" as mid %}
 {% with preview_dom_id='gafete-canvas-'|add:mid %}
@@ -160,6 +163,7 @@
   {% endwith %}
   {% endfor %}
 </div>
+{% endif %}
 
 <div id="export-sandbox" style="position:fixed;left:-99999px;top:0;width:0;height:0;overflow:hidden;"></div>
 
@@ -203,6 +207,7 @@ window.matriculaModalConfig = {
   tieneCicloActivo: {{ ciclo_activo|yesno:'true,false' }}
 };
 </script>
+{% if not is_gestor %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script>
@@ -270,7 +275,8 @@ window.matriculaModalConfig = {
 })();
 </script>
 
-<script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_export_fix.js' %}"></script>
+{% endif %}
+<script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 {% endblock %}
