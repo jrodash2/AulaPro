@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, IntegerField, Sum, When
+from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -639,9 +639,23 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
     if len(q) < 2:
         return JsonResponse({'results': []})
 
-    alumnos = Empleado.objects.select_related('grado', 'establecimiento').filter(establecimiento=establecimiento)
-    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, 'establecimiento_id')
-    alumnos = alumnos.filter(Q(codigo_personal__icontains=q) | Q(nombres__icontains=q) | Q(apellidos__icontains=q)).order_by('codigo_personal', 'apellidos', 'nombres')[:15]
+    alumnos = Empleado.objects.select_related('grado', 'establecimiento')
+
+    # Reutiliza la lógica funcional de la matrícula masiva general:
+    # una sola cadena `q` buscada en código, nombres o apellidos.
+    alumnos = alumnos.filter(
+        Q(codigo_personal__icontains=q)
+        | Q(nombres__icontains=q)
+        | Q(apellidos__icontains=q)
+    )
+
+    # En la matrícula por grado limitamos al establecimiento actual, sin excluir
+    # alumnos que aún no tengan establecimiento asignado pero sí pertenezcan al mismo
+    # establecimiento por su grado actual.
+    alumnos = alumnos.filter(
+        Q(establecimiento=establecimiento)
+        | Q(grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+    ).order_by('codigo_personal', 'apellidos', 'nombres').distinct()[:15]
 
     results = [
         {
