@@ -84,6 +84,86 @@ def _display_name_for_person(person):
     return str(person)
 
 
+
+
+def _get_previous_cycle_for_establecimiento(ciclo_nuevo):
+    return (
+        CicloEscolar.objects.filter(establecimiento=ciclo_nuevo.establecimiento)
+        .exclude(pk=ciclo_nuevo.pk)
+        .order_by('-anio', '-id')
+        .first()
+    )
+
+
+def _clone_academic_structure_from_previous_cycle(ciclo_nuevo):
+    ciclo_anterior = _get_previous_cycle_for_establecimiento(ciclo_nuevo)
+    if not ciclo_anterior:
+        return {'copied': False, 'previous_cycle': None}
+
+    carreras_anteriores = list(
+        Carrera.objects.filter(ciclo_escolar=ciclo_anterior)
+        .prefetch_related('grados__cursos')
+        .order_by('id')
+    )
+
+    carrera_map = {}
+    for carrera_anterior in carreras_anteriores:
+        carrera_nueva, _ = Carrera.objects.get_or_create(
+            ciclo_escolar=ciclo_nuevo,
+            nombre=carrera_anterior.nombre,
+            defaults={'activo': carrera_anterior.activo},
+        )
+        if carrera_nueva.activo != carrera_anterior.activo:
+            carrera_nueva.activo = carrera_anterior.activo
+            carrera_nueva.save(update_fields=['activo'])
+        carrera_map[carrera_anterior.id] = carrera_nueva
+
+    grado_map = {}
+    for carrera_anterior in carreras_anteriores:
+        carrera_nueva = carrera_map[carrera_anterior.id]
+        for grado_anterior in carrera_anterior.grados.all().order_by('id'):
+            grado_nuevo, _ = Grado.objects.get_or_create(
+                carrera=carrera_nueva,
+                nombre=grado_anterior.nombre,
+                jornada=grado_anterior.jornada,
+                seccion=grado_anterior.seccion,
+                defaults={
+                    'descripcion': grado_anterior.descripcion,
+                    'activo': grado_anterior.activo,
+                },
+            )
+            changed = False
+            if grado_nuevo.descripcion != grado_anterior.descripcion:
+                grado_nuevo.descripcion = grado_anterior.descripcion
+                changed = True
+            if grado_nuevo.activo != grado_anterior.activo:
+                grado_nuevo.activo = grado_anterior.activo
+                changed = True
+            if changed:
+                grado_nuevo.save(update_fields=['descripcion', 'activo'])
+            grado_map[grado_anterior.id] = grado_nuevo
+
+            for curso_anterior in grado_anterior.cursos.all().order_by('id'):
+                curso_nuevo, _ = Curso.objects.get_or_create(
+                    grado=grado_nuevo,
+                    nombre=curso_anterior.nombre,
+                    defaults={
+                        'descripcion': curso_anterior.descripcion,
+                        'activo': curso_anterior.activo,
+                    },
+                )
+                curso_changed = False
+                if curso_nuevo.descripcion != curso_anterior.descripcion:
+                    curso_nuevo.descripcion = curso_anterior.descripcion
+                    curso_changed = True
+                if curso_nuevo.activo != curso_anterior.activo:
+                    curso_nuevo.activo = curso_anterior.activo
+                    curso_changed = True
+                if curso_changed:
+                    curso_nuevo.save(update_fields=['descripcion', 'activo'])
+
+    return {'copied': True, 'previous_cycle': ciclo_anterior}
+
 def _get_establecimiento(est_id):
     return get_object_or_404(Establecimiento, pk=est_id)
 
@@ -177,13 +257,20 @@ def ciclo_create(request, est_id):
         ciclo.establecimiento = establecimiento
         ciclo.activo = bool(form.cleaned_data.get('activo'))
 
-        with transaction.atomic():
-            if ciclo.activo:
-                establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
-            ciclo.save()
-
-        messages.success(request, 'Ciclo escolar creado correctamente.')
-        return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
+        try:
+            with transaction.atomic():
+                if ciclo.activo:
+                    establecimiento.ciclos_escolares.filter(activo=True).exclude(pk=ciclo.pk).update(activo=False)
+                ciclo.save()
+                clone_result = _clone_academic_structure_from_previous_cycle(ciclo)
+        except Exception:
+            messages.error(request, 'No se pudo crear el ciclo escolar. Intente nuevamente.')
+        else:
+            if clone_result['copied']:
+                messages.success(request, 'Ciclo creado correctamente. Se copió la estructura académica del ciclo anterior.')
+            else:
+                messages.success(request, 'Ciclo creado correctamente. No existía un ciclo anterior para copiar estructura.')
+            return redirect('empleados:ciclo_detail', est_id=establecimiento.id, ciclo_id=ciclo.id)
 
     return render(request, 'aulapro/ciclos/form.html', {
         'establecimiento': establecimiento,
