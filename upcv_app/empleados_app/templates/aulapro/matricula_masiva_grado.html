@@ -91,6 +91,7 @@
 <script>
 (function () {
   const urlBuscar = "{% url 'empleados:matricula_masiva_grado_buscar' establecimiento.id ciclo.id carrera.id grado.id %}";
+  const debugSearch = new URLSearchParams(window.location.search).get('debug_search') === '1';
   const inputBuscar = document.getElementById('buscar-codigo');
   const resultadosBody = document.getElementById('resultados-body');
   const seleccionadosBody = document.getElementById('seleccionados-body');
@@ -158,8 +159,15 @@
         resultadosBody.innerHTML = '<tr><td colspan="5" class="text-muted">Escriba al menos 2 caracteres.</td></tr>';
         return;
       }
-      const resp = await fetch(`${urlBuscar}?q=${encodeURIComponent(q)}`);
+      const fetchUrl = `${urlBuscar}?q=${encodeURIComponent(q)}${debugSearch ? '&debug_search=1' : ''}`;
+      if (debugSearch) {
+        console.log('[matricula_masiva_grado] q=', q, 'url=', fetchUrl);
+      }
+      const resp = await fetch(fetchUrl);
       const data = await resp.json();
+      if (debugSearch) {
+        console.log('[matricula_masiva_grado] response=', data, 'count=', (data.results || []).length);
+      }
       renderResultados(data.results || []);
     }, 250);
   });
