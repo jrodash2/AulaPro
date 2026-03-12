@@ -640,7 +640,6 @@ def matricula_masiva_grado_buscar(request, est_id, ciclo_id, car_id, grado_id):
         return JsonResponse({'results': []})
 
     alumnos = Empleado.objects.select_related('grado', 'establecimiento')
-    alumnos = filtrar_por_establecimiento_usuario(alumnos, request.user, 'establecimiento_id')
 
     # Reutiliza la lógica funcional de la matrícula masiva general:
     # una sola cadena `q` buscada en código, nombres o apellidos.
