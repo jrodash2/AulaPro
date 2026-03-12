@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, IntegerField, Sum, When
 from django.http import HttpResponse, JsonResponse
@@ -13,7 +14,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
 from empleados_app.gafete_utils import resolve_gafete_dimensions
-from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, PeriodoAcademico
+from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil, PeriodoAcademico
 from empleados_app.permissions import (
     es_admin_total,
     es_docente,
@@ -77,6 +78,57 @@ def _ensure_establecimiento_access(request, est_id):
         return redirect('empleados:dahsboard')
     return None
 
+
+
+
+def _gestores_qs_para_establecimiento(establecimiento):
+    return (
+        User.objects.filter(groups__name="Gestor", perfil__establecimiento_gestionado=establecimiento)
+        .select_related("perfil")
+        .order_by("first_name", "last_name", "username")
+        .distinct()
+    )
+
+
+def _gestores_disponibles_qs():
+    return User.objects.filter(groups__name="Gestor").order_by("first_name", "last_name", "username").distinct()
+
+
+def _asignar_gestor_a_establecimiento(request, establecimiento):
+    if not es_admin_total(request.user):
+        messages.error(request, 'Solo un administrador puede gestionar asignaciones de gestores.')
+        return
+
+    action = (request.POST.get('action') or '').strip()
+    gestor_id = request.POST.get('gestor_id')
+
+    if not gestor_id:
+        messages.warning(request, 'Debe seleccionar un gestor válido.')
+        return
+
+    gestor = get_object_or_404(_gestores_disponibles_qs(), pk=gestor_id)
+    perfil, _ = Perfil.objects.get_or_create(user=gestor)
+
+    if action == 'assign_gestor':
+        anterior = perfil.establecimiento_gestionado
+        perfil.establecimiento_gestionado = establecimiento
+        perfil.save(update_fields=['establecimiento_gestionado'])
+        if anterior and anterior.id != establecimiento.id:
+            messages.success(request, f'Gestor reasignado desde "{anterior.nombre}" hacia "{establecimiento.nombre}".')
+        else:
+            messages.success(request, 'Gestor asignado correctamente al establecimiento.')
+        return
+
+    if action == 'unassign_gestor':
+        if perfil.establecimiento_gestionado_id != establecimiento.id:
+            messages.warning(request, 'El gestor seleccionado no está asignado a este establecimiento.')
+            return
+        perfil.establecimiento_gestionado = None
+        perfil.save(update_fields=['establecimiento_gestionado'])
+        messages.success(request, 'Gestor desasignado correctamente.')
+        return
+
+    messages.warning(request, 'Acción de gestor no reconocida.')
 
 def _display_name_for_person(person):
     if not person:
@@ -237,12 +289,23 @@ def establecimiento_detail(request, est_id):
     denied = _ensure_establecimiento_access(request, est_id)
     if denied:
         return denied
+
     establecimiento = _get_establecimiento(est_id)
+
+    if request.method == 'POST':
+        _asignar_gestor_a_establecimiento(request, establecimiento)
+        return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
+
     ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
+    gestores_asignados = _gestores_qs_para_establecimiento(establecimiento)
+
     return render(request, 'aulapro/establecimiento_detail.html', {
         'establecimiento': establecimiento,
         'ciclos': ciclos,
         'ciclo_activo': establecimiento.get_ciclo_activo(),
+        'gestores_asignados': gestores_asignados,
+        'gestores_disponibles': _gestores_disponibles_qs(),
+        'puede_gestionar_gestores': es_admin_total(request.user),
     })
 
 
