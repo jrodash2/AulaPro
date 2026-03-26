@@ -842,6 +842,17 @@ def editor_gafete(request, establecimiento_id):
 @login_required
 @user_passes_test(_can_access_backoffice)
 @require_POST
+def subir_imagen_gafete(request, establecimiento_id):
+    """
+    Vista legacy conservada para compatibilidad con rutas antiguas.
+    El flujo actual no permite subir imágenes desde el editor del reverso.
+    """
+    return JsonResponse({"ok": False, "error": "Función deshabilitada en el editor actual."}, status=410)
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+@require_POST
 def guardar_diseno_gafete(request, establecimiento_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
