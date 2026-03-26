@@ -159,25 +159,31 @@
       }
 
       const id = btn.dataset.exportId;
-      const originalCanvas = document.getElementById(`gafete-export-canvas-${id}`);
-      if (!originalCanvas) throw new Error(`No se encontró origen de export: ${id}`);
+      const frontCanvas = document.getElementById(`gafete-export-canvas-${id}-front`);
+      const backCanvas = document.getElementById(`gafete-export-canvas-${id}-back`);
+      if (!frontCanvas || !backCanvas) throw new Error(`No se encontró origen de export: ${id}`);
 
       const sandbox = getSandbox();
-      const { w, h } = resolveDimensions(originalCanvas);
-      const { wrapper, clone } = buildCloneWrapper(originalCanvas, w, h);
-      sandbox.innerHTML = '';
-      sandbox.appendChild(wrapper);
+      const { w, h } = resolveDimensions(frontCanvas);
+      const frontWrap = buildCloneWrapper(frontCanvas, w, h);
+      const backWrap = buildCloneWrapper(backCanvas, w, h);
+      const merged = document.createElement('div');
+      merged.style.cssText = `display:flex; width:${w * 2}px; height:${h}px; background:#fff;`;
+      merged.appendChild(frontWrap.wrapper);
+      merged.appendChild(backWrap.wrapper);
+      sandbox.innerHTML = "";
+      sandbox.appendChild(merged);
 
-      validateRectAndTransform(wrapper, 'EXPORT', w, h);
-      console.log('[gafete_export] dims', { w, h });
-      logImageMetrics(clone);
-      await waitImages(clone);
+      validateRectAndTransform(frontWrap.wrapper, 'EXPORT FRONT', w, h);
+      validateRectAndTransform(backWrap.wrapper, 'EXPORT BACK', w, h);
+      await waitImages(frontWrap.clone);
+      await waitImages(backWrap.clone);
 
       try {
-        await exportWithHtml2Canvas(wrapper, btn.dataset.filename, w, h);
+        await exportWithHtml2Canvas(merged, btn.dataset.filename, w * 2, h);
       } catch (e) {
         console.error('[gafete_export_fix] html2canvas falló, usando fallback SVG', e);
-        await exportWithSvgForeignObject(wrapper, btn.dataset.filename, w, h);
+        await exportWithSvgForeignObject(merged, btn.dataset.filename, w * 2, h);
       }
     } catch (error) {
       console.error('[gafete_export_fix] error:', error);
