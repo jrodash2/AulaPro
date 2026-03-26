@@ -20,7 +20,8 @@
           <div class="card-body">
             <div class="gafete-editor-viewport">
               <div id="gafete-scale-wrapper">
-                {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout preview_id='editorCanvas' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+                {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='editorCanvasFront' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+                {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='editorCanvasBack' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
               </div>
             </div>
             <small id="coords-hint" class="text-muted d-block mt-2"></small>
@@ -36,6 +37,13 @@
           <div class="card">
             <div class="card-header card-no-border pb-0"><h5>Propiedades</h5></div>
             <div class="card-body">
+              <div class="mb-3">
+                <label class="form-label d-block">Cara a editar</label>
+                <div class="btn-group w-100" role="group">
+                  <button type="button" class="btn btn-outline-primary active face-switch" data-face="front">Frente</button>
+                  <button type="button" class="btn btn-outline-primary face-switch" data-face="back">Reverso</button>
+                </div>
+              </div>
               <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
 
               <div class="mb-3">
@@ -43,7 +51,7 @@
                 <div id="enabled-fields-checklist" class="d-flex flex-column gap-1">
                   {% for f in available_fields %}
                     <div class="form-check my-1">
-                      <input class="form-check-input field-toggle" type="checkbox" id="field_{{ f.key }}" data-field="{{ f.key }}" {% if f.key in enabled_fields %}checked{% endif %}>
+                      <input class="form-check-input field-toggle" type="checkbox" id="field_{{ f.key }}" data-field="{{ f.key }}" {% if f.key in enabled_fields_front %}checked{% endif %}>
                       <label class="form-check-label" for="field_{{ f.key }}">{{ f.label }}</label>
                     </div>
                   {% endfor %}
@@ -51,6 +59,10 @@
               </div>
 
               <div id="text-props">
+                <div class="mb-3">
+                  <label class="form-label">Contenido</label>
+                  <input id="prop-text-content" type="text" class="form-control" placeholder="Texto fijo o placeholder">
+                </div>
                 <div class="mb-3">
                   <label class="form-label">Color</label>
                   <div class="d-flex gap-2">
@@ -101,13 +113,13 @@
 <style>
   .gafete-editor-viewport { overflow:auto; max-width:100%; }
   #gafete-scale-wrapper { transform-origin: top left; width: fit-content; }
-  #editorCanvas .gafete-bg { pointer-events:none; z-index:1; }
-  #editorCanvas .gafete-item { position:absolute; user-select:none; cursor:move; z-index:5; pointer-events:auto; touch-action:none; border:1px dashed transparent; }
-  #editorCanvas .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
-  #editorCanvas .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
-  #editorCanvas .gafete-item.dragging { opacity: .9; }
+  .gafete-canvas-real .gafete-bg { pointer-events:none; z-index:1; }
+  .gafete-canvas-real .gafete-item { position:absolute; user-select:none; cursor:move; z-index:5; pointer-events:auto; touch-action:none; border:1px dashed transparent; }
+  .gafete-canvas-real .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
+  .gafete-canvas-real .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .9); }
+  .gafete-canvas-real .gafete-item.dragging { opacity: .9; }
 
-  #editorCanvas .grado-gafete {
+  .gafete-canvas-real .grado-gafete {
 width: 470px;      /* antes era muy pequeño */
     max-width: 470px;
     text-align: center;
@@ -124,16 +136,15 @@ width: 470px;      /* antes era muy pequeño */
     padding: 2px 4px;
   }
 
-  #editorCanvas .grado-gafete .grado-texto {
+  .gafete-canvas-real .grado-gafete .grado-texto {
     width: 100%;
     text-align: center;
     display: block;
   }
-  #editorCanvas .canvas-overlay { pointer-events:none; }
+  .gafete-canvas-real .canvas-overlay { pointer-events:none; }
 </style>
 
 
-<input type="hidden" id="layout_json" value="{{ layout_json|escape }}">
 <script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
 <script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
 <script>
@@ -207,7 +218,7 @@ window.gafeteEditorSimple = {
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    formatGradoTexts('#editorCanvas');
+    formatGradoTexts('#editorCanvasFront'); formatGradoTexts('#editorCanvasBack');
   });
 })();
 </script>
