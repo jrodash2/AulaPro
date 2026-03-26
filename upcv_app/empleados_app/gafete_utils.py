@@ -49,10 +49,16 @@ def resolve_gafete_dimensions(establecimiento, layout=None):
 
 
 def _default_face(empty=False):
+    items = copy.deepcopy(DEFAULT_FACE_ITEMS)
+    if empty:
+        for key, cfg in items.items():
+            if isinstance(cfg, dict):
+                cfg["visible"] = False
+        items["image"]["visible"] = False
     return {
         "background_image": "",
         "enabled_fields": [] if empty else list(DEFAULT_ENABLED_FIELDS),
-        "items": copy.deepcopy(DEFAULT_FACE_ITEMS if not empty else {}),
+        "items": items,
     }
 
 

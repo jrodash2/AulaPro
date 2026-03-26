@@ -88,7 +88,7 @@ def _forbid_gafetes_for_gestor(request):
     return None
 
 
-def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height):
+def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
     allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "image"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
@@ -154,7 +154,7 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height):
             "visible": bool(cfg.get("visible", True)),
         }
 
-    if not result_items:
+    if not result_items and not allow_empty:
         raise ValueError("No se recibieron items válidos")
     return result_items, valid_enabled
 
@@ -187,6 +187,7 @@ def _validate_layout_payload(payload, forced_orientation=None):
             face_layout.get("enabled_fields"),
             canvas_width,
             canvas_height,
+            allow_empty=(face == "back"),
         )
         out[face] = {
             "background_image": str(face_layout.get("background_image") or ""),
@@ -943,6 +944,20 @@ def _field_text_for_key(key, matricula, establecimiento):
     return mapping.get(key, "")
 
 
+
+
+def _resolve_media_source(path_or_url):
+    source = str(path_or_url or '').strip()
+    if not source:
+        return None
+    if source.startswith(('http://', 'https://')):
+        return source
+    if source.startswith('/media/'):
+        return default_storage.path(source.replace('/media/', '', 1))
+    if source.startswith('media/'):
+        return default_storage.path(source.replace('media/', '', 1))
+    return source
+
 def _apply_cover_image(src_image, target_w, target_h):
     return ImageOps.fit(src_image, (target_w, target_h), method=Image.Resampling.LANCZOS)
 
@@ -1002,11 +1017,12 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
         try:
             from urllib.request import urlopen
             img_src = str(image_cfg.get("src"))
-            if img_src.startswith("http://") or img_src.startswith("https://"):
-                raw = urlopen(img_src).read()
+            resolved_source = _resolve_media_source(img_src)
+            if str(resolved_source).startswith(("http://", "https://")):
+                raw = urlopen(resolved_source).read()
                 overlay = Image.open(BytesIO(raw)).convert("RGBA")
             else:
-                with open(img_src, "rb") as image_file:
+                with open(resolved_source, "rb") as image_file:
                     overlay = Image.open(image_file).convert("RGBA")
             w = max(20, int(image_cfg.get("w", 220)))
             h = max(20, int(image_cfg.get("h", 220)))
@@ -1043,7 +1059,8 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
     if bg_url:
         try:
             from urllib.request import urlopen
-            raw = urlopen(bg_url).read() if str(bg_url).startswith(("http://", "https://")) else open(bg_url, "rb").read()
+            resolved_bg = _resolve_media_source(bg_url)
+            raw = urlopen(resolved_bg).read() if str(resolved_bg).startswith(("http://", "https://")) else open(resolved_bg, "rb").read()
             background = Image.open(BytesIO(raw)).convert("RGB")
             canvas.paste(_apply_cover_image(background, canvas_width, canvas_height), (0, 0))
         except Exception:
