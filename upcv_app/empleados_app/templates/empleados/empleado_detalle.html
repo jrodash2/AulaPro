@@ -13,7 +13,9 @@
       <div class="row">
         <div class="gafetes-container">
           <div class="col-xl-12 gafete">
-            {% include 'aulapro/partials/_gafete_render.html' with alumno=empleado grado=grado_gafete establecimiento=establecimiento layout_json=layout preview_id='gafete' canvas_width=canvas_width canvas_height=canvas_height %}
+            <div class='btn-group mb-2'><button class='btn btn-outline-primary btn-sm active detalle-face' data-face='front' type='button'>Frente</button><button class='btn btn-outline-primary btn-sm detalle-face' data-face='back' type='button'>Reverso</button></div>
+            {% include 'aulapro/partials/_gafete_canvas.html' with alumno=empleado grado=grado_gafete establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='gafete-front' canvas_width=canvas_width canvas_height=canvas_height %}
+            {% include 'aulapro/partials/_gafete_canvas.html' with alumno=empleado grado=grado_gafete establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='gafete-back' canvas_width=canvas_width canvas_height=canvas_height hidden=True %}
           </div>
         </div>
       </div>
@@ -29,9 +31,11 @@
 
 <script>
 function downloadGafete() {
-  var element = document.getElementById('gafete');
-  html2canvas(element, {useCORS: true, backgroundColor: null, scale: 3, width: {{ canvas_width|default:880 }}, height: {{ canvas_height|default:565 }}, allowTaint: true, logging: true})
-  .then(function(canvas) {
+  var front = document.getElementById('gafete-front');
+  var back = document.getElementById('gafete-back');
+  html2canvas(front, {useCORS: true, backgroundColor: '#fff', scale: 2, width: {{ canvas_width|default:880 }}, height: {{ canvas_height|default:565 }}})
+  .then(function(frontCanvas) { return html2canvas(back, {useCORS: true, backgroundColor: '#fff', scale: 2, width: {{ canvas_width|default:880 }}, height: {{ canvas_height|default:565 }} }).then(function(backCanvas){ return {frontCanvas, backCanvas};});})
+  .then(function(pair) { var canvas=document.createElement('canvas'); canvas.width=pair.frontCanvas.width+pair.backCanvas.width; canvas.height=pair.frontCanvas.height; var ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(pair.frontCanvas,0,0); ctx.drawImage(pair.backCanvas,pair.frontCanvas.width,0);
     var link = document.createElement('a');
     var nombreEmpleado = '{{ empleado.nombres }}' || 'alumno';
     var apellidosEmpleado = '{{ empleado.apellidos }}' || 'desconocido';
@@ -42,5 +46,6 @@ function downloadGafete() {
     console.error('Error al generar la imagen:', error);
   });
 }
+document.querySelectorAll('.detalle-face').forEach(function(btn){btn.addEventListener('click',function(){var face=this.dataset.face;document.querySelectorAll('.detalle-face').forEach(function(b){b.classList.toggle('active',b===btn);});document.getElementById('gafete-front').style.display=face==='front'?'':'none';document.getElementById('gafete-back').style.display=face==='back'?'':'none';});});
 </script>
 {% endblock %}
