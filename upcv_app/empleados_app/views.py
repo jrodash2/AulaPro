@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
@@ -30,7 +31,14 @@ from .forms import (
     UsuarioCreateForm,
     UsuarioUpdateForm,
 )
-from .gafete_utils import canvas_for_orientation, orientation_for_establecimiento, resolve_gafete_dimensions
+from .gafete_utils import (
+    canvas_for_orientation,
+    normalizar_layout_gafete,
+    obtener_layout_cara,
+    orientation_for_establecimiento,
+    resolve_gafete_dimensions,
+    serializar_layout_frente_reverso,
+)
 from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
 from .permissions import (
     es_admin_total,
@@ -78,44 +86,15 @@ def _forbid_gafetes_for_gestor(request):
     return None
 
 
-def _validate_layout_payload(payload, forced_orientation=None):
-    if not isinstance(payload, dict):
-        raise ValueError("Formato inválido")
-
-    layout = payload.get("layout", payload)
-    if not isinstance(layout, dict):
-        raise ValueError("Layout inválido")
-
-    canvas = layout.get("canvas") or {}
-    items = layout.get("items")
-    if not isinstance(items, dict):
-        raise ValueError("El layout debe incluir items")
-
-    orientation = str((forced_orientation or canvas.get("orientation") or "H")).upper()
-    if orientation not in {"H", "V"}:
-        orientation = "H"
-    canvas_width, canvas_height = canvas_for_orientation(orientation)
-
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento"}
+def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
+    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
 
-    enabled_fields = layout.get("enabled_fields")
-    if not isinstance(enabled_fields, list):
-        enabled_fields = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
-    enabled_fields = [field for field in enabled_fields if field in allowed_keys]
+    result_items = {}
+    valid_enabled = [field for field in (enabled_fields or []) if field in allowed_keys]
 
-    result = {
-        "canvas": {
-            "width": canvas_width,
-            "height": canvas_height,
-            "orientation": orientation,
-        },
-        "enabled_fields": enabled_fields,
-        "items": {},
-    }
-
-    for key, cfg in items.items():
+    for key, cfg in (items or {}).items():
         if key not in allowed_keys or not isinstance(cfg, dict):
             continue
 
@@ -126,7 +105,7 @@ def _validate_layout_payload(payload, forced_orientation=None):
             shape = (cfg.get("shape") or "rounded").strip().lower()
             if shape not in {"rounded", "circle"}:
                 raise ValueError("Forma inválida para photo")
-            result["items"][key] = {
+            result_items[key] = {
                 "x": int(cfg.get("x") or 0),
                 "y": int(cfg.get("y") or 0),
                 "w": max(40, min(canvas_width, int(cfg.get("w") or 250))),
@@ -149,7 +128,7 @@ def _validate_layout_payload(payload, forced_orientation=None):
         weight = str(cfg.get("font_weight") or "400")
         if weight not in allowed_weight:
             weight = "400"
-        result["items"][key] = {
+        item = {
             "x": int(cfg.get("x") or 0),
             "y": int(cfg.get("y") or 0),
             "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
@@ -158,10 +137,54 @@ def _validate_layout_payload(payload, forced_orientation=None):
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
+        if key.startswith("texto_libre_"):
+            item["text"] = str(cfg.get("text") or "")
+        result_items[key] = item
 
-    if not result["items"]:
+    if not result_items and not allow_empty:
         raise ValueError("No se recibieron items válidos")
-    return result
+    return result_items, valid_enabled
+
+
+def _validate_layout_payload(payload, forced_orientation=None):
+    if not isinstance(payload, dict):
+        raise ValueError("Formato inválido")
+
+    layout = payload.get("layout", payload)
+    if not isinstance(layout, dict):
+        raise ValueError("Layout inválido")
+
+    normalized = normalizar_layout_gafete(layout, orientation=forced_orientation or "H")
+    canvas = normalized.get("canvas") or {}
+    orientation = str((forced_orientation or canvas.get("orientation") or "H")).upper()
+    if orientation not in {"H", "V"}:
+        orientation = "H"
+    canvas_width, canvas_height = canvas_for_orientation(orientation)
+
+    out = {
+        "canvas": {"width": canvas_width, "height": canvas_height, "orientation": orientation},
+        "front": {},
+        "back": {},
+    }
+
+    for face in ("front", "back"):
+        face_layout = normalized.get(face, {}) if isinstance(normalized, dict) else {}
+        face_items, enabled = _sanitize_face_items(
+            face_layout.get("items"),
+            face_layout.get("enabled_fields"),
+            canvas_width,
+            canvas_height,
+            allow_empty=(face == "back"),
+        )
+        if face == "back":
+            enabled = [field for field in enabled if field != "photo"]
+        out[face] = {
+            "background_image": str(face_layout.get("background_image") or ""),
+            "enabled_fields": enabled,
+            "items": face_items,
+        }
+
+    return out
 
 
 def _canvas_dimensions(establecimiento, orientation=None):
@@ -462,12 +485,10 @@ def empleado_detalle(request, id):
         if matricula_activa.grado.carrera:
             establecimiento = matricula_activa.grado.carrera.ciclo_escolar.establecimiento
 
-    layout = establecimiento.get_layout() if establecimiento else {"canvas": {"width": 880, "height": 565}, "items": {}}
     orientation = orientation_for_establecimiento(establecimiento)
+    layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else {}, orientation=orientation)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
     layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
-    if not isinstance(layout.get("enabled_fields"), list):
-        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
     return render(
         request,
         "empleados/empleado_detalle.html",
@@ -757,12 +778,10 @@ def editor_gafete(request, establecimiento_id):
     )
     alumno = matricula_demo.alumno if matricula_demo else Empleado.objects.first()
     grado_demo = matricula_demo.grado if matricula_demo else None
-    layout = establecimiento.get_layout()
     orientation = orientation_for_establecimiento(establecimiento)
+    layout = normalizar_layout_gafete(establecimiento.get_layout(), orientation=orientation)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
     layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
-    if not isinstance(layout.get("enabled_fields"), list):
-        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
     available_fields = [
         {"key": "photo", "label": "Foto"},
         {"key": "nombres", "label": "Nombres"},
@@ -774,6 +793,9 @@ def editor_gafete(request, establecimiento_id):
         {"key": "telefono", "label": "Teléfono emergencia"},
         {"key": "establecimiento", "label": "Establecimiento"},
         {"key": "sitio_web", "label": "Sitio web"},
+        {"key": "texto_libre_1", "label": "Texto libre 1"},
+        {"key": "texto_libre_2", "label": "Texto libre 2"},
+        {"key": "texto_libre_3", "label": "Texto libre 3"},
     ]
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
@@ -787,7 +809,8 @@ def editor_gafete(request, establecimiento_id):
             "layout_json": json.dumps(layout),
             "default_layout_json": json.dumps(DEFAULT_GAFETE_LAYOUT),
             "available_fields": available_fields,
-            "enabled_fields": layout.get("enabled_fields", []),
+            "enabled_fields_front": obtener_layout_cara(layout, "front").get("enabled_fields", []),
+            "enabled_fields_back": obtener_layout_cara(layout, "back").get("enabled_fields", []),
             "configuracion": configuracion,
             "is_editor": True,
             "canvas_width": canvas_width,
@@ -797,6 +820,8 @@ def editor_gafete(request, establecimiento_id):
             "orientacion": orientation,
         },
     )
+
+
 
 
 @login_required
@@ -818,9 +843,8 @@ def guardar_diseno_gafete(request, establecimiento_id):
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
     orientation = orientation_for_establecimiento(establecimiento)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
+    layout = serializar_layout_frente_reverso(layout, orientation=orientation)
     layout["canvas"] = {"width": canvas_width, "height": canvas_height, "orientation": orientation}
-    if not isinstance(layout.get("enabled_fields"), list):
-        layout["enabled_fields"] = list(DEFAULT_GAFETE_LAYOUT.get("enabled_fields", []))
     establecimiento.gafete_ancho = canvas_width
     establecimiento.gafete_alto = canvas_height
     establecimiento.gafete_layout_json = layout
@@ -888,43 +912,57 @@ def _field_text_for_key(key, matricula, establecimiento):
     return mapping.get(key, "")
 
 
-def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, canvas_height):
-    canvas = Image.new("RGB", (canvas_width, canvas_height), "white")
 
-    if establecimiento and establecimiento.background_gafete:
-        try:
-            with establecimiento.background_gafete.open("rb") as bg_file:
-                background = Image.open(bg_file).convert("RGB")
-                background = ImageOps.fit(background, (canvas_width, canvas_height), method=Image.Resampling.LANCZOS)
-                canvas.paste(background, (0, 0))
-        except Exception:
-            pass
 
-    items = layout.get("items", {}) if isinstance(layout, dict) else {}
-    enabled_fields = set(layout.get("enabled_fields", [])) if isinstance(layout, dict) else set()
+def _resolve_media_source(path_or_url):
+    source = str(path_or_url or '').strip()
+    if not source:
+        return None
+    if source.startswith(('http://', 'https://')):
+        return source
+    if source.startswith('/media/'):
+        return default_storage.path(source.replace('/media/', '', 1))
+    if source.startswith('media/'):
+        return default_storage.path(source.replace('media/', '', 1))
+    return source
+
+def _apply_cover_image(src_image, target_w, target_h):
+    return ImageOps.fit(src_image, (target_w, target_h), method=Image.Resampling.LANCZOS)
+
+
+def _apply_contain_image(src_image, target_w, target_h):
+    contained = ImageOps.contain(src_image, (target_w, target_h), method=Image.Resampling.LANCZOS)
+    layer = Image.new("RGBA", (target_w, target_h), (255, 255, 255, 0))
+    x = (target_w - contained.width) // 2
+    y = (target_h - contained.height) // 2
+    layer.paste(contained, (x, y))
+    return layer
+
+
+def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout):
+    items = face_layout.get("items", {}) if isinstance(face_layout, dict) else {}
+    enabled_fields = set(face_layout.get("enabled_fields", [])) if isinstance(face_layout, dict) else set()
 
     photo_cfg = items.get("photo", {}) if isinstance(items.get("photo", {}), dict) else {}
     if "photo" in enabled_fields and photo_cfg.get("visible", True) and getattr(matricula.alumno, "imagen", None):
         x = int(photo_cfg.get("x", 20))
         y = int(photo_cfg.get("y", 40))
         w = max(20, int(photo_cfg.get("w", 250)))
-        h = max(20, int(photo_cfg.get("h", 350)))
+        h = max(20, int(photo_cfg.get("h", 350)) )
         border_width = max(0, int(photo_cfg.get("border_width", 4))) if photo_cfg.get("border", True) else 0
         border_color = _parse_color(photo_cfg.get("border_color", "#ffffff"), default="#ffffff")
         shape = str(photo_cfg.get("shape") or "rounded").lower()
         radius = max(0, int(photo_cfg.get("radius", 20)))
-
         try:
             with matricula.alumno.imagen.open("rb") as photo_file:
                 photo = Image.open(photo_file).convert("RGB")
-                photo = ImageOps.fit(photo, (w, h), method=Image.Resampling.LANCZOS)
+                photo = _apply_cover_image(photo, w, h)
                 alpha_mask = Image.new("L", (w, h), 0)
                 alpha_draw = ImageDraw.Draw(alpha_mask)
                 if shape == "circle":
                     alpha_draw.ellipse((0, 0, w, h), fill=255)
                 else:
                     alpha_draw.rounded_rectangle((0, 0, w, h), radius=radius, fill=255)
-
                 if border_width > 0:
                     border_img = Image.new("RGBA", (w + border_width * 2, h + border_width * 2), (0, 0, 0, 0))
                     border_mask = Image.new("L", border_img.size, 0)
@@ -932,15 +970,10 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
                     if shape == "circle":
                         border_draw.ellipse((0, 0, border_img.size[0], border_img.size[1]), fill=255)
                     else:
-                        border_draw.rounded_rectangle(
-                            (0, 0, border_img.size[0], border_img.size[1]),
-                            radius=radius + border_width,
-                            fill=255,
-                        )
+                        border_draw.rounded_rectangle((0, 0, border_img.size[0], border_img.size[1]), radius=radius + border_width, fill=255)
                     border_fill = Image.new("RGBA", border_img.size, (*border_color, 255))
                     border_img.paste(border_fill, (0, 0), border_mask)
                     canvas.paste(border_img, (x - border_width, y - border_width), border_img)
-
                 photo_rgba = photo.convert("RGBA")
                 photo_rgba.putalpha(alpha_mask)
                 canvas.paste(photo_rgba, (x, y), photo_rgba)
@@ -949,9 +982,9 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
 
     draw = ImageDraw.Draw(canvas)
     for key, cfg in items.items():
-        if key == "photo" or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
+        if key in {"photo"} or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
             continue
-        text = _field_text_for_key(key, matricula, establecimiento)
+        text = cfg.get("text") if key.startswith("texto_libre_") else _field_text_for_key(key, matricula, establecimiento)
         if not text:
             continue
         x = int(cfg.get("x", 0))
@@ -961,29 +994,59 @@ def _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, c
         color = _parse_color(cfg.get("color", "#111111"), default="#111111")
         align = str(cfg.get("align", "left")).lower()
         font = _load_font(font_size=font_size, bold=(weight == "700"))
-
         text_bbox = draw.textbbox((0, 0), text, font=font)
         text_w = text_bbox[2] - text_bbox[0]
-        tx = x
-        if align == "center":
-            tx = x - text_w // 2
-        elif align == "right":
-            tx = x - text_w
-
+        tx = x - text_w // 2 if align == "center" else x - text_w if align == "right" else x
         draw.text((tx, y), text, fill=color, font=font)
 
-    config = ConfiguracionGeneral.objects.first()
-    if config and config.logotipo:
+
+def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, canvas_height):
+    canvas = Image.new("RGB", (canvas_width, canvas_height), "white")
+    face_layout = obtener_layout_cara(layout, face)
+    bg_url = face_layout.get("background_image") if isinstance(face_layout, dict) else ""
+    if face == "back" and establecimiento and getattr(establecimiento, "background_gafete_posterior", None):
+        bg_url = establecimiento.background_gafete_posterior.url
+
+    if bg_url:
         try:
-            with config.logotipo.open("rb") as logo_file:
-                logo = Image.open(logo_file).convert("RGBA")
-                logo.thumbnail((170, 170), Image.Resampling.LANCZOS)
-                canvas.paste(logo, (12, 40), logo)
+            from urllib.request import urlopen
+            resolved_bg = _resolve_media_source(bg_url)
+            raw = urlopen(resolved_bg).read() if str(resolved_bg).startswith(("http://", "https://")) else open(resolved_bg, "rb").read()
+            background = Image.open(BytesIO(raw)).convert("RGB")
+            canvas.paste(_apply_cover_image(background, canvas_width, canvas_height), (0, 0))
+        except Exception:
+            pass
+    elif establecimiento and establecimiento.background_gafete and face == "front":
+        try:
+            with establecimiento.background_gafete.open("rb") as bg_file:
+                background = Image.open(bg_file).convert("RGB")
+                canvas.paste(_apply_cover_image(background, canvas_width, canvas_height), (0, 0))
         except Exception:
             pass
 
+    renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
+
+    if face == "front":
+        config = ConfiguracionGeneral.objects.first()
+        if config and config.logotipo:
+            try:
+                with config.logotipo.open("rb") as logo_file:
+                    logo = Image.open(logo_file).convert("RGBA")
+                    logo.thumbnail((170, 170), Image.Resampling.LANCZOS)
+                    canvas.paste(logo, (12, 40), logo)
+            except Exception:
+                pass
+    return canvas
+
+
+def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height):
+    front = _render_face_gafete(matricula, establecimiento, layout, "front", canvas_width, canvas_height)
+    back = _render_face_gafete(matricula, establecimiento, layout, "back", canvas_width, canvas_height)
+    combined = Image.new("RGB", (canvas_width * 2, canvas_height), "white")
+    combined.paste(front, (0, 0))
+    combined.paste(back, (canvas_width, 0))
     buffer = BytesIO()
-    canvas.save(buffer, format="JPEG", quality=95, optimize=True)
+    combined.save(buffer, format="JPEG", quality=95, optimize=True)
     return buffer.getvalue()
 
 
@@ -1005,10 +1068,10 @@ def gafete_jpg(request, matricula_id):
     if not establecimiento:
         return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
 
-    layout = establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT
+    layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation_for_establecimiento(establecimiento))
     orientation = orientation_for_establecimiento(establecimiento)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
-    image_bytes = _render_gafete_jpg_bytes(matricula, establecimiento, layout, canvas_width, canvas_height)
+    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height)
 
     filename = _build_gafete_filename(matricula.alumno)
     response = HttpResponse(image_bytes, content_type="image/jpeg")

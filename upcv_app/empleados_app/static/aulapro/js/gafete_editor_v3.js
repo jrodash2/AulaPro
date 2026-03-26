@@ -1,26 +1,26 @@
 (function () {
   const cfg = window.gafeteEditorSimple || {};
-  console.log('✅ editor gafete js loaded v3');
-
-  const canvas = document.getElementById('editorCanvas');
+  const frontCanvas = document.getElementById('editorCanvasFront');
+  const backCanvas = document.getElementById('editorCanvasBack');
   const layoutInput = document.getElementById('layout_json');
   const saveForm = document.getElementById('editorForm');
-  const saveBtn = document.getElementById('btnGuardar') || document.querySelector('#editorForm button[type="submit"]');
-  const scaleWrapper = document.getElementById('gafete-scale-wrapper');
-  const items = () => Array.from(document.querySelectorAll('#editorCanvas .gafete-item[data-key]'));
+  if (!frontCanvas || !backCanvas || !layoutInput || !saveForm) return;
 
-  console.log({ canvas, layoutInput, saveBtn, items: document.querySelectorAll('.gafete-item').length });
-  if (!canvas || !layoutInput) return;
+  const canvases = { front: frontCanvas, back: backCanvas };
+  let currentFace = 'front';
+  let activeKey = null;
+
+  const BACK_TEXT_KEYS = new Set(['nombres', 'apellidos', 'codigo_alumno', 'grado', 'grado_descripcion', 'cui', 'telefono', 'establecimiento', 'sitio_web', 'texto_libre_1', 'texto_libre_2', 'texto_libre_3']);
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
   const checklist = document.getElementById('enabled-fields-checklist');
+  const textContentInput = document.getElementById('prop-text-content');
 
   const colorInput = document.getElementById('prop-color');
   const colorText = document.getElementById('prop-color-text');
   const sizeInput = document.getElementById('prop-size');
   const weightInput = document.getElementById('prop-weight');
-
   const textProps = document.getElementById('text-props');
   const photoProps = document.getElementById('photo-props');
   const shapeRounded = document.getElementById('shape-rounded');
@@ -32,328 +32,201 @@
   const photoH = document.getElementById('photo-h');
   const photoRadius = document.getElementById('photo-radius');
 
-  function parseLayout() {
-    try {
-      const raw = document.getElementById('layout-data')?.textContent?.trim();
-      if (raw) return JSON.parse(raw);
-    } catch (e) {
-      console.error('layout-data parse error', e);
-    }
-    try {
-      const v = layoutInput.value?.trim();
-      if (v) {
-        const data = JSON.parse(v);
-        return data.layout || data;
-      }
-    } catch (e) {
-      console.error('layout_json parse error', e);
-    }
-    return { canvas: { width: 1011, height: 639, orientation: 'H' }, enabled_fields: [], items: {} };
+  const layout = JSON.parse(document.getElementById('layout-data').textContent || '{}');
+  const defaultLayout = JSON.parse(document.getElementById('default-layout-data').textContent || '{}');
+
+  const faceData = () => layout[currentFace] || { enabled_fields: [], items: {} };
+  const items = () => Array.from(canvases[currentFace].querySelectorAll('.gafete-item[data-key]'));
+  const getCfg = (key) => (faceData().items || {})[key];
+  const isEnabled = (key) => (faceData().enabled_fields || []).includes(key);
+
+  function allowedInCurrentFace(key) {
+    return currentFace === 'front' ? true : BACK_TEXT_KEYS.has(key);
   }
 
-  function parseDefaultLayout() {
-    try {
-      const raw = document.getElementById('default-layout-data')?.textContent?.trim();
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
-    }
+  function syncLayoutInput() { layoutInput.value = JSON.stringify({ layout }); }
+
+  function showFace(face) {
+    currentFace = face === 'back' ? 'back' : 'front';
+    frontCanvas.style.display = currentFace === 'front' ? '' : 'none';
+    backCanvas.style.display = currentFace === 'back' ? '' : 'none';
+    document.querySelectorAll('.face-switch').forEach((b) => b.classList.toggle('active', b.dataset.face === currentFace));
+    activeKey = null;
+    refreshChecklist();
+    setActive(null);
   }
 
-  const layout = parseLayout();
-  const defaultLayout = parseDefaultLayout();
-  if (!layout.items || typeof layout.items !== 'object') layout.items = {};
-  if (!Array.isArray(layout.enabled_fields)) layout.enabled_fields = Object.keys(layout.items);
-
-  function syncLayoutInput() {
-    layoutInput.value = JSON.stringify({ layout });
-  }
-
-  function getItemCfg(key) {
-    return layout.items && layout.items[key] ? layout.items[key] : null;
-  }
-
-  function isEnabled(key) {
-    return Array.isArray(layout.enabled_fields) && layout.enabled_fields.includes(key);
-  }
-
-  function applyStyle(el, cfgItem, key) {
-    el.style.left = `${cfgItem.x || 0}px`;
-    el.style.top = `${cfgItem.y || 0}px`;
-    el.style.display = isEnabled(key) && cfgItem.visible !== false ? '' : 'none';
-
+  function applyStyle(el, cfg, key) {
+    if (!cfg) return;
+    el.style.left = `${cfg.x || 0}px`;
+    el.style.top = `${cfg.y || 0}px`;
+    el.style.display = (allowedInCurrentFace(key) && isEnabled(key) && cfg.visible !== false) ? '' : 'none';
     if (key === 'photo') {
-      el.style.width = `${cfgItem.w || 250}px`;
-      el.style.height = `${cfgItem.h || 350}px`;
-      el.style.border = cfgItem.border ? `${cfgItem.border_width || 4}px solid ${cfgItem.border_color || '#ffffff'}` : 'none';
-      el.style.borderRadius = cfgItem.shape === 'circle' ? '50%' : `${cfgItem.radius || 20}px`;
+      el.style.width = `${cfg.w || 220}px`;
+      el.style.height = `${cfg.h || 220}px`;
+      el.style.border = cfg.border ? `${cfg.border_width || 4}px solid ${cfg.border_color || '#ffffff'}` : 'none';
+      el.style.borderRadius = cfg.shape === 'circle' ? '50%' : `${cfg.radius || 20}px`;
       return;
     }
-
-    el.style.fontSize = `${cfgItem.font_size || 24}px`;
-    el.style.fontWeight = `${cfgItem.font_weight || '400'}`;
-    el.style.color = cfgItem.color || '#111111';
-    el.style.textAlign = cfgItem.align || 'left';
+    el.style.fontSize = `${cfg.font_size || 24}px`;
+    el.style.fontWeight = `${cfg.font_weight || '400'}`;
+    el.style.color = cfg.color || '#111111';
+    el.style.textAlign = cfg.align || 'left';
+    if (key.startsWith('texto_libre_') && textContentInput && el.textContent !== cfg.text) {
+      el.textContent = cfg.text || '';
+    }
   }
 
-  function refreshItems() {
-    items().forEach((el) => {
-      const key = el.dataset.key;
-      const cfgItem = getItemCfg(key);
-      if (cfgItem) applyStyle(el, cfgItem, key);
+  function refreshChecklist() {
+    checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
+      const key = input.dataset.field;
+      const cfg = getCfg(key);
+      input.checked = !!cfg && isEnabled(key) && cfg.visible !== false;
+      input.closest('.form-check').style.display = allowedInCurrentFace(key) ? '' : 'none';
     });
   }
 
-  function fitScale() {
-    if (!scaleWrapper || !layout.canvas) return;
-    const viewport = scaleWrapper.parentElement;
-    const availableW = viewport.clientWidth || layout.canvas.width;
-    const availableH = window.innerHeight * 0.65;
-    const scale = Math.min(1, availableW / layout.canvas.width, availableH / layout.canvas.height);
-    scaleWrapper.style.transform = `scale(${scale})`;
-    scaleWrapper.style.transformOrigin = 'top left';
-    scaleWrapper.style.width = `${layout.canvas.width}px`;
-    scaleWrapper.style.height = `${layout.canvas.height}px`;
-    viewport.style.minHeight = `${Math.round(layout.canvas.height * scale)}px`;
+  function refreshItems() {
+    items().forEach((el) => applyStyle(el, getCfg(el.dataset.key), el.dataset.key));
   }
 
-  let activeKey = null;
   function setActive(key) {
     activeKey = key;
     items().forEach((el) => el.classList.toggle('is-active', el.dataset.key === key));
-
     if (!key) {
-      activeKeyLabel.textContent = 'Elemento activo: ninguno';
+      activeKeyLabel.textContent = `Elemento activo (${currentFace}): ninguno`;
       textProps.classList.add('d-none');
       photoProps.classList.add('d-none');
       return;
     }
-
-    const cfgItem = getItemCfg(key);
-    if (!cfgItem) return;
-    activeKeyLabel.textContent = `Elemento activo: ${key}`;
-
-    if (key === 'photo') {
+    const cfg = getCfg(key);
+    activeKeyLabel.textContent = `Elemento activo (${currentFace}): ${key}`;
+    if (key === 'photo' && currentFace === 'front') {
       textProps.classList.add('d-none');
       photoProps.classList.remove('d-none');
-      shapeRounded.checked = (cfgItem.shape || 'rounded') === 'rounded';
-      shapeCircle.checked = cfgItem.shape === 'circle';
-      photoBorder.checked = cfgItem.border !== false;
-      photoBorderWidth.value = cfgItem.border_width || 4;
-      photoBorderColor.value = cfgItem.border_color || '#ffffff';
-      photoW.value = cfgItem.w || 250;
-      photoH.value = cfgItem.h || 350;
-      photoRadius.value = cfgItem.radius || 20;
+      shapeRounded.checked = (cfg.shape || 'rounded') === 'rounded';
+      shapeCircle.checked = cfg.shape === 'circle';
+      photoBorder.checked = cfg.border !== false;
+      photoBorderWidth.value = cfg.border_width || 4;
+      photoBorderColor.value = cfg.border_color || '#ffffff';
+      photoW.value = cfg.w || 250;
+      photoH.value = cfg.h || 350;
+      photoRadius.value = cfg.radius || 20;
       return;
     }
-
     photoProps.classList.add('d-none');
     textProps.classList.remove('d-none');
-    colorInput.value = cfgItem.color || '#111111';
-    colorText.value = cfgItem.color || '#111111';
-    sizeInput.value = cfgItem.font_size || 24;
-    weightInput.value = String(cfgItem.font_weight || '400');
+    colorInput.value = cfg.color || '#111111';
+    colorText.value = cfg.color || '#111111';
+    sizeInput.value = cfg.font_size || 24;
+    weightInput.value = String(cfg.font_weight || '400');
+    textContentInput.value = key.startsWith('texto_libre_') ? (cfg.text || '') : '';
+    textContentInput.disabled = !key.startsWith('texto_libre_');
   }
 
-  function bindFieldToggles() {
-    checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
-      input.addEventListener('change', () => {
-        const key = input.dataset.field;
-        const cfgItem = getItemCfg(key);
-        if (!cfgItem) return;
+  checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => input.addEventListener('change', () => {
+    const key = input.dataset.field;
+    if (!allowedInCurrentFace(key)) return;
+    const face = faceData();
+    if (!face.items[key]) return;
+    if (input.checked) {
+      if (!face.enabled_fields.includes(key)) face.enabled_fields.push(key);
+      face.items[key].visible = true;
+    } else {
+      face.enabled_fields = face.enabled_fields.filter((f) => f !== key);
+      face.items[key].visible = false;
+    }
+    refreshItems();
+    syncLayoutInput();
+  }));
 
-        if (input.checked) {
-          if (!layout.enabled_fields.includes(key)) layout.enabled_fields.push(key);
-          cfgItem.visible = true;
-        } else {
-          layout.enabled_fields = layout.enabled_fields.filter((f) => f !== key);
-          cfgItem.visible = false;
-        }
+  document.querySelectorAll('.face-switch').forEach((btn) => btn.addEventListener('click', () => showFace(btn.dataset.face)));
 
-        const el = canvas.querySelector(`.gafete-item[data-key="${key}"]`);
-        if (el) applyStyle(el, cfgItem, key);
-        syncLayoutInput();
-      });
+  function bindCanvas(canvasEl) {
+    let drag = null;
+    canvasEl.addEventListener('pointerdown', (e) => {
+      if (canvases[currentFace] !== canvasEl) return;
+      const item = e.target.closest('.gafete-item[data-key]');
+      if (!item) return;
+      const key = item.dataset.key;
+      if (!allowedInCurrentFace(key) || !isEnabled(key)) return;
+      setActive(key);
+      const cfg = getCfg(key);
+      const rect = canvasEl.getBoundingClientRect();
+      drag = { item, key, pointerId: e.pointerId, sx: e.clientX - rect.left - (cfg.x || 0), sy: e.clientY - rect.top - (cfg.y || 0) };
+      item.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    canvasEl.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const cfg = getCfg(drag.key);
+      const rect = canvasEl.getBoundingClientRect();
+      cfg.x = Math.max(0, Math.round(e.clientX - rect.left - drag.sx));
+      cfg.y = Math.max(0, Math.round(e.clientY - rect.top - drag.sy));
+      applyStyle(drag.item, cfg, drag.key);
+      hint.textContent = `Cara ${currentFace} · x: ${cfg.x}, y: ${cfg.y}`;
+    });
+    canvasEl.addEventListener('pointerup', () => { if (drag) { syncLayoutInput(); drag = null; } });
+    canvasEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.gafete-item[data-key]');
+      setActive(item ? item.dataset.key : null);
     });
   }
 
+  [frontCanvas, backCanvas].forEach(bindCanvas);
+
   function applyTextProps() {
     if (!activeKey || activeKey === 'photo') return;
-    const cfgItem = getItemCfg(activeKey);
-    const el = canvas.querySelector(`.gafete-item[data-key="${activeKey}"]`);
-    if (!cfgItem || !el) return;
-
-    cfgItem.color = colorInput.value;
-    cfgItem.font_size = parseInt(sizeInput.value || '24', 10);
-    cfgItem.font_weight = weightInput.value;
-    applyStyle(el, cfgItem, activeKey);
-    colorText.value = cfgItem.color;
+    const cfg = getCfg(activeKey);
+    cfg.color = colorInput.value;
+    cfg.font_size = parseInt(sizeInput.value || '24', 10);
+    cfg.font_weight = weightInput.value;
+    if (activeKey.startsWith('texto_libre_')) cfg.text = textContentInput.value || '';
+    refreshItems();
     syncLayoutInput();
   }
+  colorInput.addEventListener('input', applyTextProps);
+  colorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
+  sizeInput.addEventListener('input', applyTextProps);
+  weightInput.addEventListener('change', applyTextProps);
+  textContentInput?.addEventListener('input', applyTextProps);
 
   function applyPhotoProps() {
     if (activeKey !== 'photo') return;
-    const cfgItem = getItemCfg('photo');
-    const el = canvas.querySelector('.gafete-item[data-key="photo"]');
-    if (!cfgItem || !el) return;
-
-    cfgItem.shape = shapeCircle.checked ? 'circle' : 'rounded';
-    cfgItem.border = !!photoBorder.checked;
-    cfgItem.border_width = parseInt(photoBorderWidth.value || '4', 10);
-    cfgItem.border_color = photoBorderColor.value || '#ffffff';
-    cfgItem.w = parseInt(photoW.value || '250', 10);
-    cfgItem.h = parseInt(photoH.value || '350', 10);
-    cfgItem.radius = parseInt(photoRadius.value || '20', 10);
-    applyStyle(el, cfgItem, 'photo');
-    syncLayoutInput();
+    const cfg = getCfg('photo');
+    cfg.shape = shapeCircle.checked ? 'circle' : 'rounded';
+    cfg.border = !!photoBorder.checked;
+    cfg.border_width = parseInt(photoBorderWidth.value || '4', 10);
+    cfg.border_color = photoBorderColor.value || '#ffffff';
+    cfg.w = parseInt(photoW.value || '250', 10);
+    cfg.h = parseInt(photoH.value || '350', 10);
+    cfg.radius = parseInt(photoRadius.value || '20', 10);
+    refreshItems(); syncLayoutInput();
   }
-
-  let drag = null;
-  function getScale() {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: rect.width / (layout.canvas?.width || rect.width || 1),
-      y: rect.height / (layout.canvas?.height || rect.height || 1),
-      rect,
-    };
-  }
-
-  canvas.addEventListener('pointerdown', (e) => {
-    const item = e.target.closest('.gafete-item[data-key]');
-    if (!item || !canvas.contains(item)) return;
-    const key = item.dataset.key;
-    if (!isEnabled(key)) return;
-
-    setActive(key);
-    const cfgItem = getItemCfg(key);
-    if (!cfgItem) return;
-
-    const { x, y, rect } = getScale();
-    drag = {
-      key,
-      item,
-      pointerId: e.pointerId,
-      startX: (e.clientX - rect.left) / x,
-      startY: (e.clientY - rect.top) / y,
-      origX: parseFloat(cfgItem.x || 0),
-      origY: parseFloat(cfgItem.y || 0),
-      moved: false,
-      scaleX: x,
-      scaleY: y,
-    };
-
-    item.classList.add('dragging');
-    item.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-
-  canvas.addEventListener('pointermove', (e) => {
-    if (!drag || e.pointerId !== drag.pointerId) return;
-    const cfgItem = getItemCfg(drag.key);
-    if (!cfgItem) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / drag.scaleX;
-    const y = (e.clientY - rect.top) / drag.scaleY;
-    const dx = x - drag.startX;
-    const dy = y - drag.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-
-    const w = drag.key === 'photo' ? (cfgItem.w || drag.item.offsetWidth) : drag.item.offsetWidth;
-    const h = drag.key === 'photo' ? (cfgItem.h || drag.item.offsetHeight) : drag.item.offsetHeight;
-    const maxX = Math.max(0, (layout.canvas?.width || rect.width) - w);
-    const maxY = Math.max(0, (layout.canvas?.height || rect.height) - h);
-    const nextX = Math.max(0, Math.min(maxX, Math.round(drag.origX + dx)));
-    const nextY = Math.max(0, Math.min(maxY, Math.round(drag.origY + dy)));
-
-    cfgItem.x = nextX;
-    cfgItem.y = nextY;
-    drag.item.style.left = `${nextX}px`;
-    drag.item.style.top = `${nextY}px`;
-    hint.textContent = `x: ${nextX}, y: ${nextY}`;
-  });
-
-  function stopDrag(e) {
-    if (!drag || (e && e.pointerId !== drag.pointerId)) return;
-    const d = drag;
-    d.item.classList.remove('dragging');
-    try { if (d.item.hasPointerCapture(d.pointerId)) d.item.releasePointerCapture(d.pointerId); } catch (_) {}
-    syncLayoutInput();
-    drag = null;
-  }
-
-  canvas.addEventListener('pointerup', stopDrag);
-  canvas.addEventListener('pointercancel', stopDrag);
-
-  canvas.addEventListener('click', (e) => {
-    if (drag && drag.moved) return;
-    const item = e.target.closest('.gafete-item[data-key]');
-    setActive(item ? item.dataset.key : null);
-  });
-
-  colorInput.addEventListener('input', applyTextProps);
-  colorText.addEventListener('input', () => {
-    if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) {
-      colorInput.value = colorText.value;
-      applyTextProps();
-    }
-  });
-  sizeInput.addEventListener('input', applyTextProps);
-  weightInput.addEventListener('change', applyTextProps);
   [shapeRounded, shapeCircle, photoBorder, photoBorderWidth, photoBorderColor, photoW, photoH, photoRadius].forEach((el) => {
     el.addEventListener('input', applyPhotoProps);
     el.addEventListener('change', applyPhotoProps);
   });
 
-  document.getElementById('refresh-size')?.addEventListener('click', fitScale);
   document.getElementById('reset-layout')?.addEventListener('click', () => {
-    if (!defaultLayout) return;
-    layout.canvas = JSON.parse(JSON.stringify(defaultLayout.canvas || layout.canvas));
-    layout.enabled_fields = JSON.parse(JSON.stringify(defaultLayout.enabled_fields || []));
-    layout.items = JSON.parse(JSON.stringify(defaultLayout.items || {}));
+    Object.assign(layout, JSON.parse(JSON.stringify(defaultLayout)));
+    showFace('front');
     refreshItems();
-
-    checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
-      const cfgItem = getItemCfg(input.dataset.field);
-      input.checked = !!cfgItem && isEnabled(input.dataset.field) && cfgItem.visible !== false;
-    });
-
-    setActive(null);
-    fitScale();
     syncLayoutInput();
-    hint.textContent = 'Restablecido a valores por defecto';
   });
 
-  if (saveForm) {
-    saveForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      syncLayoutInput();
-      saveBtn && (saveBtn.disabled = true);
-      try {
-        const res = await fetch(cfg.saveUrl || saveForm.action, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': cfg.csrf || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          body: JSON.stringify({ layout }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        alert('Diseño guardado');
-      } catch (err) {
-        console.error('save error', err);
-        alert('No se pudo guardar el diseño');
-      } finally {
-        saveBtn && (saveBtn.disabled = false);
-      }
+  saveForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    syncLayoutInput();
+    const res = await fetch(cfg.saveUrl || saveForm.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ layout }),
     });
-  }
+    alert(res.ok ? 'Diseño guardado' : 'No se pudo guardar el diseño');
+  });
 
-  bindFieldToggles();
   refreshItems();
-  fitScale();
+  showFace('front');
   syncLayoutInput();
-  setActive(null);
-  window.addEventListener('resize', fitScale);
 })();
