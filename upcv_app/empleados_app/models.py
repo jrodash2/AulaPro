@@ -14,6 +14,7 @@ class Establecimiento(models.Model):
     direccion = models.CharField(max_length=255, blank=True)
     sitio_web = models.URLField(max_length=255, blank=True, null=True)
     background_gafete = models.ImageField(upload_to="logotipos2/", null=True, blank=True)
+    background_gafete_posterior = models.ImageField(upload_to="logotipos2/", null=True, blank=True)
     gafete_ancho = models.PositiveIntegerField(default=880, validators=[MinValueValidator(500), MaxValueValidator(1800)])
     gafete_alto = models.PositiveIntegerField(default=565, validators=[MinValueValidator(300), MaxValueValidator(1200)])
     gafete_layout_json = models.JSONField(default=dict, blank=True)

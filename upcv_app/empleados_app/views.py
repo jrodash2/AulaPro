@@ -12,7 +12,6 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
@@ -89,7 +88,7 @@ def _forbid_gafetes_for_gestor(request):
 
 
 def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "image"}
+    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
     allowed_fit = {"contain", "cover"}
@@ -144,7 +143,7 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
         weight = str(cfg.get("font_weight") or "400")
         if weight not in allowed_weight:
             weight = "400"
-        result_items[key] = {
+        item = {
             "x": int(cfg.get("x") or 0),
             "y": int(cfg.get("y") or 0),
             "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
@@ -153,6 +152,9 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
+        if key.startswith("texto_libre_"):
+            item["text"] = str(cfg.get("text") or "")
+        result_items[key] = item
 
     if not result_items and not allow_empty:
         raise ValueError("No se recibieron items válidos")
@@ -189,6 +191,8 @@ def _validate_layout_payload(payload, forced_orientation=None):
             canvas_height,
             allow_empty=(face == "back"),
         )
+        if face == "back":
+            enabled = [field for field in enabled if field != "photo"]
         out[face] = {
             "background_image": str(face_layout.get("background_image") or ""),
             "enabled_fields": enabled,
@@ -804,7 +808,9 @@ def editor_gafete(request, establecimiento_id):
         {"key": "telefono", "label": "Teléfono emergencia"},
         {"key": "establecimiento", "label": "Establecimiento"},
         {"key": "sitio_web", "label": "Sitio web"},
-        {"key": "image", "label": "Imagen diseño"},
+        {"key": "texto_libre_1", "label": "Texto libre 1"},
+        {"key": "texto_libre_2", "label": "Texto libre 2"},
+        {"key": "texto_libre_3", "label": "Texto libre 3"},
     ]
     configuracion = ConfiguracionGeneral.objects.first()
     return render(
@@ -832,29 +838,6 @@ def editor_gafete(request, establecimiento_id):
 
 
 
-
-@login_required
-@user_passes_test(_can_access_backoffice)
-@require_POST
-def subir_imagen_gafete(request, establecimiento_id):
-    forbidden = _forbid_gafetes_for_gestor(request)
-    if forbidden:
-        return forbidden
-    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
-    if denied:
-        return denied
-
-    image_file = request.FILES.get("image")
-    if not image_file:
-        return JsonResponse({"ok": False, "error": "No se recibió imagen"}, status=400)
-
-    ext = image_file.name.split(".")[-1].lower() if "." in image_file.name else "png"
-    if ext not in {"png", "jpg", "jpeg", "webp"}:
-        return JsonResponse({"ok": False, "error": "Formato no permitido"}, status=400)
-
-    filename = f"gafetes/layout_assets/{establecimiento_id}/{uuid4().hex}.{ext}"
-    saved_path = default_storage.save(filename, ContentFile(image_file.read()))
-    return JsonResponse({"ok": True, "url": default_storage.url(saved_path)})
 
 @login_required
 @user_passes_test(_can_access_backoffice)
@@ -1033,9 +1016,9 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
 
     draw = ImageDraw.Draw(canvas)
     for key, cfg in items.items():
-        if key in {"photo", "image"} or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
+        if key in {"photo"} or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
             continue
-        text = _field_text_for_key(key, matricula, establecimiento)
+        text = cfg.get("text") if key.startswith("texto_libre_") else _field_text_for_key(key, matricula, establecimiento)
         if not text:
             continue
         x = int(cfg.get("x", 0))
@@ -1055,6 +1038,8 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
     canvas = Image.new("RGB", (canvas_width, canvas_height), "white")
     face_layout = obtener_layout_cara(layout, face)
     bg_url = face_layout.get("background_image") if isinstance(face_layout, dict) else ""
+    if face == "back" and establecimiento and getattr(establecimiento, "background_gafete_posterior", None):
+        bg_url = establecimiento.background_gafete_posterior.url
 
     if bg_url:
         try:

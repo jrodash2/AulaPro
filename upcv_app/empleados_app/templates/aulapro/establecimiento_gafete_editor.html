@@ -44,11 +44,6 @@
                   <button type="button" class="btn btn-outline-primary face-switch" data-face="back">Reverso</button>
                 </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Imagen de la cara activa</label>
-                <input type="file" id="face-image-upload" class="form-control" accept="image/*">
-                <small class="text-muted">Se guarda como elemento de imagen editable.</small>
-              </div>
               <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
 
               <div class="mb-3">
@@ -64,6 +59,10 @@
               </div>
 
               <div id="text-props">
+                <div class="mb-3">
+                  <label class="form-label">Contenido</label>
+                  <input id="prop-text-content" type="text" class="form-control" placeholder="Texto fijo o placeholder">
+                </div>
                 <div class="mb-3">
                   <label class="form-label">Color</label>
                   <div class="d-flex gap-2">

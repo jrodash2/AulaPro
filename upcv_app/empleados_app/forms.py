@@ -58,7 +58,7 @@ class EstablecimientoForm(BaseRihoForm):
 
     class Meta:
         model = Establecimiento
-        fields = ["nombre", "direccion", "sitio_web", "background_gafete", "gafete_orientacion", "gafete_ancho", "gafete_alto", "activo"]
+        fields = ["nombre", "direccion", "sitio_web", "background_gafete", "background_gafete_posterior", "gafete_orientacion", "gafete_ancho", "gafete_alto", "activo"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

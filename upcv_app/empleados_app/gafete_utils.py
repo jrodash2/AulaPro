@@ -25,7 +25,9 @@ DEFAULT_FACE_ITEMS = {
     "telefono": {"x": 520, "y": 500, "font_size": 35, "font_weight": "700", "color": "#030303", "align": "left", "visible": True},
     "cui": {"x": 300, "y": 330, "font_size": 20, "font_weight": "400", "color": "#111111", "align": "left", "visible": False},
     "establecimiento": {"x": 300, "y": 360, "font_size": 20, "font_weight": "400", "color": "#111111", "align": "left", "visible": True},
-    "image": {"x": 30, "y": 30, "w": 220, "h": 220, "src": "", "object_fit": "contain", "visible": False},
+    "texto_libre_1": {"x": 80, "y": 120, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
+    "texto_libre_2": {"x": 80, "y": 170, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
+    "texto_libre_3": {"x": 80, "y": 220, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
 }
 
 DEFAULT_ENABLED_FIELDS = ["photo", "nombres", "apellidos", "codigo_alumno", "grado", "telefono", "establecimiento"]
@@ -54,7 +56,6 @@ def _default_face(empty=False):
         for key, cfg in items.items():
             if isinstance(cfg, dict):
                 cfg["visible"] = False
-        items["image"]["visible"] = False
     return {
         "background_image": "",
         "enabled_fields": [] if empty else list(DEFAULT_ENABLED_FIELDS),

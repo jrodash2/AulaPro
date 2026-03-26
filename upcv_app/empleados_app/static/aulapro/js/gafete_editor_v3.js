@@ -10,10 +10,12 @@
   let currentFace = 'front';
   let activeKey = null;
 
+  const BACK_TEXT_KEYS = new Set(['nombres', 'apellidos', 'codigo_alumno', 'grado', 'grado_descripcion', 'cui', 'telefono', 'establecimiento', 'sitio_web', 'texto_libre_1', 'texto_libre_2', 'texto_libre_3']);
+
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
   const checklist = document.getElementById('enabled-fields-checklist');
-  const uploadInput = document.getElementById('face-image-upload');
+  const textContentInput = document.getElementById('prop-text-content');
 
   const colorInput = document.getElementById('prop-color');
   const colorText = document.getElementById('prop-color-text');
@@ -38,6 +40,10 @@
   const getCfg = (key) => (faceData().items || {})[key];
   const isEnabled = (key) => (faceData().enabled_fields || []).includes(key);
 
+  function allowedInCurrentFace(key) {
+    return currentFace === 'front' ? true : BACK_TEXT_KEYS.has(key);
+  }
+
   function syncLayoutInput() { layoutInput.value = JSON.stringify({ layout }); }
 
   function showFace(face) {
@@ -54,20 +60,21 @@
     if (!cfg) return;
     el.style.left = `${cfg.x || 0}px`;
     el.style.top = `${cfg.y || 0}px`;
-    el.style.display = isEnabled(key) && cfg.visible !== false ? '' : 'none';
-    if (key === 'photo' || key === 'image') {
+    el.style.display = (allowedInCurrentFace(key) && isEnabled(key) && cfg.visible !== false) ? '' : 'none';
+    if (key === 'photo') {
       el.style.width = `${cfg.w || 220}px`;
       el.style.height = `${cfg.h || 220}px`;
-      if (key === 'photo') {
-        el.style.border = cfg.border ? `${cfg.border_width || 4}px solid ${cfg.border_color || '#ffffff'}` : 'none';
-        el.style.borderRadius = cfg.shape === 'circle' ? '50%' : `${cfg.radius || 20}px`;
-      }
+      el.style.border = cfg.border ? `${cfg.border_width || 4}px solid ${cfg.border_color || '#ffffff'}` : 'none';
+      el.style.borderRadius = cfg.shape === 'circle' ? '50%' : `${cfg.radius || 20}px`;
       return;
     }
     el.style.fontSize = `${cfg.font_size || 24}px`;
     el.style.fontWeight = `${cfg.font_weight || '400'}`;
     el.style.color = cfg.color || '#111111';
     el.style.textAlign = cfg.align || 'left';
+    if (key.startsWith('texto_libre_') && textContentInput && el.textContent !== cfg.text) {
+      el.textContent = cfg.text || '';
+    }
   }
 
   function refreshChecklist() {
@@ -75,6 +82,7 @@
       const key = input.dataset.field;
       const cfg = getCfg(key);
       input.checked = !!cfg && isEnabled(key) && cfg.visible !== false;
+      input.closest('.form-check').style.display = allowedInCurrentFace(key) ? '' : 'none';
     });
   }
 
@@ -93,7 +101,7 @@
     }
     const cfg = getCfg(key);
     activeKeyLabel.textContent = `Elemento activo (${currentFace}): ${key}`;
-    if (key === 'photo') {
+    if (key === 'photo' && currentFace === 'front') {
       textProps.classList.add('d-none');
       photoProps.classList.remove('d-none');
       shapeRounded.checked = (cfg.shape || 'rounded') === 'rounded';
@@ -107,17 +115,18 @@
       return;
     }
     photoProps.classList.add('d-none');
-    textProps.classList.toggle('d-none', key === 'image');
-    if (key !== 'image') {
-      colorInput.value = cfg.color || '#111111';
-      colorText.value = cfg.color || '#111111';
-      sizeInput.value = cfg.font_size || 24;
-      weightInput.value = String(cfg.font_weight || '400');
-    }
+    textProps.classList.remove('d-none');
+    colorInput.value = cfg.color || '#111111';
+    colorText.value = cfg.color || '#111111';
+    sizeInput.value = cfg.font_size || 24;
+    weightInput.value = String(cfg.font_weight || '400');
+    textContentInput.value = key.startsWith('texto_libre_') ? (cfg.text || '') : '';
+    textContentInput.disabled = !key.startsWith('texto_libre_');
   }
 
   checklist.querySelectorAll('.field-toggle[data-field]').forEach((input) => input.addEventListener('change', () => {
     const key = input.dataset.field;
+    if (!allowedInCurrentFace(key)) return;
     const face = faceData();
     if (!face.items[key]) return;
     if (input.checked) {
@@ -140,7 +149,7 @@
       const item = e.target.closest('.gafete-item[data-key]');
       if (!item) return;
       const key = item.dataset.key;
-      if (!isEnabled(key)) return;
+      if (!allowedInCurrentFace(key) || !isEnabled(key)) return;
       setActive(key);
       const cfg = getCfg(key);
       const rect = canvasEl.getBoundingClientRect();
@@ -167,11 +176,12 @@
   [frontCanvas, backCanvas].forEach(bindCanvas);
 
   function applyTextProps() {
-    if (!activeKey || ['photo', 'image'].includes(activeKey)) return;
+    if (!activeKey || activeKey === 'photo') return;
     const cfg = getCfg(activeKey);
     cfg.color = colorInput.value;
     cfg.font_size = parseInt(sizeInput.value || '24', 10);
     cfg.font_weight = weightInput.value;
+    if (activeKey.startsWith('texto_libre_')) cfg.text = textContentInput.value || '';
     refreshItems();
     syncLayoutInput();
   }
@@ -179,6 +189,7 @@
   colorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
   sizeInput.addEventListener('input', applyTextProps);
   weightInput.addEventListener('change', applyTextProps);
+  textContentInput?.addEventListener('input', applyTextProps);
 
   function applyPhotoProps() {
     if (activeKey !== 'photo') return;
@@ -195,21 +206,6 @@
   [shapeRounded, shapeCircle, photoBorder, photoBorderWidth, photoBorderColor, photoW, photoH, photoRadius].forEach((el) => {
     el.addEventListener('input', applyPhotoProps);
     el.addEventListener('change', applyPhotoProps);
-  });
-
-  uploadInput?.addEventListener('change', async () => {
-    if (!uploadInput.files?.length) return;
-    const fd = new FormData();
-    fd.append('image', uploadInput.files[0]);
-    const resp = await fetch(cfg.uploadUrl, { method: 'POST', headers: { 'X-CSRFToken': cfg.csrf }, body: fd });
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) return alert(data.error || 'No se pudo subir imagen');
-    const face = faceData();
-    if (!face.enabled_fields.includes('image')) face.enabled_fields.push('image');
-    face.items.image = Object.assign(face.items.image || {}, { src: data.url, visible: true, w: (face.items.image || {}).w || 220, h: (face.items.image || {}).h || 220 });
-    const imageEl = canvases[currentFace].querySelector('.gafete-item[data-key="image"]');
-    if (imageEl && imageEl.tagName === 'IMG') imageEl.src = data.url;
-    refreshItems(); syncLayoutInput(); setActive('image');
   });
 
   document.getElementById('reset-layout')?.addEventListener('click', () => {
