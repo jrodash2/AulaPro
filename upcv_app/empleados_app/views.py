@@ -2,6 +2,7 @@ import json
 import re
 import unicodedata
 from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
@@ -90,6 +91,7 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
     allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
+    allowed_fit = {"contain", "cover"}
 
     result_items = {}
     valid_enabled = [field for field in (enabled_fields or []) if field in allowed_keys]
@@ -116,6 +118,19 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
                 "border_width": max(0, min(20, int(cfg.get("border_width") or 4))),
                 "border_color": border_color,
                 "visible": bool(cfg.get("visible", True)),
+            }
+            continue
+
+        if key == "image":
+            fit = str(cfg.get("object_fit") or "contain").lower()
+            result_items[key] = {
+                "x": int(cfg.get("x") or 0),
+                "y": int(cfg.get("y") or 0),
+                "w": max(40, min(canvas_width, int(cfg.get("w") or 220))),
+                "h": max(40, min(canvas_height, int(cfg.get("h") or 220))),
+                "src": str(cfg.get("src") or ""),
+                "object_fit": fit if fit in allowed_fit else "contain",
+                "visible": bool(cfg.get("visible", False)),
             }
             continue
 
@@ -988,6 +1003,25 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
                 photo_rgba = photo.convert("RGBA")
                 photo_rgba.putalpha(alpha_mask)
                 canvas.paste(photo_rgba, (x, y), photo_rgba)
+        except Exception:
+            pass
+
+    image_cfg = items.get("image", {}) if isinstance(items.get("image", {}), dict) else {}
+    if "image" in enabled_fields and image_cfg.get("visible", False) and image_cfg.get("src"):
+        try:
+            from urllib.request import urlopen
+            img_src = str(image_cfg.get("src"))
+            resolved_source = _resolve_media_source(img_src)
+            if str(resolved_source).startswith(("http://", "https://")):
+                raw = urlopen(resolved_source).read()
+                overlay = Image.open(BytesIO(raw)).convert("RGBA")
+            else:
+                with open(resolved_source, "rb") as image_file:
+                    overlay = Image.open(image_file).convert("RGBA")
+            w = max(20, int(image_cfg.get("w", 220)))
+            h = max(20, int(image_cfg.get("h", 220)))
+            prepared = _apply_contain_image(overlay, w, h) if image_cfg.get("object_fit") == "contain" else _apply_cover_image(overlay, w, h).convert("RGBA")
+            canvas.paste(prepared, (int(image_cfg.get("x", 30)), int(image_cfg.get("y", 30))), prepared)
         except Exception:
             pass
 

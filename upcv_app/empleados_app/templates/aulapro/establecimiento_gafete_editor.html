@@ -150,6 +150,7 @@ width: 470px;      /* antes era muy pequeño */
 <script>
 window.gafeteEditorSimple = {
   saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  uploadUrl: "{% url 'empleados:subir_imagen_gafete' establecimiento.id %}",
   csrf: "{{ csrf_token }}"
 };
 </script>

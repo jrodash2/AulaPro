@@ -35,6 +35,7 @@ urlpatterns = [
 
     path("establecimientos/<int:establecimiento_id>/gafete/editor/", views.editor_gafete, name="editor_gafete"),
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/guardar/", views.guardar_diseno_gafete, name="guardar_diseno_gafete"),
+    path("establecimientos/<int:establecimiento_id>/gafete/subir-imagen/", views.subir_imagen_gafete, name="subir_imagen_gafete"),
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/reset/", views.resetear_diseno_gafete, name="resetear_diseno_gafete"),
 
     # Rutas legacy para compatibilidad
