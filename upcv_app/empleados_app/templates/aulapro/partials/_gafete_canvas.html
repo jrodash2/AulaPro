@@ -1,38 +1,36 @@
 {% load static %}
-<div class="gafete-canvas-real gafete-canvas" id="{{ preview_id|default:'gafete-canvas' }}" data-w="{{ gafete_w|default:canvas_width|default:1011 }}" data-h="{{ gafete_h|default:canvas_height|default:639 }}" data-canvas-width="{{ gafete_w|default:canvas_width|default:1011 }}" data-canvas-height="{{ gafete_h|default:canvas_height|default:639 }}" style="position:relative;width:{{ gafete_w|default:canvas_width|default:1011 }}px;height:{{ gafete_h|default:canvas_height|default:639 }}px;overflow:hidden;background:#fff;">
-  <img src="{% if establecimiento and establecimiento.background_gafete %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}" class="gafete-bg" alt="Fondo gafete" style="position:absolute; inset:0; width:100%; height:100%; object-fit:fill;">
+<div class="gafete-canvas-real gafete-canvas" id="{{ preview_id|default:'gafete-canvas' }}" data-face="{{ face|default:'front' }}" data-w="{{ gafete_w|default:canvas_width|default:1011 }}" data-h="{{ gafete_h|default:canvas_height|default:639 }}" data-canvas-width="{{ gafete_w|default:canvas_width|default:1011 }}" data-canvas-height="{{ gafete_h|default:canvas_height|default:639 }}" style="position:relative;width:{{ gafete_w|default:canvas_width|default:1011 }}px;height:{{ gafete_h|default:canvas_height|default:639 }}px;overflow:hidden;background:#fff;{% if hidden %}display:none;{% endif %}">
+  <img src="{% if face_layout.background_image %}{{ face_layout.background_image }}{% elif establecimiento and establecimiento.background_gafete and face != 'back' %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}" class="gafete-bg" alt="Fondo gafete" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;">
 
-  {% with photo=layout_json.items.photo %}
-    {% if "photo" in layout_json.enabled_fields and photo.visible|default:True and alumno and alumno.imagen %}
+  {% with photo=face_layout.items.photo %}
+    {% if "photo" in face_layout.enabled_fields and photo.visible|default:True and alumno and alumno.imagen %}
       {% if export_mode %}
-      <div
-        class="gafete-item gafete-photo-bg"
-        data-key="photo"
-        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; background-image:url('{{ alumno.imagen.url }}'); background-size:cover; background-position:center center; background-repeat:no-repeat; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %}; overflow:hidden;"
-      ></div>
+      <div class="gafete-item gafete-photo-bg" data-key="photo" style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; background-image:url('{{ alumno.imagen.url }}'); background-size:cover; background-position:center center; background-repeat:no-repeat; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %}; overflow:hidden;"></div>
       {% else %}
-      <img
-        src="{{ alumno.imagen.url }}"
-        alt="Imagen del alumno"
-        class="gafete-item gafete-photo {% if is_editor %}draggable{% endif %}"
-        data-key="photo"
-        style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:cover; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};"
-      >
+      <img src="{{ alumno.imagen.url }}" alt="Imagen del alumno" class="gafete-item gafete-photo {% if is_editor %}draggable{% endif %}" data-key="photo" style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; object-fit:cover; object-position:center; {% if photo.border %}border: {{ photo.border_width|default:4 }}px solid {{ photo.border_color|default:'#ffffff' }};{% else %}border:none;{% endif %} border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};">
       {% endif %}
-    {% elif "photo" in layout_json.enabled_fields and photo.visible|default:True and is_editor %}
+    {% elif "photo" in face_layout.enabled_fields and photo.visible|default:True and is_editor %}
       <div class="gafete-item draggable d-flex align-items-center justify-content-center bg-light" data-key="photo" style="position:absolute; left:{{ photo.x|default:20 }}px; top:{{ photo.y|default:40 }}px; width:{{ photo.w|default:250 }}px; height:{{ photo.h|default:350 }}px; border:1px dashed #999; border-radius:{% if photo.shape == 'circle' %}50%{% else %}{{ photo.radius|default:20 }}px{% endif %};">Foto</div>
     {% endif %}
   {% endwith %}
 
-  {% for key, item in layout_json.items.items %}
-    {% if key != 'photo' and key in layout_json.enabled_fields and item.visible|default:True %}
-    <div class="gafete-item {% if is_editor %}draggable{% endif %}{% if key == 'grado' %} grado-gafete{% endif %}" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{% if key == 'grado' %}center{% else %}{{ item.align|default:'left' }}{% endif %}; font-family:{% if export_mode %}Arial, sans-serif{% else %}{{ item.font_family|default:"'Poppins', sans-serif" }}{% endif %}; line-height:{% if key == 'grado' %}1.15{% else %}1.1{% endif %}; white-space:{% if key == 'grado' %}normal{% else %}nowrap{% endif %};{% if key == 'grado' %} width:470px; max-width:470px; word-break:normal; overflow-wrap:break-word; hyphens:none; margin:0 auto; padding:2px 4px; display:flex; align-items:center; justify-content:center;{% else %} display:{% if item.visible|default:True %}block{% else %}none{% endif %};{% endif %}">
+  {% with image_cfg=face_layout.items.image %}
+    {% if "image" in face_layout.enabled_fields and image_cfg.visible and image_cfg.src %}
+      <img src="{{ image_cfg.src }}" class="gafete-item {% if is_editor %}draggable{% endif %}" data-key="image" alt="Imagen de diseño" style="position:absolute;left:{{ image_cfg.x|default:30 }}px;top:{{ image_cfg.y|default:30 }}px;width:{{ image_cfg.w|default:220 }}px;height:{{ image_cfg.h|default:220 }}px;object-fit:{{ image_cfg.object_fit|default:'contain' }};object-position:center center;">
+    {% elif is_editor and "image" in face_layout.enabled_fields %}
+      <img src="{% static 'assets/svg/empleado.svg' %}" class="gafete-item draggable" data-key="image" alt="Imagen de diseño" style="position:absolute;left:{{ image_cfg.x|default:30 }}px;top:{{ image_cfg.y|default:30 }}px;width:{{ image_cfg.w|default:220 }}px;height:{{ image_cfg.h|default:220 }}px;object-fit:contain;object-position:center center;border:1px dashed #999;background:#f8f9fa;">
+    {% endif %}
+  {% endwith %}
+
+  {% for key, item in face_layout.items.items %}
+    {% if key != 'photo' and key != 'image' and key in face_layout.enabled_fields and item.visible|default:True %}
+    <div class="gafete-item {% if is_editor %}draggable{% endif %}{% if key == 'grado' %} grado-gafete{% endif %}" data-key="{{ key }}" style="position:absolute; left:{{ item.x|default:0 }}px; top:{{ item.y|default:0 }}px; font-size:{{ item.font_size|default:24 }}px; font-weight:{{ item.font_weight|default:'400' }}; color:{{ item.color|default:'#111111' }}; text-align:{% if key == 'grado' %}center{% else %}{{ item.align|default:'left' }}{% endif %}; font-family:{% if export_mode %}Arial, sans-serif{% else %}{{ item.font_family|default:"'Poppins', sans-serif" }}{% endif %}; line-height:{% if key == 'grado' %}1.15{% else %}1.1{% endif %}; white-space:{% if key == 'grado' %}normal{% else %}nowrap{% endif %};{% if key == 'grado' %} width:470px; max-width:470px; word-break:normal; overflow-wrap:break-word; hyphens:none; margin:0 auto; padding:2px 4px; display:flex; align-items:center; justify-content:center;{% endif %}">
       {% if key == 'nombres' %}{{ alumno.nombres|default:'Nombre' }}{% elif key == 'apellidos' %}{{ alumno.apellidos|default:'Apellidos' }}{% elif key == 'codigo_alumno' %}{{ alumno.codigo_personal|default:'-' }}{% elif key == 'grado' %}<span class="grado-texto">{{ grado|default:'Grado' }}</span>{% elif key == 'grado_descripcion' %}{{ grado.descripcion|default:'' }}{% elif key == 'sitio_web' %}{{ establecimiento.sitio_web|default:'' }}{% elif key == 'telefono' %}{{ alumno.tel|default:'-' }}{% elif key == 'cui' %}{{ alumno.cui|default:'—' }}{% elif key == 'establecimiento' %}{{ establecimiento.nombre|default:'' }}{% endif %}
     </div>
     {% endif %}
   {% endfor %}
 
-  {% if configuracion and configuracion.logotipo %}
+  {% if configuracion and configuracion.logotipo and face != 'back' %}
   <div class="logotipos" style="position:absolute; top:40px; left:12px;"><div class="logotipo"><img src="{{ configuracion.logotipo.url }}" alt="Logotipo" width="170" height="auto"></div></div>
   {% endif %}
 </div>

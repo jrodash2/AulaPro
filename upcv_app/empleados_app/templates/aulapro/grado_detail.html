@@ -137,10 +137,15 @@
         <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body gafete-modal-body">
+        <div class="btn-group mb-2" role="group">
+          <button class="btn btn-outline-primary btn-sm preview-face-btn active" type="button" data-target="{{ mid }}" data-face="front">Frente</button>
+          <button class="btn btn-outline-primary btn-sm preview-face-btn" type="button" data-target="{{ mid }}" data-face="back">Reverso</button>
+        </div>
         <div class="gafete-preview-viewport mx-auto text-center" id="vp-{{ mid }}">
           <div class="gafete-modal-canvas-wrap">
             <div class="gafete-preview-scale" id="wrap-{{ mid }}">
-              {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id=preview_dom_id %}
+              {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id=preview_dom_id|add:'-front' %}
+              {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id=preview_dom_id|add:'-back' hidden=True %}
             </div>
           </div>
         </div>
@@ -158,8 +163,11 @@
 <div id="gafete-export-root" class="gafete-export-hidden" style="position:fixed; left:-99999px; top:0; opacity:1;" aria-hidden="true">
   {% for m in matriculas %}
   {% with m.id|stringformat:"s" as mid %}
-    <div id="gafete-export-{{ mid }}" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
-      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid export_mode=True is_editor=False %}
+    <div id="gafete-export-{{ mid }}-front" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid|add:'-front' export_mode=True is_editor=False %}
+    </div>
+    <div id="gafete-export-{{ mid }}-back" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid|add:'-back' export_mode=True is_editor=False %}
     </div>
   {% endwith %}
   {% endfor %}
@@ -278,6 +286,19 @@ window.matriculaModalConfig = {
 
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script src="{% static 'aulapro/js/gafete_export_fix.js' %}"></script>
+<script>
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.preview-face-btn');
+  if(!btn) return;
+  const mid = btn.dataset.target;
+  const face = btn.dataset.face;
+  document.querySelectorAll('.preview-face-btn[data-target="'+mid+'"]').forEach(b=>b.classList.toggle('active', b===btn));
+  const front = document.getElementById('gafete-canvas-'+mid+'-front');
+  const back = document.getElementById('gafete-canvas-'+mid+'-back');
+  if(front && back){ front.style.display = face==='front' ? '' : 'none'; back.style.display = face==='back' ? '' : 'none'; }
+});
+</script>
+
 {% endif %}
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 {% endblock %}
