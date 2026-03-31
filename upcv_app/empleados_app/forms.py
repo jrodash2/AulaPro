@@ -195,6 +195,17 @@ class ObservacionAlumnoForm(BaseRihoForm):
         }
 
 
+class CargaMasivaExcelForm(forms.Form):
+    archivo = forms.FileField(required=True)
+    confirmar = forms.BooleanField(required=False, initial=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["archivo"].widget.attrs["class"] = "form-control"
+        self.fields["archivo"].widget.attrs["accept"] = ".xlsx,.xlsm"
+        self.fields["confirmar"].widget.attrs["class"] = "form-check-input"
+
+
 class UsuarioCreateForm(UserCreationForm):
     foto = forms.ImageField(required=False)
     first_name = forms.CharField(max_length=150, required=False)

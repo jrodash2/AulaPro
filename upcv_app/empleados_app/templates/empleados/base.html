@@ -234,8 +234,13 @@
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Académico</span></a>
                   <ul class="sidebar-submenu">
+                    <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
                     <li><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
-                    <li><a href="{% url 'empleados:matricula_masiva' %}">Carga masiva</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_home' %}">Carga masiva</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_alumnos' %}">Importar alumnos</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_docentes' %}">Importar docentes</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_cursos' %}">Importar cursos</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_asignaciones' %}">Importar asignaciones</a></li>
                   </ul>
                 </li>
 

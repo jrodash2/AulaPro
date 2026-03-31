@@ -1,18 +1,19 @@
 import json
 import re
 import unicodedata
+from datetime import datetime
 from io import BytesIO
 from uuid import uuid4
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.db import OperationalError, ProgrammingError
+from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,6 +22,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     CarreraForm,
+    CargaMasivaExcelForm,
     ConfiguracionGeneralForm,
     EmpleadoEditForm,
     EmpleadoForm,
@@ -975,6 +977,392 @@ def matricula_masiva(request):
         return redirect("empleados:matricula_masiva")
 
     return render(request, "empleados/matricula_masiva.html", {"form": form})
+
+
+def _load_excel_records(uploaded_file):
+    filename = (uploaded_file.name or "").lower()
+    if not filename.endswith((".xlsx", ".xlsm")):
+        raise ValidationError("El archivo debe ser Excel (.xlsx o .xlsm).")
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:
+        raise ValidationError("No está disponible la librería para leer Excel en este entorno.") from exc
+
+    wb = load_workbook(uploaded_file, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return [], []
+    headers = [str(v).strip().lower() if v is not None else "" for v in rows[0]]
+    data_rows = [list(r) for r in rows[1:] if any(c not in (None, "") for c in r)]
+    return headers, data_rows
+
+
+def _parse_date_cell(value):
+    if value in (None, ""):
+        return None
+    if hasattr(value, "date"):
+        try:
+            return value.date()
+        except Exception:
+            pass
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        raw = value.strip()
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+    raise ValidationError("Fecha inválida. Use YYYY-MM-DD o DD/MM/YYYY.")
+
+
+def _bool_cell(value, default=True):
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool):
+        return value
+    raw = str(value).strip().lower()
+    return raw in {"1", "true", "si", "sí", "activo", "yes"}
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_home(request):
+    return render(request, "empleados/carga_masiva/index.html")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_plantilla(request, tipo):
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        messages.error(request, "No fue posible generar la plantilla en este entorno.")
+        return redirect("empleados:carga_masiva_home")
+
+    columnas_por_tipo = {
+        "alumnos": ["codigo_personal", "nombres", "apellidos", "cui", "fecha_nacimiento", "telefono", "grado_id", "establecimiento_id", "activo"],
+        "docentes": ["username", "first_name", "last_name", "email", "password", "activo"],
+        "cursos": ["grado_id", "nombre", "descripcion", "activo"],
+        "asignaciones": ["curso_id", "docente_username", "activo"],
+    }
+    columnas = columnas_por_tipo.get(tipo)
+    if not columnas:
+        messages.error(request, "Tipo de plantilla no válido.")
+        return redirect("empleados:carga_masiva_home")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Plantilla"
+    ws.append(columnas)
+    ws.append([""] * len(columnas))
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f'attachment; filename="plantilla_{tipo}.xlsx"'
+    wb.save(response)
+    return response
+
+
+def _import_alumnos_excel(request, headers, rows, confirmar=False):
+    requeridas = {"nombres", "apellidos"}
+    faltantes = [c for c in requeridas if c not in headers]
+    if faltantes:
+        raise ValidationError(f"Columnas requeridas faltantes: {', '.join(faltantes)}")
+
+    idx = {h: i for i, h in enumerate(headers)}
+    grados_qs = filtrar_por_establecimiento_usuario(Grado.objects.select_related("carrera__ciclo_escolar__establecimiento"), request.user, "carrera__ciclo_escolar__establecimiento_id")
+    grados_map = {g.id: g for g in grados_qs}
+    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.all(), request.user, "id")
+    establecimientos_map = {e.id: e for e in establecimientos_qs}
+
+    operaciones = []
+    errores = []
+    for num, row in enumerate(rows, start=2):
+        try:
+            nombres = str(row[idx["nombres"]]).strip() if row[idx["nombres"]] else ""
+            apellidos = str(row[idx["apellidos"]]).strip() if row[idx["apellidos"]] else ""
+            if not nombres or not apellidos:
+                raise ValidationError("Nombres y apellidos son obligatorios.")
+            codigo = str(row[idx["codigo_personal"]]).strip() if "codigo_personal" in idx and row[idx["codigo_personal"]] else None
+            cui = str(row[idx["cui"]]).strip() if "cui" in idx and row[idx["cui"]] else None
+            fecha_nacimiento = _parse_date_cell(row[idx["fecha_nacimiento"]]) if "fecha_nacimiento" in idx else None
+            tel = str(row[idx["telefono"]]).strip() if "telefono" in idx and row[idx["telefono"]] else None
+            grado = None
+            if "grado_id" in idx and row[idx["grado_id"]] not in (None, ""):
+                grado_id = int(row[idx["grado_id"]])
+                grado = grados_map.get(grado_id)
+                if not grado:
+                    raise ValidationError("grado_id no válido o sin permiso.")
+            establecimiento = None
+            if "establecimiento_id" in idx and row[idx["establecimiento_id"]] not in (None, ""):
+                est_id = int(row[idx["establecimiento_id"]])
+                establecimiento = establecimientos_map.get(est_id)
+                if not establecimiento:
+                    raise ValidationError("establecimiento_id no válido o sin permiso.")
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+
+            existing = None
+            if codigo:
+                existing = Empleado.objects.filter(codigo_personal=codigo).first()
+            if not existing and cui:
+                existing = Empleado.objects.filter(cui=cui).first()
+            operaciones.append({
+                "existing": existing,
+                "payload": {
+                    "codigo_personal": codigo,
+                    "nombres": nombres,
+                    "apellidos": apellidos,
+                    "cui": cui,
+                    "fecha_nacimiento": fecha_nacimiento,
+                    "tel": tel,
+                    "grado": grado,
+                    "establecimiento": establecimiento,
+                    "activo": activo,
+                    "user": request.user,
+                },
+            })
+        except Exception as exc:  # validación por fila
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    empleado = op["existing"]
+                    for key, value in op["payload"].items():
+                        setattr(empleado, key, value)
+                    empleado.save()
+                    actualizados += 1
+                else:
+                    Empleado.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_docentes_excel(headers, rows, confirmar=False):
+    if "username" not in headers:
+        raise ValidationError("La columna username es obligatoria.")
+    idx = {h: i for i, h in enumerate(headers)}
+    docentes_group, _ = Group.objects.get_or_create(name="Docente")
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            username = str(row[idx["username"]]).strip() if row[idx["username"]] else ""
+            if not username:
+                raise ValidationError("username obligatorio.")
+            first_name = str(row[idx["first_name"]]).strip() if "first_name" in idx and row[idx["first_name"]] else ""
+            last_name = str(row[idx["last_name"]]).strip() if "last_name" in idx and row[idx["last_name"]] else ""
+            email = str(row[idx["email"]]).strip() if "email" in idx and row[idx["email"]] else ""
+            password = str(row[idx["password"]]).strip() if "password" in idx and row[idx["password"]] else None
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            user = User.objects.filter(username=username).first()
+            operaciones.append({"existing": user, "payload": {"username": username, "first_name": first_name, "last_name": last_name, "email": email, "password": password, "is_active": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                payload = op["payload"]
+                if op["existing"]:
+                    user = op["existing"]
+                    user.first_name = payload["first_name"]
+                    user.last_name = payload["last_name"]
+                    user.email = payload["email"]
+                    user.is_active = payload["is_active"]
+                    if payload["password"]:
+                        user.set_password(payload["password"])
+                    user.save()
+                    actualizados += 1
+                else:
+                    user = User.objects.create_user(
+                        username=payload["username"],
+                        password=payload["password"] or "Docente123*",
+                        first_name=payload["first_name"],
+                        last_name=payload["last_name"],
+                        email=payload["email"],
+                        is_active=payload["is_active"],
+                    )
+                    creados += 1
+                user.groups.add(docentes_group)
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_cursos_excel(request, headers, rows, confirmar=False):
+    if "grado_id" not in headers or "nombre" not in headers:
+        raise ValidationError("Las columnas grado_id y nombre son obligatorias.")
+    idx = {h: i for i, h in enumerate(headers)}
+    grados_qs = filtrar_por_establecimiento_usuario(Grado.objects.all(), request.user, "carrera__ciclo_escolar__establecimiento_id")
+    grados_map = {g.id: g for g in grados_qs}
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            grado_id = int(row[idx["grado_id"]])
+            grado = grados_map.get(grado_id)
+            if not grado:
+                raise ValidationError("grado_id no válido o sin permiso.")
+            nombre = str(row[idx["nombre"]]).strip() if row[idx["nombre"]] else ""
+            if not nombre:
+                raise ValidationError("nombre obligatorio.")
+            descripcion = str(row[idx["descripcion"]]).strip() if "descripcion" in idx and row[idx["descripcion"]] else ""
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            existing = Curso.objects.filter(grado=grado, nombre=nombre).first()
+            operaciones.append({"existing": existing, "payload": {"grado": grado, "nombre": nombre, "descripcion": descripcion, "activo": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    curso = op["existing"]
+                    curso.descripcion = op["payload"]["descripcion"]
+                    curso.activo = op["payload"]["activo"]
+                    curso.save()
+                    actualizados += 1
+                else:
+                    Curso.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_asignaciones_excel(request, headers, rows, confirmar=False):
+    if "curso_id" not in headers or "docente_username" not in headers:
+        raise ValidationError("Las columnas curso_id y docente_username son obligatorias.")
+    idx = {h: i for i, h in enumerate(headers)}
+    cursos_qs = filtrar_por_establecimiento_usuario(Curso.objects.all(), request.user, "grado__carrera__ciclo_escolar__establecimiento_id")
+    cursos_map = {c.id: c for c in cursos_qs}
+    docentes = User.objects.filter(groups__name="Docente").distinct()
+    docentes_map = {u.username: u for u in docentes}
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            curso = cursos_map.get(int(row[idx["curso_id"]]))
+            if not curso:
+                raise ValidationError("curso_id no válido o sin permiso.")
+            username = str(row[idx["docente_username"]]).strip() if row[idx["docente_username"]] else ""
+            docente = docentes_map.get(username)
+            if not docente:
+                raise ValidationError("docente_username no existe o no pertenece al grupo Docente.")
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            existing = CursoDocente.objects.filter(curso=curso, docente=docente).first()
+            operaciones.append({"existing": existing, "payload": {"curso": curso, "docente": docente, "activo": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    op["existing"].activo = op["payload"]["activo"]
+                    op["existing"].save(update_fields=["activo"])
+                    actualizados += 1
+                else:
+                    CursoDocente.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _carga_masiva_import_view(request, tipo, titulo, descripcion):
+    form = CargaMasivaExcelForm(request.POST or None, request.FILES or None)
+    resultado = None
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            headers, rows = _load_excel_records(form.cleaned_data["archivo"])
+            confirmar = bool(form.cleaned_data.get("confirmar"))
+            if tipo == "alumnos":
+                resultado = _import_alumnos_excel(request, headers, rows, confirmar=confirmar)
+            elif tipo == "docentes":
+                resultado = _import_docentes_excel(headers, rows, confirmar=confirmar)
+            elif tipo == "cursos":
+                resultado = _import_cursos_excel(request, headers, rows, confirmar=confirmar)
+            elif tipo == "asignaciones":
+                resultado = _import_asignaciones_excel(request, headers, rows, confirmar=confirmar)
+            else:
+                raise ValidationError("Tipo de importación no soportado.")
+
+            if confirmar and not resultado["errores"]:
+                messages.success(
+                    request,
+                    f"Importación completada. Creados: {resultado['creados']}, actualizados: {resultado['actualizados']}, omitidos: {resultado['omitidos']}.",
+                )
+            elif resultado["errores"]:
+                messages.warning(request, f"Se detectaron {len(resultado['errores'])} errores. Corrija y vuelva a intentar.")
+            else:
+                messages.info(request, "Previsualización generada. Marque confirmar para aplicar cambios.")
+        except ValidationError as exc:
+            messages.error(request, str(exc))
+        except Exception as exc:
+            messages.error(request, f"No fue posible procesar el archivo: {exc}")
+
+    return render(
+        request,
+        "empleados/carga_masiva/importar.html",
+        {
+            "form": form,
+            "titulo": titulo,
+            "descripcion": descripcion,
+            "tipo": tipo,
+            "resultado": resultado,
+        },
+    )
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_alumnos(request):
+    return _carga_masiva_import_view(request, "alumnos", "Importar alumnos", "Carga de alumnos desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_docentes(request):
+    return _carga_masiva_import_view(request, "docentes", "Importar docentes", "Carga de usuarios docentes desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_cursos(request):
+    return _carga_masiva_import_view(request, "cursos", "Importar cursos", "Carga de cursos vinculados a grado desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_asignaciones(request):
+    return _carga_masiva_import_view(request, "asignaciones", "Importar asignaciones", "Carga de asignaciones docente-curso desde Excel.")
 
 
 @login_required

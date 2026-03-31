@@ -34,6 +34,12 @@ urlpatterns = [
     path("matriculas/<int:matricula_id>/gafete_descarga.jpg", views.descargar_gafete_jpg, name="descargar_gafete_jpg"),
     path("matriculas/masiva/", views.matricula_masiva, name="matricula_masiva"),
     path("matriculas/masiva/buscar/", views.matricula_masiva_buscar_alumnos, name="matricula_masiva_buscar_alumnos"),
+    path("academico/carga-masiva/", views.carga_masiva_home, name="carga_masiva_home"),
+    path("academico/carga-masiva/alumnos/", views.carga_masiva_import_alumnos, name="carga_masiva_import_alumnos"),
+    path("academico/carga-masiva/docentes/", views.carga_masiva_import_docentes, name="carga_masiva_import_docentes"),
+    path("academico/carga-masiva/cursos/", views.carga_masiva_import_cursos, name="carga_masiva_import_cursos"),
+    path("academico/carga-masiva/asignaciones/", views.carga_masiva_import_asignaciones, name="carga_masiva_import_asignaciones"),
+    path("academico/carga-masiva/plantillas/<str:tipo>/", views.carga_masiva_plantilla, name="carga_masiva_plantilla"),
 
     path("establecimientos/<int:establecimiento_id>/gafete/editor/", views.editor_gafete, name="editor_gafete"),
     path("establecimientos/<int:establecimiento_id>/gafete/diseno/guardar/", views.guardar_diseno_gafete, name="guardar_diseno_gafete"),
