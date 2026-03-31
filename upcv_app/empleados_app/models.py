@@ -275,5 +275,55 @@ class AsistenciaDetalle(models.Model):
         return f"{self.alumno} - {'Presente' if self.presente else 'Ausente'}"
 
 
+class ObservacionAlumno(models.Model):
+    TIPO_ACADEMICO = "academico"
+    TIPO_CONDUCTA = "conducta"
+    TIPO_ASISTENCIA = "asistencia"
+    TIPO_OTRO = "otro"
+    TIPO_CHOICES = (
+        (TIPO_ACADEMICO, "Académico"),
+        (TIPO_CONDUCTA, "Conducta"),
+        (TIPO_ASISTENCIA, "Asistencia"),
+        (TIPO_OTRO, "Otro"),
+    )
+
+    PRIORIDAD_BAJA = "baja"
+    PRIORIDAD_MEDIA = "media"
+    PRIORIDAD_ALTA = "alta"
+    PRIORIDAD_CHOICES = (
+        (PRIORIDAD_BAJA, "Baja"),
+        (PRIORIDAD_MEDIA, "Media"),
+        (PRIORIDAD_ALTA, "Alta"),
+    )
+
+    ESTADO_ABIERTA = "abierta"
+    ESTADO_SEGUIMIENTO = "seguimiento"
+    ESTADO_CERRADA = "cerrada"
+    ESTADO_CHOICES = (
+        (ESTADO_ABIERTA, "Abierta"),
+        (ESTADO_SEGUIMIENTO, "En seguimiento"),
+        (ESTADO_CERRADA, "Cerrada"),
+    )
+
+    alumno = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name="observaciones")
+    fecha = models.DateField()
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_ACADEMICO)
+    prioridad = models.CharField(max_length=10, choices=PRIORIDAD_CHOICES, default=PRIORIDAD_MEDIA)
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default=ESTADO_ABIERTA)
+    observacion = models.TextField()
+    creado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name="observaciones_alumnos_creadas")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha", "-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["alumno", "fecha"]),
+            models.Index(fields=["alumno", "estado"]),
+        ]
+
+    def __str__(self):
+        return f"{self.alumno} · {self.get_tipo_display()} · {self.fecha}"
+
+
 # Alias de compatibilidad para evitar rupturas en imports antiguos
 Alumno = Empleado
