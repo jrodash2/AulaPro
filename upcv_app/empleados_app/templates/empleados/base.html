@@ -206,6 +206,9 @@
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:crear_empleado' %}">Agregar </a></li>
                     <li><a href="{% url 'empleados:empleado_lista' %}">Listar </a></li>
+                    <li><a href="{% url 'empleados:empleado_lista' %}">Historial académico</a></li>
+                    <li><a href="{% url 'empleados:empleado_lista' %}">Observaciones</a></li>
+                    <li><a href="{% url 'empleados:empleado_lista' %}">Resumen de asistencia</a></li>
                     {% if is_admin_total %}<li><a href="{% url 'empleados:empleado_credencial' %}">Gafetes</a></li>{% endif %}
                   </ul>
                 </li>
@@ -231,6 +234,7 @@
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Académico</span></a>
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
+                    <li><a href="{% url 'empleados:matricula_masiva' %}">Carga masiva</a></li>
                   </ul>
                 </li>
 
@@ -239,6 +243,7 @@
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Asistencia</span></a>
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:dahsboard' %}">Alertas y métricas</a></li>
                   </ul>
                 </li>
                 {% endif %}

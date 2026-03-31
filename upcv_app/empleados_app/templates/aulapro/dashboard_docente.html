@@ -117,6 +117,8 @@
     transition: all .2s ease;
   }
   .docente-dashboard .btn-ver:hover { transform: translateY(-1px); }
+  .docente-dashboard .quick-link { border:1px solid rgba(30,41,59,.08); border-radius:10px; padding:.5rem .72rem; background:#fff; font-size:.8rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:.4rem; text-decoration:none; transition:all .2s ease; }
+  .docente-dashboard .quick-link:hover { transform: translateY(-1px); box-shadow:0 8px 16px rgba(30,41,59,.08); color:#4f46e5; }
 
   @keyframes fadeInUp {
     from { opacity: 0; transform: translateY(8px); }
@@ -148,6 +150,11 @@
         </div>
         <span class="welcome-badge">Riho Style</span>
       </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="quick-link" href="{% url 'empleados:mis_cursos_docente' %}"><i class="fa fa-book"></i>Mis cursos</a>
+      <a class="quick-link" href="{% url 'empleados:empleado_lista' %}"><i class="fa fa-users"></i>Alumnos</a>
+      <a class="quick-link" href="{% url 'empleados:dashboard_docente' %}"><i class="fa fa-line-chart"></i>Resumen</a>
     </div>
 
     <div class="row g-3">

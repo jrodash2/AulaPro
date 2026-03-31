@@ -58,6 +58,8 @@
   .admin-dashboard .est-card:hover { transform:translateY(-2px); box-shadow:0 10px 18px rgba(30,41,59,.08); }
   .admin-dashboard .est-name { font-weight:700; font-size:.92rem; margin-bottom:.35rem; }
   .admin-dashboard .est-meta { font-size:.78rem; color:#64748b; display:flex; gap:.65rem; flex-wrap:wrap; margin-bottom:.55rem; }
+  .admin-dashboard .quick-link { border:1px solid rgba(30,41,59,.08); border-radius:10px; padding:.55rem .7rem; background:#fff; font-size:.8rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:.4rem; transition:all .2s ease; text-decoration:none; }
+  .admin-dashboard .quick-link:hover { transform:translateY(-1px); color:#4f46e5; box-shadow:0 8px 16px rgba(30,41,59,.08); }
 
 </style>
 
@@ -92,6 +94,12 @@
         </div>
         <span class="hero-pill">Riho Style</span>
       </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="quick-link" href="{% url 'empleados:mis_cursos_docente' %}"><i class="fa fa-book"></i>Mis cursos</a>
+      <a class="quick-link" href="{% url 'empleados:empleado_lista' %}"><i class="fa fa-users"></i>Alumnos</a>
+      <a class="quick-link" href="{% url 'empleados:matricula_masiva' %}"><i class="fa fa-upload"></i>Carga masiva</a>
+      <a class="quick-link" href="{% url 'empleados:establecimientos_list' %}"><i class="fa fa-university"></i>Establecimientos</a>
     </div>
 
     {% if not ciclo_activo %}
