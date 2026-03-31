@@ -11,6 +11,7 @@ urlpatterns = [
     path("signin/", views.signin, name="signin"),
     path("logout/", views.signout, name="logout"),
     path("dahsboard/", views.dahsboard, name="dahsboard"),
+    path("establecimientos/<int:establecimiento_id>/dashboard/", views.dashboard_establecimiento, name="dashboard_establecimiento"),
     path("config_general/", views.configuracion_general, name="configuracion_general"),
     path("usuarios/", views.usuarios_list, name="usuarios_list"),
     path("usuarios/nuevo/", views.usuarios_create, name="usuarios_create"),
@@ -21,6 +22,7 @@ urlpatterns = [
     path("alumnos/lista/<int:e_id>/", views.editar_empleado, name="editar_empleado"),
     path("alumnos/credencial/", views.credencial_empleados, name="empleado_credencial"),
     path("alumnos/<int:id>/", views.empleado_detalle, name="empleado_detalle"),
+    path("alumnos/<int:id>/boleta-asistencia/", views.empleado_boleta_asistencia, name="empleado_boleta_asistencia"),
 
     path("establecimientos/", views.lista_establecimientos, name="establecimiento_lista"),
     path("establecimientos/crear/", views.crear_establecimiento, name="crear_establecimiento"),
@@ -44,6 +46,7 @@ urlpatterns = [
     path("lista/<int:e_id>/", views.editar_empleado, name="legacy_editar"),
     path("credencial/", views.credencial_empleados, name="legacy_credencial"),
     path("empleado/<int:id>/", views.empleado_detalle, name="legacy_detalle"),
+    path("empleado/<int:id>/boleta-asistencia/", views.empleado_boleta_asistencia, name="legacy_boleta_asistencia"),
 
     path("", views.home, name="home"),
 ]

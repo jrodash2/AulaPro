@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group, User
 
-from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .models import Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, ObservacionAlumno, Perfil
 from .permissions import es_gestor, obtener_establecimiento_usuario
 
 
@@ -183,6 +183,16 @@ class MatriculaMasivaForm(forms.Form):
             else:
                 current = field.widget.attrs.get("class", "")
                 field.widget.attrs["class"] = f"{current} form-control".strip()
+
+
+class ObservacionAlumnoForm(BaseRihoForm):
+    class Meta:
+        model = ObservacionAlumno
+        fields = ["fecha", "tipo", "prioridad", "estado", "observacion"]
+        widgets = {
+            "fecha": forms.DateInput(attrs={"type": "date"}),
+            "observacion": forms.Textarea(attrs={"rows": 4}),
+        }
 
 
 class UsuarioCreateForm(UserCreationForm):
