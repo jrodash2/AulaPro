@@ -92,6 +92,43 @@
     padding: .75rem 1rem 1rem;
     background: #fff;
   }
+  .gafete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+  .gafete-actions .btn {
+    white-space: nowrap;
+  }
+  .foto-modal-preview-wrap {
+    width: 100%;
+    min-height: 220px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .foto-modal-preview-wrap img,
+  .foto-modal-preview-wrap video {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 12px;
+  }
+  .foto-placeholder {
+    color: #94a3b8;
+    text-align: center;
+    font-size: .92rem;
+    padding: 1rem;
+  }
+  .foto-modal-camera-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
   @media (min-width: 1200px) {
     .gafete-modal .modal-xl { max-width: min(85vw, 1040px); }
   }
@@ -99,6 +136,8 @@
     .gafete-preview-viewport { min-height: 220px; padding: 6px; }
     .gafete-modal .modal-header { padding: .8rem .85rem .6rem; }
     .gafete-modal .modal-footer { padding: .7rem .85rem .9rem; }
+    .gafete-actions .btn { flex: 1 1 calc(50% - .4rem); }
+    .foto-modal-preview-wrap { min-height: 190px; }
   }
 </style>
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id ciclo.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
@@ -140,7 +179,7 @@
               <td>{% if m.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
               {% if not is_gestor %}
               <td>
-                <div class="btn-group" role="group" aria-label="Acciones gafete">
+                <div class="gafete-actions" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
                   <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Frente</a>
                   {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
@@ -148,6 +187,18 @@
                   {% else %}
                     <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
                   {% endif %}
+                  <button
+                    class="btn btn-outline-success btn-sm foto-alumno-btn"
+                    type="button"
+                    data-bs-toggle="modal"
+                    data-bs-target="#fotoAlumnoModal"
+                    data-save-url="{% url 'empleados:guardar_foto_alumno_grado' establecimiento.id ciclo.id carrera.id grado.id m.id %}"
+                    data-alumno-id="{{ m.alumno.id }}"
+                    data-alumno-nombre="{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}"
+                    data-alumno-codigo="{{ m.alumno.codigo_personal|default:'-' }}"
+                    data-foto-url="{% if m.alumno.imagen %}{{ m.alumno.imagen.url }}{% endif %}">
+                    <i class="fa fa-camera me-1"></i>Foto
+                  </button>
                 </div>
               </td>
               {% endif %}
@@ -217,6 +268,55 @@
 {% endwith %}
 {% endwith %}
 {% endfor %}
+
+<div class="modal fade" id="fotoAlumnoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-1">Foto del alumno</h5>
+          <p class="mb-0 fw-semibold" id="foto-modal-alumno-nombre">-</p>
+          <small class="text-muted" id="foto-modal-alumno-codigo">Código: -</small>
+        </div>
+        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="foto-modal-alert"></div>
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <label class="form-label fw-semibold">Subir archivo</label>
+            <input id="foto-modal-file" type="file" class="form-control" accept="image/jpeg,image/jpg,image/png,image/webp">
+            <small class="text-muted d-block mt-1">Formatos: JPG, PNG, WEBP · máximo 5MB.</small>
+            <hr>
+            <label class="form-label fw-semibold">Cámara</label>
+            <div class="foto-modal-camera-actions">
+              <button id="foto-modal-start-camera" class="btn btn-outline-primary btn-sm" type="button"><i class="fa fa-video-camera me-1"></i>Tomar foto</button>
+              <button id="foto-modal-capture" class="btn btn-outline-success btn-sm d-none" type="button"><i class="fa fa-camera me-1"></i>Capturar</button>
+              <button id="foto-modal-stop-camera" class="btn btn-outline-secondary btn-sm d-none" type="button">Detener</button>
+            </div>
+            <small class="text-muted d-block mt-2">Si no hay cámara o permisos, puedes subir archivo normal.</small>
+          </div>
+          <div class="col-lg-7">
+            <label class="form-label fw-semibold">Vista previa</label>
+            <div class="foto-modal-preview-wrap">
+              <div id="foto-modal-placeholder" class="foto-placeholder">
+                <i class="fa fa-image fa-2x mb-2 d-block"></i>
+                Sin foto seleccionada.
+              </div>
+              <img id="foto-modal-preview-img" class="d-none" alt="Vista previa de foto del alumno">
+              <video id="foto-modal-video" class="d-none" autoplay playsinline muted></video>
+              <canvas id="foto-modal-canvas" class="d-none"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="foto-modal-save" class="btn btn-primary" type="button"><i class="fa fa-save me-1"></i>Guardar</button>
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endif %}
 
@@ -338,6 +438,219 @@ document.addEventListener('click', function(e){
   const back = document.getElementById('gafete-canvas-'+mid+'-back');
   if(front && back){ front.style.display = face==='front' ? '' : 'none'; back.style.display = face==='back' ? '' : 'none'; }
 });
+</script>
+
+<script>
+(function () {
+  const modalEl = document.getElementById('fotoAlumnoModal');
+  if (!modalEl) return;
+
+  const alumnoNombreEl = document.getElementById('foto-modal-alumno-nombre');
+  const alumnoCodigoEl = document.getElementById('foto-modal-alumno-codigo');
+  const alertEl = document.getElementById('foto-modal-alert');
+  const fileInput = document.getElementById('foto-modal-file');
+  const startCameraBtn = document.getElementById('foto-modal-start-camera');
+  const captureBtn = document.getElementById('foto-modal-capture');
+  const stopCameraBtn = document.getElementById('foto-modal-stop-camera');
+  const saveBtn = document.getElementById('foto-modal-save');
+  const previewImg = document.getElementById('foto-modal-preview-img');
+  const previewVideo = document.getElementById('foto-modal-video');
+  const placeholder = document.getElementById('foto-modal-placeholder');
+  const canvas = document.getElementById('foto-modal-canvas');
+  const csrfToken = "{{ csrf_token }}";
+  const MAX_SIZE = 5 * 1024 * 1024;
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  let cameraStream = null;
+  let saveUrl = '';
+  let selectedFile = null;
+  let capturedDataUrl = '';
+  let activeTrigger = null;
+
+  function showAlert(type, msg) {
+    alertEl.innerHTML = `<div class="alert alert-${type} py-2 mb-3">${msg}</div>`;
+  }
+
+  function clearAlert() {
+    alertEl.innerHTML = '';
+  }
+
+  function resetPreview() {
+    previewImg.classList.add('d-none');
+    previewVideo.classList.add('d-none');
+    placeholder.classList.remove('d-none');
+  }
+
+  function useImagePreview(src) {
+    previewImg.src = src;
+    previewImg.classList.remove('d-none');
+    previewVideo.classList.add('d-none');
+    placeholder.classList.add('d-none');
+  }
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
+    }
+    previewVideo.srcObject = null;
+    captureBtn.classList.add('d-none');
+    stopCameraBtn.classList.add('d-none');
+  }
+
+  function setLoading(isLoading) {
+    saveBtn.disabled = isLoading;
+    saveBtn.innerHTML = isLoading
+      ? '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...'
+      : '<i class="fa fa-save me-1"></i>Guardar';
+  }
+
+  document.addEventListener('click', function (event) {
+    const btn = event.target.closest('.foto-alumno-btn');
+    if (!btn) return;
+    activeTrigger = btn;
+    saveUrl = btn.dataset.saveUrl || '';
+    selectedFile = null;
+    capturedDataUrl = '';
+    fileInput.value = '';
+    clearAlert();
+    stopCamera();
+
+    alumnoNombreEl.textContent = btn.dataset.alumnoNombre || '-';
+    alumnoCodigoEl.textContent = `Código: ${btn.dataset.alumnoCodigo || '-'}`;
+
+    const currentPhoto = btn.dataset.fotoUrl || '';
+    if (currentPhoto) {
+      useImagePreview(currentPhoto);
+    } else {
+      resetPreview();
+    }
+  });
+
+  fileInput.addEventListener('change', function () {
+    clearAlert();
+    capturedDataUrl = '';
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) {
+      selectedFile = null;
+      return;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showAlert('warning', 'Formato no permitido. Usa JPG, PNG o WEBP.');
+      fileInput.value = '';
+      selectedFile = null;
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      showAlert('warning', 'La imagen excede el tamaño máximo permitido (5 MB).');
+      fileInput.value = '';
+      selectedFile = null;
+      return;
+    }
+    selectedFile = file;
+    useImagePreview(URL.createObjectURL(file));
+    stopCamera();
+  });
+
+  startCameraBtn.addEventListener('click', async function () {
+    clearAlert();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showAlert('warning', 'Tu navegador no soporta acceso a cámara. Puedes subir un archivo.');
+      return;
+    }
+    try {
+      stopCamera();
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      previewVideo.srcObject = cameraStream;
+      previewVideo.classList.remove('d-none');
+      previewImg.classList.add('d-none');
+      placeholder.classList.add('d-none');
+      captureBtn.classList.remove('d-none');
+      stopCameraBtn.classList.remove('d-none');
+      selectedFile = null;
+      capturedDataUrl = '';
+    } catch (err) {
+      showAlert('warning', 'No fue posible abrir la cámara. Verifica permisos del dispositivo.');
+    }
+  });
+
+  captureBtn.addEventListener('click', function () {
+    if (!cameraStream) return;
+    const w = previewVideo.videoWidth || 640;
+    const h = previewVideo.videoHeight || 480;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(previewVideo, 0, 0, w, h);
+    capturedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    useImagePreview(capturedDataUrl);
+    stopCamera();
+  });
+
+  stopCameraBtn.addEventListener('click', function () {
+    stopCamera();
+    if (!previewImg.src) resetPreview();
+  });
+
+  saveBtn.addEventListener('click', async function () {
+    clearAlert();
+    if (!saveUrl) {
+      showAlert('danger', 'No se encontró la ruta para guardar la foto.');
+      return;
+    }
+    if (!selectedFile && !capturedDataUrl) {
+      showAlert('warning', 'Selecciona un archivo o toma una foto antes de guardar.');
+      return;
+    }
+    const formData = new FormData();
+    if (selectedFile) {
+      formData.append('imagen', selectedFile);
+    } else {
+      formData.append('captured_image', capturedDataUrl);
+    }
+    try {
+      setLoading(true);
+      const response = await fetch(saveUrl, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        showAlert('danger', payload.message || 'No se pudo guardar la foto.');
+        return;
+      }
+      if (payload.foto_url) {
+        useImagePreview(payload.foto_url);
+      }
+      if (activeTrigger) {
+        activeTrigger.dataset.fotoUrl = payload.foto_url || '';
+        activeTrigger.classList.remove('btn-outline-success');
+        activeTrigger.classList.add('btn-success');
+      }
+      showAlert('success', payload.message || 'Foto guardada correctamente.');
+      setTimeout(() => {
+        const instance = bootstrap.Modal.getInstance(modalEl);
+        if (instance) instance.hide();
+      }, 700);
+    } catch (err) {
+      showAlert('danger', 'Ocurrió un error al guardar. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    stopCamera();
+    clearAlert();
+    selectedFile = null;
+    capturedDataUrl = '';
+    fileInput.value = '';
+  });
+})();
 </script>
 
 {% endif %}

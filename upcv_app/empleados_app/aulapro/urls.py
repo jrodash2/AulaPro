@@ -48,5 +48,6 @@ urlpatterns = [
     path('docente/cursos/<int:curso_docente_id>/alumnos/<int:alumno_id>/historial/pdf/', views.docente_alumno_historial_excel, name='docente_alumno_historial_pdf'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/buscar-alumno/', views.buscar_alumno, name='buscar_alumno'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricular/', views.matricular_alumno, name='matricular_alumno'),
+    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matriculas/<int:matricula_id>/foto/', views.guardar_foto_alumno_grado, name='guardar_foto_alumno_grado'),
     path('matriculas/<int:matricula_id>/desmatricular/', views.desmatricular_alumno, name='desmatricular_alumno'),
 ]
