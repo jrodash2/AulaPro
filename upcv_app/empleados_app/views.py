@@ -5,7 +5,6 @@ from io import BytesIO
 from uuid import uuid4
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
-
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib.auth.models import User
@@ -14,7 +13,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch, reverse
@@ -29,6 +28,7 @@ from .forms import (
     GradoForm,
     MatriculaForm,
     MatriculaMasivaForm,
+    ObservacionAlumnoForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
 )
@@ -40,7 +40,7 @@ from .gafete_utils import (
     resolve_gafete_dimensions,
     serializar_layout_frente_reverso,
 )
-from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, ObservacionAlumno, Perfil
 from .permissions import (
     es_admin_total,
     es_docente,
@@ -543,6 +543,28 @@ def empleado_detalle(request, id):
             return denied
     configuracion = ConfiguracionGeneral.objects.first()
     matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento").first()
+    observacion_form = ObservacionAlumnoForm(request.POST or None)
+    if request.method == "POST" and request.POST.get("action") == "crear_observacion":
+        if observacion_form.is_valid():
+            observacion = observacion_form.save(commit=False)
+            observacion.alumno = empleado
+            observacion.creado_por = request.user
+            observacion.save()
+            messages.success(request, "Observación registrada correctamente.")
+            return redirect("empleados:empleado_detalle", id=empleado.id)
+        messages.error(request, "No fue posible guardar la observación. Verifique los datos.")
+    observaciones = empleado.observaciones.select_related("creado_por").all()[:30]
+
+    asistencia_resumen = AsistenciaDetalle.objects.filter(alumno=empleado).aggregate(
+        total=Count("id"),
+        asistencias=Sum(Case(When(presente=True, then=1), default=0, output_field=IntegerField())),
+        inasistencias=Sum(Case(When(presente=False, then=1), default=0, output_field=IntegerField())),
+    )
+    total_registros = asistencia_resumen["total"] or 0
+    presentes = asistencia_resumen["asistencias"] or 0
+    ausentes = asistencia_resumen["inasistencias"] or 0
+    porcentaje_asistencia = round((presentes / total_registros * 100), 2) if total_registros else 0
+
     establecimiento = None
     grado_gafete = None
     if matricula_activa and matricula_activa.grado:
@@ -569,6 +591,100 @@ def empleado_detalle(request, id):
             "gafete_w": canvas_width,
             "gafete_h": canvas_height,
             "orientacion": orientation,
+            "observacion_form": observacion_form,
+            "observaciones": observaciones,
+            "asistencia_resumen": {
+                "total": total_registros,
+                "presentes": presentes,
+                "ausentes": ausentes,
+                "porcentaje": porcentaje_asistencia,
+            },
+        },
+    )
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def empleado_boleta_asistencia(request, id):
+    empleado = get_object_or_404(Empleado, id=id)
+    if empleado.establecimiento_id:
+        denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
+        if denied:
+            return denied
+
+    fecha_inicio = request.GET.get("fecha_inicio")
+    fecha_fin = request.GET.get("fecha_fin")
+    detalles_qs = (
+        AsistenciaDetalle.objects.filter(alumno=empleado)
+        .select_related("asistencia__curso_docente__curso", "asistencia__curso_docente__curso__grado")
+        .order_by("-asistencia__fecha", "-id")
+    )
+    if fecha_inicio:
+        detalles_qs = detalles_qs.filter(asistencia__fecha__gte=fecha_inicio)
+    if fecha_fin:
+        detalles_qs = detalles_qs.filter(asistencia__fecha__lte=fecha_fin)
+
+    resumen = detalles_qs.aggregate(
+        total=Count("id"),
+        asistencias=Sum(Case(When(presente=True, then=1), default=0, output_field=IntegerField())),
+        inasistencias=Sum(Case(When(presente=False, then=1), default=0, output_field=IntegerField())),
+    )
+    total_registros = resumen["total"] or 0
+    asistencias = resumen["asistencias"] or 0
+    inasistencias = resumen["inasistencias"] or 0
+    porcentaje = round((asistencias / total_registros * 100), 2) if total_registros else 0
+
+    if request.GET.get("formato") == "xlsx":
+        try:
+            from openpyxl import Workbook
+            from .aulapro.excel import autosize_columns, style_table_header, style_table_row, style_title, workbook_to_response
+        except ImportError:
+            messages.warning(request, "No fue posible generar Excel en este entorno. Se muestra la boleta en pantalla.")
+        else:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Boleta Asistencia"
+
+            style_title(ws, 1, f"Boleta de asistencia · {empleado}", max_col=6)
+            style_table_row(ws, 3, ("Desde", fecha_inicio or "Inicio", "Hasta", fecha_fin or "Hoy", "", ""))
+            style_table_row(ws, 4, ("Total registros", total_registros, "Asistencias", asistencias, "Inasistencias", inasistencias))
+            style_table_row(ws, 5, ("Porcentaje", f"{porcentaje:.2f}%", "", "", "", ""))
+
+            style_table_header(ws, 7, ("Fecha", "Curso", "Grado", "Estado", "Periodo", "Docente"))
+            current_row = 8
+            for detalle in detalles_qs:
+                asistencia = detalle.asistencia
+                curso_docente = asistencia.curso_docente
+                style_table_row(
+                    ws,
+                    current_row,
+                    (
+                        asistencia.fecha.strftime("%d/%m/%Y"),
+                        curso_docente.curso.nombre,
+                        curso_docente.curso.grado.nombre,
+                        "Presente" if detalle.presente else "Ausente",
+                        asistencia.periodo.nombre if asistencia.periodo_id else "-",
+                        curso_docente.docente.get_full_name() or curso_docente.docente.username,
+                    ),
+                )
+                current_row += 1
+            autosize_columns(ws)
+            return workbook_to_response(wb, f"boleta_asistencia_{empleado.id}")
+
+    return render(
+        request,
+        "empleados/boleta_asistencia.html",
+        {
+            "empleado": empleado,
+            "detalles": detalles_qs[:300],
+            "resumen": {
+                "total": total_registros,
+                "asistencias": asistencias,
+                "inasistencias": inasistencias,
+                "porcentaje": porcentaje,
+            },
+            "fecha_inicio": fecha_inicio or "",
+            "fecha_fin": fecha_fin or "",
         },
     )
 
