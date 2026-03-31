@@ -974,6 +974,27 @@ def _get_docente_cursos_qs(user):
 
 
 @login_required
+@user_passes_test(_can_manage)
+@require_POST
+def curso_desasignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id, asignacion_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
+
+    curso = get_object_or_404(Curso, pk=curso_id, grado_id=grado_id)
+    asignacion = get_object_or_404(CursoDocente.objects.select_related('docente'), pk=asignacion_id, curso=curso)
+
+    if not asignacion.activo:
+        messages.info(request, 'La asignación ya se encuentra desasignada.')
+    else:
+        asignacion.activo = False
+        asignacion.save(update_fields=['activo'])
+        messages.success(request, 'Docente desasignado correctamente.')
+
+    return redirect('empleados:curso_asignar_docente', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id, curso_id=curso_id)
+
+
+@login_required
 @user_passes_test(_is_docente)
 def dashboard_docente(request):
     cursos_docente_qs = _get_docente_cursos_qs(request.user)
