@@ -1485,11 +1485,12 @@ def _sanitize_filename_token(value):
     return text or "NA"
 
 
-def _build_gafete_filename(alumno):
+def _build_gafete_filename(alumno, lado="completo"):
     apellidos = _sanitize_filename_token(getattr(alumno, "apellidos", ""))
     nombres = _sanitize_filename_token(getattr(alumno, "nombres", ""))
     codigo = _sanitize_filename_token(getattr(alumno, "codigo_personal", ""))
-    return f"GAFETE_{apellidos}_{nombres}_{codigo}.jpg"
+    lado_token = _sanitize_filename_token(lado)
+    return f"GAFETE_{lado_token}_{apellidos}_{nombres}_{codigo}.jpg"
 
 
 def _parse_color(value, default="#111111"):
@@ -1675,14 +1676,21 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
     return canvas
 
 
-def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height):
+def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado="completo"):
     front = _render_face_gafete(matricula, establecimiento, layout, "front", canvas_width, canvas_height)
     back = _render_face_gafete(matricula, establecimiento, layout, "back", canvas_width, canvas_height)
-    combined = Image.new("RGB", (canvas_width * 2, canvas_height), "white")
-    combined.paste(front, (0, 0))
-    combined.paste(back, (canvas_width, 0))
+
+    if lado == "frente":
+        output = front
+    elif lado == "reverso":
+        output = back
+    else:
+        output = Image.new("RGB", (canvas_width * 2, canvas_height), "white")
+        output.paste(front, (0, 0))
+        output.paste(back, (canvas_width, 0))
+
     buffer = BytesIO()
-    combined.save(buffer, format="JPEG", quality=95, optimize=True)
+    output.save(buffer, format="JPEG", quality=95, optimize=True)
     return buffer.getvalue()
 
 
@@ -1707,9 +1715,12 @@ def gafete_jpg(request, matricula_id):
     layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation_for_establecimiento(establecimiento))
     orientation = orientation_for_establecimiento(establecimiento)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
-    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height)
+    lado = (request.GET.get("lado") or "completo").strip().lower()
+    if lado not in {"frente", "reverso", "completo"}:
+        lado = "completo"
+    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado=lado)
 
-    filename = _build_gafete_filename(matricula.alumno)
+    filename = _build_gafete_filename(matricula.alumno, lado=lado)
     response = HttpResponse(image_bytes, content_type="image/jpeg")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
@@ -1721,6 +1732,28 @@ def descargar_gafete_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
+    return gafete_jpg(request, matricula_id)
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def descargar_gafete_frente_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "frente"
+    return gafete_jpg(request, matricula_id)
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def descargar_gafete_reverso_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "reverso"
     return gafete_jpg(request, matricula_id)
 
 

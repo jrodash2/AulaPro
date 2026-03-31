@@ -32,6 +32,8 @@ urlpatterns = [
 
     path("matriculas/<int:matricula_id>/gafete.jpg", views.gafete_jpg, name="gafete_jpg"),
     path("matriculas/<int:matricula_id>/gafete_descarga.jpg", views.descargar_gafete_jpg, name="descargar_gafete_jpg"),
+    path("matriculas/<int:matricula_id>/gafete_descarga_frente.jpg", views.descargar_gafete_frente_jpg, name="descargar_gafete_frente_jpg"),
+    path("matriculas/<int:matricula_id>/gafete_descarga_reverso.jpg", views.descargar_gafete_reverso_jpg, name="descargar_gafete_reverso_jpg"),
     path("matriculas/masiva/", views.matricula_masiva, name="matricula_masiva"),
     path("matriculas/masiva/buscar/", views.matricula_masiva_buscar_alumnos, name="matricula_masiva_buscar_alumnos"),
     path("academico/carga-masiva/", views.carga_masiva_home, name="carga_masiva_home"),
