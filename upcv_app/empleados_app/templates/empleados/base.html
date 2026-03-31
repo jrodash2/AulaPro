@@ -186,6 +186,7 @@
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:dashboard_docente' %}">Dashboard</a></li>
                     <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:empleado_lista' %}">Alumnos</a></li>
                   </ul>
                 </li>
                 {% else %}
@@ -238,14 +239,6 @@
                   </ul>
                 </li>
 
-                <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
-                    <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
-                    <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Asistencia</span></a>
-                  <ul class="sidebar-submenu">
-                    <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
-                    <li><a href="{% url 'empleados:dahsboard' %}">Alertas y métricas</a></li>
-                  </ul>
-                </li>
                 {% endif %}
 {% endif %}
                               </ul>

@@ -66,6 +66,10 @@ def _can_access_backoffice(user):
     return puede_acceder_backoffice(user)
 
 
+def _can_access_alumnos(user):
+    return bool(user and user.is_authenticated and (puede_acceder_backoffice(user) or es_docente(user)))
+
+
 def _can_access_admin_config(user):
     return puede_administrar_configuracion(user)
 
@@ -85,6 +89,28 @@ def _forbid_gafetes_for_gestor(request):
     if es_gestor(request.user):
         return HttpResponseForbidden("No tiene permiso para acceder a gafetes.")
     return None
+
+
+def _docente_alumnos_qs(user):
+    grados_asignados = (
+        CursoDocente.objects.filter(
+            docente=user,
+            activo=True,
+            curso__activo=True,
+        )
+        .values_list("curso__grado_id", flat=True)
+        .distinct()
+    )
+    return (
+        Empleado.objects.filter(
+            activo=True,
+            matriculas__estado="activo",
+            matriculas__grado_id__in=grados_asignados,
+        )
+        .select_related("establecimiento", "grado")
+        .distinct()
+        .order_by("-created_at")
+    )
 
 
 def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
@@ -499,7 +525,7 @@ def crear_empleado(request):
 @user_passes_test(_can_access_backoffice)
 def editar_empleado(request, e_id):
     empleado = get_object_or_404(Empleado, pk=e_id)
-    if empleado.establecimiento_id:
+    if empleado.establecimiento_id and not _is_docente(request.user):
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
         if denied:
             return denied
@@ -512,10 +538,13 @@ def editar_empleado(request, e_id):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_alumnos)
 def lista_empleados(request):
-    empleados = Empleado.objects.all().order_by("-created_at")
-    empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
+    if _is_docente(request.user):
+        empleados = _docente_alumnos_qs(request.user)
+    else:
+        empleados = Empleado.objects.all().order_by("-created_at")
+        empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
@@ -531,13 +560,17 @@ def credencial_empleados(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_alumnos)
 def empleado_detalle(request, id):
-    forbidden = _forbid_gafetes_for_gestor(request)
-    if forbidden:
-        return forbidden
+    if not _is_docente(request.user):
+        forbidden = _forbid_gafetes_for_gestor(request)
+        if forbidden:
+            return forbidden
     empleado = get_object_or_404(Empleado, id=id)
-    if empleado.establecimiento_id:
+    if _is_docente(request.user) and not _docente_alumnos_qs(request.user).filter(id=empleado.id).exists():
+        messages.error(request, "No tiene permisos para ver este alumno.")
+        return redirect("empleados:empleado_lista")
+    if empleado.establecimiento_id and not _is_docente(request.user):
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
         if denied:
             return denied
@@ -604,10 +637,13 @@ def empleado_detalle(request, id):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_alumnos)
 def empleado_boleta_asistencia(request, id):
     empleado = get_object_or_404(Empleado, id=id)
-    if empleado.establecimiento_id:
+    if _is_docente(request.user) and not _docente_alumnos_qs(request.user).filter(id=empleado.id).exists():
+        messages.error(request, "No tiene permisos para ver este alumno.")
+        return redirect("empleados:empleado_lista")
+    if empleado.establecimiento_id and not _is_docente(request.user):
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
         if denied:
             return denied
