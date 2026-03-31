@@ -930,10 +930,8 @@ def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id)
     })
 
 
-@login_required
-@user_passes_test(_is_docente)
-def dashboard_docente(request):
-    cursos_docente_qs = (
+def _get_docente_cursos_qs(user):
+    return (
         CursoDocente.objects.select_related(
             'curso',
             'curso__grado',
@@ -942,7 +940,7 @@ def dashboard_docente(request):
             'curso__grado__carrera__ciclo_escolar__establecimiento',
         )
         .filter(
-            docente=request.user,
+            docente=user,
             activo=True,
             curso__activo=True,
             curso__grado__carrera__ciclo_escolar__activo=True,
@@ -960,6 +958,12 @@ def dashboard_docente(request):
         .order_by('curso__nombre', 'curso__grado__nombre')
         .distinct()
     )
+
+
+@login_required
+@user_passes_test(_is_docente)
+def dashboard_docente(request):
+    cursos_docente_qs = _get_docente_cursos_qs(request.user)
 
     cursos_docente = list(cursos_docente_qs)
     curso_docente_ids = [cd.id for cd in cursos_docente]
@@ -1000,26 +1004,6 @@ def dashboard_docente(request):
         .order_by('-fecha', '-id')[:10]
     )
 
-    asistencia_por_curso_rows = (
-        AsistenciaDetalle.objects.filter(asistencia__curso_docente_id__in=curso_docente_ids)
-        .values('asistencia__curso_docente_id', 'asistencia__curso_docente__curso__nombre', 'asistencia__curso_docente__curso__grado__nombre')
-        .annotate(
-            presentes=Count('id', filter=Q(presente=True)),
-            ausentes=Count('id', filter=Q(presente=False)),
-        )
-        .order_by('asistencia__curso_docente__curso__nombre', 'asistencia__curso_docente__curso__grado__nombre')
-    )
-
-    chart_asistencia_curso_labels = []
-    chart_asistencia_curso_presentes = []
-    chart_asistencia_curso_ausentes = []
-    for row in asistencia_por_curso_rows:
-        chart_asistencia_curso_labels.append(
-            f"{row['asistencia__curso_docente__curso__nombre']} ({row['asistencia__curso_docente__curso__grado__nombre']})"
-        )
-        chart_asistencia_curso_presentes.append(row['presentes'])
-        chart_asistencia_curso_ausentes.append(row['ausentes'])
-
     chart_alumnos_curso_labels = [f"{r['curso'].nombre} ({r['grado'].nombre})" for r in resumen_cursos]
     chart_alumnos_curso_series = [r['alumnos_total'] for r in resumen_cursos]
 
@@ -1043,9 +1027,6 @@ def dashboard_docente(request):
         'cursos_docente': cursos_docente,
         'resumen_cursos': resumen_cursos,
         'ultimas_asistencias': ultimas_asistencias,
-        'chart_asistencia_curso_labels': json.dumps(chart_asistencia_curso_labels),
-        'chart_asistencia_curso_presentes': json.dumps(chart_asistencia_curso_presentes),
-        'chart_asistencia_curso_ausentes': json.dumps(chart_asistencia_curso_ausentes),
         'chart_alumnos_curso_labels': json.dumps(chart_alumnos_curso_labels),
         'chart_alumnos_curso_series': json.dumps(chart_alumnos_curso_series),
         'chart_asistencias_fecha_labels': json.dumps(chart_asistencias_fecha_labels),
@@ -1055,10 +1036,19 @@ def dashboard_docente(request):
 
 
 @login_required
+@user_passes_test(_is_docente)
+def mis_cursos_docente(request):
+    cursos_docente = list(_get_docente_cursos_qs(request.user))
+    return render(request, 'aulapro/mis_cursos_docente.html', {
+        'cursos_docente': cursos_docente,
+    })
+
+
+@login_required
 @user_passes_test(_can_view_attendance)
 def docente_dashboard(request):
     if _is_docente(request.user):
-        return dashboard_docente(request)
+        return mis_cursos_docente(request)
     return redirect('empleados:dahsboard')
 
 
