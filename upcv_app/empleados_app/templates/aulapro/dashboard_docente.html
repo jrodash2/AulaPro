@@ -18,6 +18,22 @@
   .teacher-dashboard .card-header { padding: .85rem 1rem .35rem; }
   .teacher-dashboard .card-body { padding: .85rem 1rem 1rem; }
   .teacher-dashboard table.dataTable tbody td, .teacher-dashboard table.dataTable thead th { padding: .55rem .6rem; vertical-align: middle; font-size: .85rem; white-space: nowrap; }
+  .teacher-dashboard .latest-card .card-header { padding-bottom: .55rem; }
+  .teacher-dashboard .latest-wrap { width: 100%; }
+  .teacher-dashboard .latest-table { width: 100% !important; margin-bottom: 0; }
+  .teacher-dashboard .latest-table thead th { font-weight: 700; color: #475569; border-bottom: 1px solid rgba(15,23,42,.1); }
+  .teacher-dashboard .latest-table tbody td { padding-top: .7rem; padding-bottom: .7rem; border-top: 1px solid rgba(15,23,42,.06); }
+  .teacher-dashboard .latest-table .col-fecha { width: 140px; }
+  .teacher-dashboard .latest-table .col-curso { width: auto; }
+  .teacher-dashboard .latest-table .col-accion { width: 120px; text-align: right; }
+  .teacher-dashboard .course-main { font-weight: 600; color: #1f2937; white-space: normal; word-break: break-word; }
+  .teacher-dashboard .course-sub { font-size: .76rem; color: #64748b; margin-top: .1rem; white-space: normal; }
+  .teacher-dashboard .btn-ver { border-radius: 9px; font-weight: 600; padding: .33rem .62rem; transition: all .2s ease; }
+  .teacher-dashboard .btn-ver:hover { transform: translateY(-1px); }
+  @media (max-width: 767px) {
+    .teacher-dashboard .latest-table .col-fecha { width: 110px; }
+    .teacher-dashboard .latest-table .col-accion { width: 96px; }
+  }
 </style>
 
 <div class="page-body teacher-dashboard">
@@ -50,18 +66,27 @@
 
     <div class="row g-3 mt-1">
       <div class="col-12">
-        <div class="card">
+        <div class="card latest-card">
           <div class="card-header card-no-border pb-0"><h5>Últimas asistencias</h5></div>
           <div class="card-body">
-            <div class="table-responsive custom-scrollbar">
-              <table class="display" id="tabla-ultimas-asistencias">
-                <thead><tr><th>Fecha</th><th>Curso</th><th>Acción</th></tr></thead>
+            <div class="table-responsive custom-scrollbar latest-wrap">
+              <table class="display latest-table" id="tabla-ultimas-asistencias">
+                <thead>
+                  <tr>
+                    <th class="col-fecha">Fecha</th>
+                    <th class="col-curso">Curso</th>
+                    <th class="col-accion">Acción</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {% for asistencia in ultimas_asistencias %}
                     <tr>
-                      <td>{{ asistencia.fecha|date:'d/m/Y' }}</td>
-                      <td>{{ asistencia.curso_docente.curso.nombre }} <div class="text-muted small">{{ asistencia.curso_docente.curso.grado.nombre|default:'-' }}</div></td>
-                      <td><a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:docente_asistencia_detail' asistencia.id %}">Ver</a></td>
+                      <td class="col-fecha">{{ asistencia.fecha|date:'d/m/Y' }}</td>
+                      <td class="col-curso">
+                        <div class="course-main">{{ asistencia.curso_docente.curso.nombre }}</div>
+                        <div class="course-sub">{{ asistencia.curso_docente.curso.grado.nombre|default:'-' }}</div>
+                      </td>
+                      <td class="col-accion"><a class="btn btn-outline-secondary btn-sm btn-ver" href="{% url 'empleados:docente_asistencia_detail' asistencia.id %}">Ver</a></td>
                     </tr>
                   {% empty %}
                     <tr><td colspan="3" class="text-center text-muted">Aún no hay asistencias registradas</td></tr>
