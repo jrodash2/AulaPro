@@ -118,6 +118,50 @@
     max-height: 300px;
     border-radius: 12px;
   }
+  .foto-camera-guide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .foto-camera-guide.active { display: flex; }
+  .foto-camera-guide::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .32);
+  }
+  .foto-camera-frame {
+    width: min(78%, 320px);
+    aspect-ratio: 3 / 4;
+    border: 2px solid #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 0 0 200vmax rgba(15, 23, 42, .24);
+    position: relative;
+    z-index: 1;
+  }
+  .foto-camera-frame::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 1px dashed rgba(255,255,255,.65);
+    border-radius: inherit;
+  }
+  .foto-camera-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, .72);
+    color: #fff;
+    padding: .35rem .65rem;
+    border-radius: 999px;
+    font-size: .78rem;
+    z-index: 2;
+    white-space: nowrap;
+  }
   .foto-placeholder {
     color: #94a3b8;
     text-align: center;
@@ -269,7 +313,7 @@
 {% endwith %}
 {% endfor %}
 
-<div class="modal fade" id="fotoAlumnoModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="fotoAlumnoModal" tabindex="-1" aria-hidden="true" data-photo-ratio="{{ foto_guia_ratio|floatformat:'4' }}" data-photo-shape="{{ foto_guia_shape }}">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -292,9 +336,10 @@
             <div class="foto-modal-camera-actions">
               <button id="foto-modal-start-camera" class="btn btn-outline-primary btn-sm" type="button"><i class="fa fa-video-camera me-1"></i>Tomar foto</button>
               <button id="foto-modal-capture" class="btn btn-outline-success btn-sm d-none" type="button"><i class="fa fa-camera me-1"></i>Capturar</button>
+              <button id="foto-modal-retake" class="btn btn-outline-warning btn-sm d-none" type="button"><i class="fa fa-refresh me-1"></i>Repetir</button>
               <button id="foto-modal-stop-camera" class="btn btn-outline-secondary btn-sm d-none" type="button">Detener</button>
             </div>
-            <small class="text-muted d-block mt-2">Si no hay cámara o permisos, puedes subir archivo normal.</small>
+            <small class="text-muted d-block mt-2">Guía activa: {{ foto_guia_w }} × {{ foto_guia_h }} (proporción real del bloque de foto del gafete).</small>
           </div>
           <div class="col-lg-7">
             <label class="form-label fw-semibold">Vista previa</label>
@@ -305,6 +350,10 @@
               </div>
               <img id="foto-modal-preview-img" class="d-none" alt="Vista previa de foto del alumno">
               <video id="foto-modal-video" class="d-none" autoplay playsinline muted></video>
+              <div id="foto-modal-camera-guide" class="foto-camera-guide">
+                <div id="foto-modal-camera-frame" class="foto-camera-frame"></div>
+                <div class="foto-camera-hint">Ubique el rostro dentro del marco</div>
+              </div>
               <canvas id="foto-modal-canvas" class="d-none"></canvas>
             </div>
           </div>
@@ -452,14 +501,19 @@ document.addEventListener('click', function(e){
   const startCameraBtn = document.getElementById('foto-modal-start-camera');
   const captureBtn = document.getElementById('foto-modal-capture');
   const stopCameraBtn = document.getElementById('foto-modal-stop-camera');
+  const retakeBtn = document.getElementById('foto-modal-retake');
   const saveBtn = document.getElementById('foto-modal-save');
   const previewImg = document.getElementById('foto-modal-preview-img');
   const previewVideo = document.getElementById('foto-modal-video');
   const placeholder = document.getElementById('foto-modal-placeholder');
+  const cameraGuide = document.getElementById('foto-modal-camera-guide');
+  const cameraFrame = document.getElementById('foto-modal-camera-frame');
   const canvas = document.getElementById('foto-modal-canvas');
   const csrfToken = "{{ csrf_token }}";
   const MAX_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const photoRatio = Math.max(0.2, parseFloat(modalEl.dataset.photoRatio || '0.7143'));
+  const photoShape = (modalEl.dataset.photoShape || 'rounded').toLowerCase();
 
   let cameraStream = null;
   let saveUrl = '';
@@ -479,6 +533,7 @@ document.addEventListener('click', function(e){
     previewImg.classList.add('d-none');
     previewVideo.classList.add('d-none');
     placeholder.classList.remove('d-none');
+    cameraGuide.classList.remove('active');
   }
 
   function useImagePreview(src) {
@@ -496,6 +551,7 @@ document.addEventListener('click', function(e){
     previewVideo.srcObject = null;
     captureBtn.classList.add('d-none');
     stopCameraBtn.classList.add('d-none');
+    cameraGuide.classList.remove('active');
   }
 
   function setLoading(isLoading) {
@@ -515,6 +571,7 @@ document.addEventListener('click', function(e){
     fileInput.value = '';
     clearAlert();
     stopCamera();
+    retakeBtn.classList.add('d-none');
 
     alumnoNombreEl.textContent = btn.dataset.alumnoNombre || '-';
     alumnoCodigoEl.textContent = `Código: ${btn.dataset.alumnoCodigo || '-'}`;
@@ -550,13 +607,14 @@ document.addEventListener('click', function(e){
     selectedFile = file;
     useImagePreview(URL.createObjectURL(file));
     stopCamera();
+    retakeBtn.classList.add('d-none');
   });
 
-  startCameraBtn.addEventListener('click', async function () {
+  async function openCamera() {
     clearAlert();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showAlert('warning', 'Tu navegador no soporta acceso a cámara. Puedes subir un archivo.');
-      return;
+      return false;
     }
     try {
       stopCamera();
@@ -567,24 +625,56 @@ document.addEventListener('click', function(e){
       placeholder.classList.add('d-none');
       captureBtn.classList.remove('d-none');
       stopCameraBtn.classList.remove('d-none');
+      cameraGuide.classList.add('active');
+      cameraFrame.style.aspectRatio = `${photoRatio}`;
+      cameraFrame.style.borderRadius = photoShape === 'circle' ? '50%' : (photoShape === 'square' ? '8px' : '16px');
       selectedFile = null;
       capturedDataUrl = '';
+      retakeBtn.classList.add('d-none');
+      return true;
     } catch (err) {
       showAlert('warning', 'No fue posible abrir la cámara. Verifica permisos del dispositivo.');
+      return false;
     }
-  });
+  }
+
+  startCameraBtn.addEventListener('click', openCamera);
+
+  function centeredCrop(videoW, videoH, targetRatio) {
+    const sourceRatio = videoW / videoH;
+    let cropW = videoW;
+    let cropH = videoH;
+    if (sourceRatio > targetRatio) {
+      cropW = Math.round(videoH * targetRatio);
+      cropH = videoH;
+    } else {
+      cropW = videoW;
+      cropH = Math.round(videoW / targetRatio);
+    }
+    const cropX = Math.round((videoW - cropW) / 2);
+    const cropY = Math.round((videoH - cropH) / 2);
+    return { cropX, cropY, cropW, cropH };
+  }
 
   captureBtn.addEventListener('click', function () {
     if (!cameraStream) return;
-    const w = previewVideo.videoWidth || 640;
-    const h = previewVideo.videoHeight || 480;
-    canvas.width = w;
-    canvas.height = h;
+    const sourceW = previewVideo.videoWidth || 640;
+    const sourceH = previewVideo.videoHeight || 480;
+    const { cropX, cropY, cropW, cropH } = centeredCrop(sourceW, sourceH, photoRatio);
+    const targetH = 1200;
+    const targetW = Math.max(300, Math.round(targetH * photoRatio));
+    canvas.width = targetW;
+    canvas.height = targetH;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(previewVideo, 0, 0, w, h);
+    ctx.drawImage(previewVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
     capturedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     useImagePreview(capturedDataUrl);
     stopCamera();
+    retakeBtn.classList.remove('d-none');
+  });
+
+  retakeBtn.addEventListener('click', async function () {
+    await openCamera();
   });
 
   stopCameraBtn.addEventListener('click', function () {
@@ -649,6 +739,7 @@ document.addEventListener('click', function(e){
     selectedFile = null;
     capturedDataUrl = '';
     fileInput.value = '';
+    retakeBtn.classList.add('d-none');
   });
 })();
 </script>

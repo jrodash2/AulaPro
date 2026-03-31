@@ -818,6 +818,15 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
+    photo_item = (((layout or {}).get("front") or {}).get("items") or {}).get("photo") if isinstance(layout, dict) else {}
+    photo_w = int(photo_item.get("w", 250)) if isinstance(photo_item, dict) else 250
+    photo_h = int(photo_item.get("h", 350)) if isinstance(photo_item, dict) else 350
+    photo_w = photo_w if photo_w > 0 else 250
+    photo_h = photo_h if photo_h > 0 else 350
+    photo_ratio = photo_w / photo_h
+    photo_shape = str(photo_item.get("shape") or "rounded").lower() if isinstance(photo_item, dict) else "rounded"
+    if photo_shape not in {"rounded", "square", "circle"}:
+        photo_shape = "rounded"
     orientation, canvas_width, canvas_height = resolve_gafete_dimensions(establecimiento, layout)
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
@@ -835,6 +844,86 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'gafete_w': canvas_width,
         'gafete_h': canvas_height,
         'orientacion': orientation,
+        'foto_guia_ratio': photo_ratio,
+        'foto_guia_shape': photo_shape,
+        'foto_guia_w': photo_w,
+        'foto_guia_h': photo_h,
+    })
+
+
+def _validate_image_payload(image_bytes):
+    if len(image_bytes) > MAX_ALUMNO_IMAGE_SIZE:
+        return "La imagen excede el tamaño máximo permitido (5 MB)."
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.verify()
+    except (UnidentifiedImageError, OSError):
+        return "La imagen no es válida o está dañada."
+    return None
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_POST
+def guardar_foto_alumno_grado(request, est_id, ciclo_id, car_id, grado_id, matricula_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return JsonResponse({"ok": False, "message": "No tiene permisos para ese establecimiento."}, status=403)
+
+    _get_establecimiento(est_id)
+    _get_ciclo(est_id, ciclo_id)
+    _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    matricula = get_object_or_404(Matricula.objects.select_related("alumno"), pk=matricula_id, grado=grado)
+    alumno = matricula.alumno
+
+    uploaded = request.FILES.get("imagen")
+    captured_data = (request.POST.get("captured_image") or "").strip()
+    content_file = None
+
+    if uploaded:
+        ext = os.path.splitext(uploaded.name or "")[1].lower().lstrip(".")
+        mime = (uploaded.content_type or "").split(";")[0].lower()
+        if mime not in ALUMNO_IMAGE_MIME_EXT and ext not in {"jpg", "jpeg", "png", "webp"}:
+            return JsonResponse({"ok": False, "message": "Formato no permitido. Use JPG, PNG o WEBP."}, status=400)
+        if uploaded.size > MAX_ALUMNO_IMAGE_SIZE:
+            return JsonResponse({"ok": False, "message": "La imagen excede el tamaño máximo permitido (5 MB)."}, status=400)
+        image_bytes = uploaded.read()
+        payload_error = _validate_image_payload(image_bytes)
+        if payload_error:
+            return JsonResponse({"ok": False, "message": payload_error}, status=400)
+        safe_ext = ALUMNO_IMAGE_MIME_EXT.get(mime, "jpg" if ext == "jpeg" else (ext or "jpg"))
+        content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{safe_ext}")
+    elif captured_data:
+        if not captured_data.startswith("data:image/"):
+            return JsonResponse({"ok": False, "message": "Formato de captura inválido."}, status=400)
+        try:
+            header, encoded = captured_data.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "").lower()
+            if mime not in ALUMNO_IMAGE_MIME_EXT:
+                return JsonResponse({"ok": False, "message": "Formato de captura no permitido."}, status=400)
+            image_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error):
+            return JsonResponse({"ok": False, "message": "No se pudo procesar la captura de cámara."}, status=400)
+        payload_error = _validate_image_payload(image_bytes)
+        if payload_error:
+            return JsonResponse({"ok": False, "message": payload_error}, status=400)
+        ext = ALUMNO_IMAGE_MIME_EXT[mime]
+        content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{ext}")
+    else:
+        return JsonResponse({"ok": False, "message": "Debe seleccionar un archivo o tomar una foto."}, status=400)
+
+    if alumno.imagen:
+        alumno.imagen.delete(save=False)
+    alumno.imagen = content_file
+    alumno.save(update_fields=["imagen", "updated_at"])
+
+    return JsonResponse({
+        "ok": True,
+        "message": "Foto del alumno actualizada correctamente.",
+        "foto_url": alumno.imagen.url if alumno.imagen else "",
+        "alumno_id": alumno.id,
+        "matricula_id": matricula.id,
     })
 
 
