@@ -958,6 +958,7 @@ def dashboard_docente(request):
             presentes_total=Count('asistencias__detalles', filter=Q(asistencias__detalles__presente=True), distinct=True),
         )
         .order_by('curso__nombre', 'curso__grado__nombre')
+        .distinct()
     )
 
     cursos_docente = list(cursos_docente_qs)

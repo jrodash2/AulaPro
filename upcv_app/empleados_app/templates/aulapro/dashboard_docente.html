@@ -111,6 +111,60 @@
     background: rgba(22, 199, 249, .12);
     color: #127ea0;
   }
+
+  .teacher-dashboard .course-card {
+    border: 1px solid rgba(115, 102, 255, .12);
+    border-radius: 12px;
+    padding: .85rem;
+    height: 100%;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+    transition: transform .22s ease, box-shadow .22s ease;
+    animation: fadeInUp .4s ease both;
+  }
+  .teacher-dashboard .course-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .1);
+  }
+  .teacher-dashboard .course-title {
+    font-size: .98rem;
+    font-weight: 700;
+    margin-bottom: .2rem;
+    color: #111827;
+  }
+  .teacher-dashboard .course-meta {
+    font-size: .78rem;
+    color: #6b7280;
+    margin-bottom: .55rem;
+  }
+  .teacher-dashboard .course-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .65rem;
+  }
+  .teacher-dashboard .course-badge {
+    background: #f3f4ff;
+    color: #4b5563;
+    border: 1px solid rgba(115, 102, 255, .16);
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 600;
+    padding: .24rem .48rem;
+    line-height: 1.2;
+  }
+  .teacher-dashboard .course-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+  .teacher-dashboard .course-actions .btn {
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .3rem .5rem;
+    transition: all .2s ease;
+  }
   .teacher-dashboard .alert {
     border-radius: 10px;
     padding: .7rem .85rem;
@@ -228,24 +282,35 @@
       <div class="col-12">
         <div class="card">
           <div class="card-header card-no-border pb-0"><h5>Mis cursos</h5></div>
-          <div class="card-body">
-            <div class="table-responsive custom-scrollbar">
-              <table class="display" id="tabla-cursos-docente">
-                <thead><tr><th>Curso</th><th>Grado</th><th>Carrera</th><th>Establecimiento</th><th>Acción</th></tr></thead>
-                <tbody>
-                  {% for cd in cursos_docente %}
-                    <tr>
-                      <td>{{ cd.curso.nombre }}</td>
-                      <td>{{ cd.curso.grado.nombre|default:'-' }}</td>
-                      <td>{{ cd.curso.grado.carrera.nombre|default:'-' }}</td>
-                      <td>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</td>
-                      <td><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}">Abrir</a></td>
-                    </tr>
-                  {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted">No tiene cursos asignados</td></tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+          <div class="card-body pt-2">
+            <div class="row g-3">
+              {% for cd in cursos_docente %}
+                <div class="col-12 col-md-6 col-xxl-4">
+                  <div class="course-card">
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+                      <h6 class="course-title mb-0">{{ cd.curso.nombre }}</h6>
+                      <span class="course-badge"><i class="fa fa-users me-1"></i>{{ cd.alumnos_total|default:0 }}</span>
+                    </div>
+                    <div class="course-meta">{{ cd.curso.grado.nombre|default:'-' }} · {{ cd.curso.grado.carrera.nombre|default:'-' }}</div>
+                    <div class="course-badges">
+                      <span class="course-badge"><i class="fa fa-university me-1"></i>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</span>
+                      {% if cd.curso.grado.jornada %}<span class="course-badge">{{ cd.curso.grado.jornada }}</span>{% endif %}
+                      {% if cd.curso.grado.seccion %}<span class="course-badge">Sección {{ cd.curso.grado.seccion }}</span>{% endif %}
+                      {% if cd.curso.grado.carrera.ciclo_escolar.nombre %}<span class="course-badge">{{ cd.curso.grado.carrera.ciclo_escolar.nombre }}</span>{% endif %}
+                    </div>
+                    <div class="course-actions">
+                      <a class="btn btn-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}"><i class="fa fa-eye me-1"></i>Ver curso</a>
+                      <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:docente_asistencia_home' cd.id %}"><i class="fa fa-check-square-o me-1"></i>Asistencia</a>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="col-12">
+                  <div class="alert alert-light border text-center mb-0">
+                    <strong>No tiene cursos asignados.</strong>
+                  </div>
+                </div>
+              {% endfor %}
             </div>
           </div>
         </div>
