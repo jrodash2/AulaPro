@@ -17,7 +17,7 @@ from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import NoReverseMatch
+from django.urls import NoReverseMatch, reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
@@ -224,7 +224,7 @@ def signin(request):
     auth_login(request, user)
 
     if user.groups.filter(name="Docente").exists():
-        redirect_name = "docente_dashboard"
+        redirect_name = "empleados:dashboard_docente"
     elif user.groups.filter(name="Administrador").exists():
         redirect_name = "dashboard"
     elif user.groups.filter(name="Gestor").exists():
@@ -309,110 +309,156 @@ def usuarios_update(request, pk):
 @login_required
 def dahsboard(request):
     if _is_docente(request.user):
-        return redirect("empleados:docente_dashboard")
+        return redirect("empleados:dashboard_docente")
 
-    ciclos = CicloEscolar.objects.select_related('establecimiento')
-    ciclos = filtrar_por_establecimiento_usuario(ciclos, request.user, 'establecimiento_id')
-    ciclo_activo = ciclos.filter(activo=True).order_by('-anio', '-id').first()
-    if not ciclo_activo:
-        ciclo_activo = ciclos.order_by('-anio', '-id').first()
+    establecimiento_param = (request.GET.get("establecimiento") or "").strip()
+    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.order_by("nombre"), request.user, "id")
 
-    alumnos_por_grado_labels = []
-    alumnos_por_grado_series = []
-    alumnos_por_carrera_labels = []
-    alumnos_por_carrera_series = []
-    cursos_por_docente_labels = []
-    cursos_por_docente_series = []
-    asistencia_resumen_series = [0, 0]
-    asistencia_tendencia_labels = []
-    asistencia_tendencia_presentes = []
-    asistencia_tendencia_ausentes = []
+    selected_establecimiento = None
+    if establecimiento_param and establecimiento_param != "all":
+        selected_establecimiento = establecimientos_qs.filter(pk=establecimiento_param).first()
 
-    ciclo_stats = {
-        'nombre': ciclo_activo.nombre if ciclo_activo else 'Sin ciclo disponible',
-        'establecimiento': ciclo_activo.establecimiento.nombre if ciclo_activo else '-',
-        'cursos_total': 0,
-        'alumnos_total': 0,
-        'docentes_total': 0,
-        'asistencias_total': 0,
+    if es_gestor(request.user):
+        selected_establecimiento = selected_establecimiento or establecimientos_qs.first()
+
+    alumnos_base = Matricula.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
+    cursos_docente_base = CursoDocente.objects.select_related("curso__grado__carrera__ciclo_escolar__establecimiento", "docente")
+    cursos_base = Curso.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
+    asistencia_base = Asistencia.objects.select_related("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento")
+    detalles_base = AsistenciaDetalle.objects.select_related("asistencia__curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento")
+
+    if selected_establecimiento:
+        alumnos_base = alumnos_base.filter(grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        cursos_docente_base = cursos_docente_base.filter(curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        cursos_base = cursos_base.filter(grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        asistencia_base = asistencia_base.filter(curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        detalles_base = detalles_base.filter(asistencia__curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+
+    alumnos_por_grado_qs = (
+        alumnos_base.values("grado__nombre")
+        .annotate(total=Count("alumno", distinct=True))
+        .order_by("-total", "grado__nombre")
+    )
+    alumnos_por_grado_labels = [row["grado__nombre"] or "Sin grado" for row in alumnos_por_grado_qs]
+    alumnos_por_grado_series = [row["total"] for row in alumnos_por_grado_qs]
+
+    alumnos_por_carrera_qs = (
+        alumnos_base.values("grado__carrera__nombre")
+        .annotate(total=Count("alumno", distinct=True))
+        .order_by("-total", "grado__carrera__nombre")
+    )
+    alumnos_por_carrera_labels = [row["grado__carrera__nombre"] or "Sin carrera" for row in alumnos_por_carrera_qs]
+    alumnos_por_carrera_series = [row["total"] for row in alumnos_por_carrera_qs]
+
+    cursos_por_docente_qs = (
+        cursos_docente_base.filter(activo=True, curso__activo=True)
+        .values("docente__first_name", "docente__last_name", "docente__username")
+        .annotate(total=Count("curso", distinct=True))
+        .order_by("-total", "docente__username")[:12]
+    )
+    cursos_por_docente_labels, cursos_por_docente_series = [], []
+    for row in cursos_por_docente_qs:
+        nombre = f"{(row['docente__first_name'] or '').strip()} {(row['docente__last_name'] or '').strip()}".strip() or row["docente__username"]
+        cursos_por_docente_labels.append(nombre)
+        cursos_por_docente_series.append(row["total"])
+
+    presentes_total = detalles_base.filter(presente=True).count()
+    ausentes_total = detalles_base.filter(presente=False).count()
+    asistencia_resumen_series = [presentes_total, ausentes_total]
+
+    tendencia_qs = (
+        asistencia_base.values("fecha")
+        .annotate(
+            presentes=Count("detalles", filter=Q(detalles__presente=True)),
+            ausentes=Count("detalles", filter=Q(detalles__presente=False)),
+        )
+        .order_by("-fecha")[:14]
+    )
+    tendencia = list(reversed(list(tendencia_qs)))
+    asistencia_tendencia_labels = [row["fecha"].strftime("%d/%m") for row in tendencia]
+    asistencia_tendencia_presentes = [row["presentes"] for row in tendencia]
+    asistencia_tendencia_ausentes = [row["ausentes"] for row in tendencia]
+
+    cursos_por_establecimiento_qs = (
+        Curso.objects.filter(activo=True)
+        .values("grado__carrera__ciclo_escolar__establecimiento__id", "grado__carrera__ciclo_escolar__establecimiento__nombre")
+        .annotate(total=Count("id", distinct=True))
+        .order_by("grado__carrera__ciclo_escolar__establecimiento__nombre")
+    )
+    if not es_admin_total(request.user):
+        cursos_por_establecimiento_qs = cursos_por_establecimiento_qs.filter(
+            grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_qs.values("id")
+        )
+
+    alumnos_por_establecimiento = {
+        row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Matricula.objects.values("grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("alumno_id", distinct=True))
+    }
+    asistencias_por_establecimiento = {
+        row["curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Asistencia.objects.values("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("id"))
     }
 
-    if ciclo_activo:
-        matriculas_ciclo = Matricula.objects.filter(ciclo_escolar=ciclo_activo).select_related('grado', 'grado__carrera')
-        alumnos_por_grado_qs = (
-            matriculas_ciclo.values('grado__nombre')
-            .annotate(total=Count('alumno', distinct=True))
-            .order_by('-total', 'grado__nombre')
-        )
-        alumnos_por_grado_labels = [row['grado__nombre'] or 'Sin grado' for row in alumnos_por_grado_qs]
-        alumnos_por_grado_series = [row['total'] for row in alumnos_por_grado_qs]
-
-        alumnos_por_carrera_qs = (
-            matriculas_ciclo.values('grado__carrera__nombre')
-            .annotate(total=Count('alumno', distinct=True))
-            .order_by('-total', 'grado__carrera__nombre')
-        )
-        alumnos_por_carrera_labels = [row['grado__carrera__nombre'] or 'Sin carrera' for row in alumnos_por_carrera_qs]
-        alumnos_por_carrera_series = [row['total'] for row in alumnos_por_carrera_qs]
-
-        cursos_docente_qs = (
-            CursoDocente.objects.filter(
-                activo=True,
-                curso__activo=True,
-                curso__grado__carrera__ciclo_escolar=ciclo_activo,
-            )
-            .values('docente__first_name', 'docente__last_name', 'docente__username')
-            .annotate(total=Count('curso', distinct=True))
-            .order_by('-total', 'docente__username')[:12]
-        )
-        for row in cursos_docente_qs:
-            nombre = f"{(row['docente__first_name'] or '').strip()} {(row['docente__last_name'] or '').strip()}".strip() or row['docente__username']
-            cursos_por_docente_labels.append(nombre)
-            cursos_por_docente_series.append(row['total'])
-
-        asistencia_detalles_qs = AsistenciaDetalle.objects.filter(
-            asistencia__curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo,
-        )
-        presentes_total = asistencia_detalles_qs.filter(presente=True).count()
-        ausentes_total = asistencia_detalles_qs.filter(presente=False).count()
-        asistencia_resumen_series = [presentes_total, ausentes_total]
-
-        tendencia_qs = (
-            Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo)
-            .values('fecha')
-            .annotate(
-                presentes=Count('detalles', filter=Q(detalles__presente=True)),
-                ausentes=Count('detalles', filter=Q(detalles__presente=False)),
-            )
-            .order_by('-fecha')[:14]
-        )
-        tendencia = list(reversed(list(tendencia_qs)))
-        asistencia_tendencia_labels = [row['fecha'].strftime('%d/%m') for row in tendencia]
-        asistencia_tendencia_presentes = [row['presentes'] for row in tendencia]
-        asistencia_tendencia_ausentes = [row['ausentes'] for row in tendencia]
-
-        ciclo_stats.update({
-            'cursos_total': Curso.objects.filter(grado__carrera__ciclo_escolar=ciclo_activo, activo=True).count(),
-            'alumnos_total': matriculas_ciclo.values('alumno_id').distinct().count(),
-            'docentes_total': CursoDocente.objects.filter(curso__grado__carrera__ciclo_escolar=ciclo_activo, activo=True).values('docente_id').distinct().count(),
-            'asistencias_total': Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo).count(),
+    establecimientos_resumen = []
+    for row in cursos_por_establecimiento_qs:
+        est_id = row["grado__carrera__ciclo_escolar__establecimiento__id"]
+        establecimientos_resumen.append({
+            "id": est_id,
+            "nombre": row["grado__carrera__ciclo_escolar__establecimiento__nombre"] or "Sin establecimiento",
+            "cursos": row["total"],
+            "alumnos": alumnos_por_establecimiento.get(est_id, 0),
+            "asistencias": asistencias_por_establecimiento.get(est_id, 0),
         })
 
+    establecimientos_destacados = sorted(establecimientos_resumen, key=lambda x: (x["alumnos"], x["cursos"]), reverse=True)[:6]
+
+    titulo_dashboard = (
+        f"Dashboard de {selected_establecimiento.nombre}" if selected_establecimiento else "Dashboard global"
+    )
+    subtitulo_dashboard = (
+        "Resumen del establecimiento seleccionado." if selected_establecimiento else "Resumen general de todos los establecimientos."
+    )
+
+    ciclo_stats = {
+        "nombre": selected_establecimiento.nombre if selected_establecimiento else "Todos los establecimientos",
+        "establecimiento": selected_establecimiento.nombre if selected_establecimiento else "Global",
+        "cursos_total": cursos_base.filter(activo=True).count(),
+        "alumnos_total": alumnos_base.values("alumno_id").distinct().count(),
+        "docentes_total": cursos_docente_base.filter(activo=True).values("docente_id").distinct().count(),
+        "asistencias_total": asistencia_base.count(),
+        "establecimientos_total": establecimientos_qs.count() if es_admin_total(request.user) else 1,
+    }
+
     context = {
-        'ciclo_activo': ciclo_activo,
-        'ciclo_stats': ciclo_stats,
-        'alumnos_por_grado_labels': json.dumps(alumnos_por_grado_labels),
-        'alumnos_por_grado_series': json.dumps(alumnos_por_grado_series),
-        'alumnos_por_carrera_labels': json.dumps(alumnos_por_carrera_labels),
-        'alumnos_por_carrera_series': json.dumps(alumnos_por_carrera_series),
-        'cursos_por_docente_labels': json.dumps(cursos_por_docente_labels),
-        'cursos_por_docente_series': json.dumps(cursos_por_docente_series),
-        'asistencia_resumen_series': json.dumps(asistencia_resumen_series),
-        'asistencia_tendencia_labels': json.dumps(asistencia_tendencia_labels),
-        'asistencia_tendencia_presentes': json.dumps(asistencia_tendencia_presentes),
-        'asistencia_tendencia_ausentes': json.dumps(asistencia_tendencia_ausentes),
+        "titulo_dashboard": titulo_dashboard,
+        "subtitulo_dashboard": subtitulo_dashboard,
+        "selected_establecimiento": selected_establecimiento,
+        "establecimientos": establecimientos_qs,
+        "ciclo_activo": True,
+        "ciclo_stats": ciclo_stats,
+        "establecimientos_resumen": establecimientos_resumen,
+        "establecimientos_destacados": establecimientos_destacados,
+        "alumnos_por_grado_labels": json.dumps(alumnos_por_grado_labels),
+        "alumnos_por_grado_series": json.dumps(alumnos_por_grado_series),
+        "alumnos_por_carrera_labels": json.dumps(alumnos_por_carrera_labels),
+        "alumnos_por_carrera_series": json.dumps(alumnos_por_carrera_series),
+        "cursos_por_docente_labels": json.dumps(cursos_por_docente_labels),
+        "cursos_por_docente_series": json.dumps(cursos_por_docente_series),
+        "asistencia_resumen_series": json.dumps(asistencia_resumen_series),
+        "asistencia_tendencia_labels": json.dumps(asistencia_tendencia_labels),
+        "asistencia_tendencia_presentes": json.dumps(asistencia_tendencia_presentes),
+        "asistencia_tendencia_ausentes": json.dumps(asistencia_tendencia_ausentes),
     }
     return render(request, "empleados/dahsboard.html", context)
+
+
+@login_required
+def dashboard_establecimiento(request, establecimiento_id):
+    if _is_docente(request.user):
+        return redirect("empleados:dashboard_docente")
+    return redirect(f"{reverse('empleados:dahsboard')}?establecimiento={establecimiento_id}")
 
 
 @login_required
