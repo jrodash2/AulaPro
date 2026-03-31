@@ -379,41 +379,45 @@ def dahsboard(request):
     asistencia_tendencia_presentes = [row["presentes"] for row in tendencia]
     asistencia_tendencia_ausentes = [row["ausentes"] for row in tendencia]
 
-    cursos_por_establecimiento_qs = (
-        Curso.objects.filter(activo=True)
-        .values("grado__carrera__ciclo_escolar__establecimiento__id", "grado__carrera__ciclo_escolar__establecimiento__nombre")
-        .annotate(total=Count("id", distinct=True))
-        .order_by("grado__carrera__ciclo_escolar__establecimiento__nombre")
-    )
-    if not es_admin_total(request.user):
-        cursos_por_establecimiento_qs = cursos_por_establecimiento_qs.filter(
-            grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_qs.values("id")
-        )
+    establecimientos_ids = list(establecimientos_qs.values_list("id", flat=True))
 
+    cursos_por_establecimiento = {
+        row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Curso.objects.filter(activo=True, grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("id", distinct=True))
+    }
     alumnos_por_establecimiento = {
         row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
-        for row in Matricula.objects.values("grado__carrera__ciclo_escolar__establecimiento_id")
+        for row in Matricula.objects.filter(grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("grado__carrera__ciclo_escolar__establecimiento_id")
         .annotate(total=Count("alumno_id", distinct=True))
     }
     asistencias_por_establecimiento = {
         row["curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
-        for row in Asistencia.objects.values("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id")
+        for row in Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id")
         .annotate(total=Count("id"))
     }
 
     establecimientos_resumen = []
-    for row in cursos_por_establecimiento_qs:
-        est_id = row["grado__carrera__ciclo_escolar__establecimiento__id"]
+    for est in establecimientos_qs:
+        est_id = est.id
         establecimientos_resumen.append({
             "id": est_id,
-            "nombre": row["grado__carrera__ciclo_escolar__establecimiento__nombre"] or "Sin establecimiento",
-            "cursos": row["total"],
+            "nombre": est.nombre or "Sin establecimiento",
+            "cursos": cursos_por_establecimiento.get(est_id, 0),
             "alumnos": alumnos_por_establecimiento.get(est_id, 0),
             "asistencias": asistencias_por_establecimiento.get(est_id, 0),
         })
 
-    establecimientos_destacados = sorted(establecimientos_resumen, key=lambda x: (x["alumnos"], x["cursos"]), reverse=True)[:6]
-
+    establecimientos_destacados = []
+    if not selected_establecimiento:
+        establecimientos_destacados = sorted(
+            establecimientos_resumen,
+            key=lambda x: (x["alumnos"], x["cursos"], x["asistencias"]),
+            reverse=True,
+        )[:6]
     titulo_dashboard = (
         f"Dashboard de {selected_establecimiento.nombre}" if selected_establecimiento else "Dashboard global"
     )
