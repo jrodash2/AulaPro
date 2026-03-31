@@ -185,7 +185,7 @@
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Docente</span></a>
                   <ul class="sidebar-submenu">
                     <li><a href="{% url 'empleados:dahsboard' %}">Dashboard</a></li>
-                    <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:dashboard_docente' %}">Mis cursos</a></li>
                   </ul>
                 </li>
                 {% else %}
@@ -238,7 +238,7 @@
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Asistencia</span></a>
                   <ul class="sidebar-submenu">
-                    <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:dashboard_docente' %}">Mis cursos</a></li>
                   </ul>
                 </li>
                 {% endif %}
