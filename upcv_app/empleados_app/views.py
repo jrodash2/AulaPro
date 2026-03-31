@@ -312,7 +312,7 @@ def dahsboard(request):
         return redirect("empleados:dashboard_docente")
 
     establecimiento_param = (request.GET.get("establecimiento") or "").strip()
-    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.filter(activo=True).order_by("nombre"), request.user, "id")
+    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.order_by("nombre"), request.user, "id")
 
     selected_establecimiento = None
     if establecimiento_param and establecimiento_param != "all":
@@ -412,6 +412,8 @@ def dahsboard(request):
             "asistencias": asistencias_por_establecimiento.get(est_id, 0),
         })
 
+    establecimientos_destacados = sorted(establecimientos_resumen, key=lambda x: (x["alumnos"], x["cursos"]), reverse=True)[:6]
+
     titulo_dashboard = (
         f"Dashboard de {selected_establecimiento.nombre}" if selected_establecimiento else "Dashboard global"
     )
@@ -437,6 +439,7 @@ def dahsboard(request):
         "ciclo_activo": True,
         "ciclo_stats": ciclo_stats,
         "establecimientos_resumen": establecimientos_resumen,
+        "establecimientos_destacados": establecimientos_destacados,
         "alumnos_por_grado_labels": json.dumps(alumnos_por_grado_labels),
         "alumnos_por_grado_series": json.dumps(alumnos_por_grado_series),
         "alumnos_por_carrera_labels": json.dumps(alumnos_por_carrera_labels),

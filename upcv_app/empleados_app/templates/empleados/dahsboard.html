@@ -50,6 +50,15 @@
     display: inline-flex; align-items: center; justify-content: center;
     background: rgba(115,102,255,.12); color: #5f4bf1;
   }
+
+  .admin-dashboard .selector-box { background:#fff; border:1px solid rgba(30,41,59,.08); border-radius:12px; padding:.6rem; box-shadow:0 6px 18px rgba(30,41,59,.06); }
+  .admin-dashboard .selector-box .form-control,
+  .admin-dashboard .selector-box .form-select { min-width: 220px; }
+  .admin-dashboard .est-card { border:1px solid rgba(30,41,59,.08); border-radius:12px; padding:.75rem; background:#fff; transition:all .2s ease; height:100%; }
+  .admin-dashboard .est-card:hover { transform:translateY(-2px); box-shadow:0 10px 18px rgba(30,41,59,.08); }
+  .admin-dashboard .est-name { font-weight:700; font-size:.92rem; margin-bottom:.35rem; }
+  .admin-dashboard .est-meta { font-size:.78rem; color:#64748b; display:flex; gap:.65rem; flex-wrap:wrap; margin-bottom:.55rem; }
+
 </style>
 
 <div class="page-body admin-dashboard">
@@ -58,9 +67,10 @@
       <div class="row g-2 align-items-center">
         <div class="col-sm-6"><h4 class="mb-0">{{ titulo_dashboard }}</h4><p class="mb-0 text-muted">{{ subtitulo_dashboard }}</p></div>
         <div class="col-sm-6 text-sm-end">
-          <form method="get" class="d-inline-flex align-items-center gap-2">
+          <form method="get" class="selector-box d-inline-flex align-items-center gap-2 flex-wrap justify-content-sm-end">
             <label class="mb-0" for="id_establecimiento">Establecimiento:</label>
-            <select class="form-select form-select-sm" id="id_establecimiento" name="establecimiento" style="min-width:240px;">
+            <input type="text" id="buscador-establecimiento" class="form-control form-control-sm" placeholder="Buscar...">
+            <select class="form-select form-select-sm" id="id_establecimiento" name="establecimiento">
               {% if is_admin_total %}<option value="all" {% if not selected_establecimiento %}selected{% endif %}>Todos los establecimientos</option>{% endif %}
               {% for est in establecimientos %}
                 <option value="{{ est.id }}" {% if selected_establecimiento and selected_establecimiento.id == est.id %}selected{% endif %}>{{ est.nombre }}</option>
@@ -112,34 +122,32 @@
       </div>
     </div>
 
-    {% if establecimientos_resumen %}
+    {% if establecimientos_destacados %}
     <div class="row g-3 mt-1">
       <div class="col-12">
         <div class="card insight-card">
-          <div class="card-header card-no-border"><h6 class="section-title"><span class="section-icon"><i class="fa fa-building"></i></span>Establecimientos</h6></div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover mb-0">
-                <thead><tr><th>Establecimiento</th><th>Cursos</th><th>Alumnos</th><th>Asistencias</th><th class="text-end">Dashboard</th></tr></thead>
-                <tbody>
-                  {% for est in establecimientos_resumen %}
-                    <tr>
-                      <td>{{ est.nombre }}</td>
-                      <td>{{ est.cursos }}</td>
-                      <td>{{ est.alumnos }}</td>
-                      <td>{{ est.asistencias }}</td>
-                      <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:dashboard_establecimiento' est.id %}">Ver dashboard</a></td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+          <div class="card-header card-no-border"><h6 class="section-title"><span class="section-icon"><i class="fa fa-building"></i></span>Establecimientos destacados</h6></div>
+          <div class="card-body">
+            <div class="row g-3">
+              {% for est in establecimientos_destacados %}
+              <div class="col-12 col-md-6 col-xl-4">
+                <div class="est-card">
+                  <div class="est-name">{{ est.nombre }}</div>
+                  <div class="est-meta">
+                    <span><i class="fa fa-book me-1"></i>{{ est.cursos }} cursos</span>
+                    <span><i class="fa fa-users me-1"></i>{{ est.alumnos }} alumnos</span>
+                    <span><i class="fa fa-check-square-o me-1"></i>{{ est.asistencias }} asistencias</span>
+                  </div>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:dashboard_establecimiento' est.id %}">Ver dashboard</a>
+                </div>
+              </div>
+              {% endfor %}
             </div>
           </div>
         </div>
       </div>
     </div>
     {% endif %}
-
 
     <div class="row g-3 mt-1">
       <div class="col-xxl-6 col-xl-6 col-md-12">
@@ -255,6 +263,19 @@ window.addEventListener("load", function () {
       colors: ['#16c7f9']
     }).render();
   } else { renderEmpty('#chart-cursos-docente', 'Sin datos disponibles'); }
+
+  const buscador = document.getElementById('buscador-establecimiento');
+  const selector = document.getElementById('id_establecimiento');
+  if (buscador && selector) {
+    buscador.addEventListener('input', function () {
+      const term = this.value.toLowerCase();
+      Array.from(selector.options).forEach(opt => {
+        const visible = (opt.text || '').toLowerCase().includes(term) || opt.value === 'all';
+        opt.hidden = !visible;
+      });
+    });
+  }
+
 });
 </script>
 {% endblock %}
