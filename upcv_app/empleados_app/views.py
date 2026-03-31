@@ -621,6 +621,7 @@ def empleado_detalle(request, id):
             "establecimiento": establecimiento,
             "layout": layout,
             "grado_gafete": grado_gafete,
+            "matricula_activa": matricula_activa,
             "canvas_width": canvas_width,
             "canvas_height": canvas_height,
             "gafete_w": canvas_width,
