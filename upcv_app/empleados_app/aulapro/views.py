@@ -1,3 +1,4 @@
+import json
 from django import forms
 import logging
 from django.contrib import messages
@@ -5,7 +6,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, IntegerField, Q, Sum, When
+from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -930,62 +931,134 @@ def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id)
 
 
 @login_required
-@user_passes_test(_can_view_attendance)
-def docente_dashboard(request):
-    cursos_docente = CursoDocente.objects.select_related(
-        'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento', 'docente'
-    ).filter(activo=True, curso__activo=True)
-
-    show_docente_empty_message = False
-    selected_ciclo = None
-    ciclos_disponibles = CicloEscolar.objects.none()
-
-    is_docente_user = _is_docente(request.user)
-
-    if is_docente_user:
-        cursos_docente = cursos_docente.filter(
-            docente=request.user,
-            curso__grado__carrera__ciclo_escolar__activo=True,
+@user_passes_test(_is_docente)
+def dashboard_docente(request):
+    cursos_docente_qs = (
+        CursoDocente.objects.select_related(
+            'curso',
+            'curso__grado',
+            'curso__grado__carrera',
+            'curso__grado__carrera__ciclo_escolar',
+            'curso__grado__carrera__ciclo_escolar__establecimiento',
         )
-
-        asignaciones_establecimientos = CursoDocente.objects.filter(
+        .filter(
             docente=request.user,
             activo=True,
             curso__activo=True,
-        ).values_list('curso__grado__carrera__ciclo_escolar__establecimiento_id', flat=True).distinct()
+            curso__grado__carrera__ciclo_escolar__activo=True,
+        )
+        .annotate(
+            alumnos_total=Count(
+                'curso__grado__matriculas__alumno',
+                filter=Q(curso__grado__matriculas__ciclo_escolar=F('curso__grado__carrera__ciclo_escolar')),
+                distinct=True,
+            ),
+            asistencias_total=Count('asistencias', distinct=True),
+            detalles_total=Count('asistencias__detalles', distinct=True),
+            presentes_total=Count('asistencias__detalles', filter=Q(asistencias__detalles__presente=True), distinct=True),
+        )
+        .order_by('curso__nombre', 'curso__grado__nombre')
+    )
 
-        if asignaciones_establecimientos and not CicloEscolar.objects.filter(
-            establecimiento_id__in=asignaciones_establecimientos,
-            activo=True,
-        ).exists():
-            messages.info(request, 'No existe un ciclo escolar activo.')
-        elif not cursos_docente.exists():
-            show_docente_empty_message = True
-    else:
-        ciclos_disponibles = CicloEscolar.objects.select_related('establecimiento').order_by('-activo', '-anio', '-id')
-        ciclo_id = (request.GET.get('ciclo') or '').strip()
-        if ciclo_id:
-            selected_ciclo = ciclos_disponibles.filter(pk=ciclo_id).first()
-        if selected_ciclo is None:
-            selected_ciclo = ciclos_disponibles.filter(activo=True).first() or ciclos_disponibles.first()
+    cursos_docente = list(cursos_docente_qs)
+    curso_docente_ids = [cd.id for cd in cursos_docente]
+    grado_ids = {cd.curso.grado_id for cd in cursos_docente if cd.curso_id and cd.curso.grado_id}
+    ciclo_ids = {cd.curso.grado.carrera.ciclo_escolar_id for cd in cursos_docente if cd.curso_id and cd.curso.grado_id and cd.curso.grado.carrera_id}
 
-        if selected_ciclo:
-            cursos_docente = cursos_docente.filter(curso__grado__carrera__ciclo_escolar=selected_ciclo)
-        else:
-            cursos_docente = cursos_docente.none()
-            messages.info(request, 'No existen ciclos escolares disponibles para filtrar.')
+    matriculas_qs = Matricula.objects.filter(grado_id__in=grado_ids, ciclo_escolar_id__in=ciclo_ids)
+    total_alumnos_unicos = matriculas_qs.values('alumno_id').distinct().count() if grado_ids else 0
 
-        if selected_ciclo and not cursos_docente.exists():
-            messages.info(request, f'No hay cursos ni asistencias registradas para el ciclo "{selected_ciclo.nombre}".')
+    asistencias_qs = Asistencia.objects.filter(curso_docente_id__in=curso_docente_ids)
+    total_asistencias = asistencias_qs.count() if curso_docente_ids else 0
+    asistencia_hoy = asistencias_qs.filter(fecha=timezone.localdate()).count() if curso_docente_ids else 0
 
-    cursos_docente = cursos_docente.order_by('curso__nombre')
-    return render(request, 'docentes/dashboard.html', {
+    detalles_qs = AsistenciaDetalle.objects.filter(asistencia__curso_docente_id__in=curso_docente_ids)
+    detalles_totales = detalles_qs.count() if curso_docente_ids else 0
+    presentes_totales = detalles_qs.filter(presente=True).count() if curso_docente_ids else 0
+    porcentaje_general = round((presentes_totales / detalles_totales) * 100, 2) if detalles_totales else 0
+
+    resumen_cursos = []
+    for cd in cursos_docente:
+        detalles_curso = getattr(cd, 'detalles_total', 0) or 0
+        presentes_curso = getattr(cd, 'presentes_total', 0) or 0
+        porcentaje_curso = round((presentes_curso / detalles_curso) * 100, 2) if detalles_curso else 0
+        resumen_cursos.append(
+            {
+                'curso_docente': cd,
+                'curso': cd.curso,
+                'grado': cd.curso.grado,
+                'alumnos_total': getattr(cd, 'alumnos_total', 0) or 0,
+                'asistencias_total': getattr(cd, 'asistencias_total', 0) or 0,
+                'porcentaje_asistencia': porcentaje_curso,
+            }
+        )
+
+    ultimas_asistencias = (
+        Asistencia.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado')
+        .filter(curso_docente_id__in=curso_docente_ids)
+        .order_by('-fecha', '-id')[:10]
+    )
+
+    asistencia_por_curso_rows = (
+        AsistenciaDetalle.objects.filter(asistencia__curso_docente_id__in=curso_docente_ids)
+        .values('asistencia__curso_docente_id', 'asistencia__curso_docente__curso__nombre', 'asistencia__curso_docente__curso__grado__nombre')
+        .annotate(
+            presentes=Count('id', filter=Q(presente=True)),
+            ausentes=Count('id', filter=Q(presente=False)),
+        )
+        .order_by('asistencia__curso_docente__curso__nombre', 'asistencia__curso_docente__curso__grado__nombre')
+    )
+
+    chart_asistencia_curso_labels = []
+    chart_asistencia_curso_presentes = []
+    chart_asistencia_curso_ausentes = []
+    for row in asistencia_por_curso_rows:
+        chart_asistencia_curso_labels.append(
+            f"{row['asistencia__curso_docente__curso__nombre']} ({row['asistencia__curso_docente__curso__grado__nombre']})"
+        )
+        chart_asistencia_curso_presentes.append(row['presentes'])
+        chart_asistencia_curso_ausentes.append(row['ausentes'])
+
+    chart_alumnos_curso_labels = [f"{r['curso'].nombre} ({r['grado'].nombre})" for r in resumen_cursos]
+    chart_alumnos_curso_series = [r['alumnos_total'] for r in resumen_cursos]
+
+    asistencias_fecha_rows = (
+        asistencias_qs.values('fecha')
+        .annotate(total=Count('id'))
+        .order_by('-fecha')[:14]
+    )
+    asistencias_fecha_rows = list(reversed(list(asistencias_fecha_rows)))
+    chart_asistencias_fecha_labels = [row['fecha'].strftime('%d/%m') for row in asistencias_fecha_rows]
+    chart_asistencias_fecha_series = [row['total'] for row in asistencias_fecha_rows]
+
+    context = {
+        'resumen': {
+            'cursos_total': len(cursos_docente),
+            'alumnos_unicos_total': total_alumnos_unicos,
+            'asistencias_total': total_asistencias,
+            'asistencia_hoy': asistencia_hoy,
+            'porcentaje_general': porcentaje_general,
+        },
         'cursos_docente': cursos_docente,
-        'show_docente_empty_message': show_docente_empty_message,
-        'ciclos_disponibles': ciclos_disponibles,
-        'selected_ciclo': selected_ciclo,
-        'is_docente_user': is_docente_user,
-    })
+        'resumen_cursos': resumen_cursos,
+        'ultimas_asistencias': ultimas_asistencias,
+        'chart_asistencia_curso_labels': json.dumps(chart_asistencia_curso_labels),
+        'chart_asistencia_curso_presentes': json.dumps(chart_asistencia_curso_presentes),
+        'chart_asistencia_curso_ausentes': json.dumps(chart_asistencia_curso_ausentes),
+        'chart_alumnos_curso_labels': json.dumps(chart_alumnos_curso_labels),
+        'chart_alumnos_curso_series': json.dumps(chart_alumnos_curso_series),
+        'chart_asistencias_fecha_labels': json.dumps(chart_asistencias_fecha_labels),
+        'chart_asistencias_fecha_series': json.dumps(chart_asistencias_fecha_series),
+    }
+    return render(request, 'aulapro/dashboard_docente.html', context)
+
+
+@login_required
+@user_passes_test(_can_view_attendance)
+def docente_dashboard(request):
+    if _is_docente(request.user):
+        return dashboard_docente(request)
+    return redirect('empleados:dahsboard')
 
 
 @login_required
