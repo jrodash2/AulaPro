@@ -184,8 +184,9 @@
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Docente</span></a>
                   <ul class="sidebar-submenu">
-                    <li><a href="{% url 'empleados:dahsboard' %}">Dashboard</a></li>
-                    <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:dashboard_docente' %}">Dashboard</a></li>
+                    <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
+                    <li><a href="{% url 'empleados:empleado_lista' %}">Alumnos</a></li>
                   </ul>
                 </li>
                 {% else %}
@@ -230,17 +231,16 @@
                     <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
                     <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Académico</span></a>
                   <ul class="sidebar-submenu">
+                    <li><a href="{% url 'empleados:mis_cursos_docente' %}">Mis cursos</a></li>
                     <li><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_home' %}">Carga masiva</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_alumnos' %}">Importar alumnos</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_docentes' %}">Importar docentes</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_cursos' %}">Importar cursos</a></li>
+                    <li><a href="{% url 'empleados:carga_masiva_import_asignaciones' %}">Importar asignaciones</a></li>
                   </ul>
                 </li>
 
-                <li class="sidebar-list"><i class="fa fa-thumb-tack"> </i><a class="sidebar-link sidebar-title" href="#">
-                    <svg class="stroke-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-task"></use></svg>
-                    <svg class="fill-icon"><use href="{% static 'assets/svg/icon-sprite.svg' %}#fill-task"></use></svg><span>Asistencia</span></a>
-                  <ul class="sidebar-submenu">
-                    <li><a href="{% url 'empleados:docente_dashboard' %}">Mis cursos</a></li>
-                  </ul>
-                </li>
                 {% endif %}
 {% endif %}
                               </ul>
