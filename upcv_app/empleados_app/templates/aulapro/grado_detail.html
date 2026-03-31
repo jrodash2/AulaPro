@@ -29,30 +29,6 @@
     align-items: flex-start;
     min-width: fit-content;
   }
-  .gafete-export-hidden {
-    position: fixed;
-    left: -100000px;
-    top: 0;
-    opacity: 0;
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  .gafete-export-hidden .gafete-canvas-real {
-    width: {{ gafete_w }}px !important;
-    height: {{ gafete_h }}px !important;
-    transform: none !important;
-  }
-  .gafete-export-canvas {
-    width: {{ gafete_w }}px;
-    height: {{ gafete_h }}px;
-    position: relative;
-    overflow: hidden;
-    transform: none !important;
-  }
-  #gafete-export-root .gafete-photo {
-    object-fit: cover !important;
-  }
 </style>
 <div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ grado.nombre }}</h4></div><div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">AulaPro</li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li><li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id ciclo.id carrera.id %}">{{ carrera.nombre }}</a></li><li class="breadcrumb-item active">{{ grado.nombre }}</li></ol></div></div></div></div>
 <div class="container-fluid">
@@ -95,11 +71,12 @@
               <td>
                 <div class="btn-group" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <button class="btn btn-outline-primary btn-sm gafete-export-btn" type="button"
-                    data-export-id="{{ mid }}"
-                    data-filename="GAFETE_{{ m.alumno.apellidos|slugify }}_{{ m.alumno.nombres|slugify }}_{{ m.alumno.codigo_personal|default:'NA'|slugify }}.jpg">
-                    <i class="fa fa-download me-1"></i>Descargar JPG
-                  </button>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Frente</a>
+                  {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}"><i class="fa fa-download me-1"></i>Posterior</a>
+                  {% else %}
+                    <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
+                  {% endif %}
                 </div>
               </td>
               {% endif %}
@@ -160,21 +137,7 @@
 {% endwith %}
 {% endfor %}
 
-<div id="gafete-export-root" class="gafete-export-hidden" style="position:fixed; left:-99999px; top:0; opacity:1;" aria-hidden="true">
-  {% for m in matriculas %}
-  {% with m.id|stringformat:"s" as mid %}
-    <div id="gafete-export-{{ mid }}-front" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
-      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid|add:'-front' export_mode=True is_editor=False %}
-    </div>
-    <div id="gafete-export-{{ mid }}-back" class="gafete-export-canvas" data-w="{{ gafete_w }}" data-h="{{ gafete_h }}" style="width:{{ gafete_w }}px;height:{{ gafete_h }}px;position:relative;overflow:hidden;">
-      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h preview_id='gafete-export-canvas-'|add:mid|add:'-back' export_mode=True is_editor=False %}
-    </div>
-  {% endwith %}
-  {% endfor %}
-</div>
 {% endif %}
-
-<div id="export-sandbox" style="position:fixed;left:-99999px;top:0;width:0;height:0;overflow:hidden;"></div>
 
 <div class="modal fade" id="matricularModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -217,8 +180,6 @@ window.matriculaModalConfig = {
 };
 </script>
 {% if not is_gestor %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <script>
 (function () {
   function balancedLineBreaks(text, maxLines) {
@@ -285,7 +246,6 @@ window.matriculaModalConfig = {
 </script>
 
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
-<script src="{% static 'aulapro/js/gafete_export_fix.js' %}"></script>
 <script>
 document.addEventListener('click', function(e){
   const btn = e.target.closest('.preview-face-btn');

@@ -1485,7 +1485,7 @@ def _sanitize_filename_token(value):
     return text or "NA"
 
 
-def _build_gafete_filename(alumno, lado="completo"):
+def _build_gafete_filename(alumno, lado="frente"):
     apellidos = _sanitize_filename_token(getattr(alumno, "apellidos", ""))
     nombres = _sanitize_filename_token(getattr(alumno, "nombres", ""))
     codigo = _sanitize_filename_token(getattr(alumno, "codigo_personal", ""))
@@ -1676,18 +1676,14 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
     return canvas
 
 
-def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado="completo"):
+def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado="frente"):
     front = _render_face_gafete(matricula, establecimiento, layout, "front", canvas_width, canvas_height)
     back = _render_face_gafete(matricula, establecimiento, layout, "back", canvas_width, canvas_height)
 
     if lado == "frente":
         output = front
-    elif lado == "reverso":
-        output = back
     else:
-        output = Image.new("RGB", (canvas_width * 2, canvas_height), "white")
-        output.paste(front, (0, 0))
-        output.paste(back, (canvas_width, 0))
+        output = back
 
     buffer = BytesIO()
     output.save(buffer, format="JPEG", quality=95, optimize=True)
@@ -1715,9 +1711,9 @@ def gafete_jpg(request, matricula_id):
     layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation_for_establecimiento(establecimiento))
     orientation = orientation_for_establecimiento(establecimiento)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
-    lado = (request.GET.get("lado") or "completo").strip().lower()
-    if lado not in {"frente", "reverso", "completo"}:
-        lado = "completo"
+    lado = (request.GET.get("lado") or "frente").strip().lower()
+    if lado not in {"frente", "reverso"}:
+        lado = "frente"
     image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado=lado)
 
     filename = _build_gafete_filename(matricula.alumno, lado=lado)
