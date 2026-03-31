@@ -224,7 +224,7 @@ def signin(request):
     auth_login(request, user)
 
     if user.groups.filter(name="Docente").exists():
-        redirect_name = "docente_dashboard"
+        redirect_name = "empleados:dashboard_docente"
     elif user.groups.filter(name="Administrador").exists():
         redirect_name = "dashboard"
     elif user.groups.filter(name="Gestor").exists():
@@ -309,7 +309,7 @@ def usuarios_update(request, pk):
 @login_required
 def dahsboard(request):
     if _is_docente(request.user):
-        return redirect("empleados:docente_dashboard")
+        return redirect("empleados:dashboard_docente")
 
     ciclos = CicloEscolar.objects.select_related('establecimiento')
     ciclos = filtrar_por_establecimiento_usuario(ciclos, request.user, 'establecimiento_id')
