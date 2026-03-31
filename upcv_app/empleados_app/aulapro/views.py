@@ -931,20 +931,33 @@ def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id)
 
 
 def _get_docente_cursos_qs(user):
-    return (
+    cursos_qs = (
         CursoDocente.objects.select_related(
             'curso',
             'curso__grado',
             'curso__grado__carrera',
             'curso__grado__carrera__ciclo_escolar',
             'curso__grado__carrera__ciclo_escolar__establecimiento',
+            'docente',
         )
         .filter(
-            docente=user,
             activo=True,
             curso__activo=True,
             curso__grado__carrera__ciclo_escolar__activo=True,
         )
+    )
+
+    if _is_docente(user):
+        cursos_qs = cursos_qs.filter(docente=user)
+    elif es_gestor(user):
+        establecimiento = obtener_establecimiento_usuario(user)
+        if establecimiento:
+            cursos_qs = cursos_qs.filter(curso__grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+        else:
+            cursos_qs = cursos_qs.none()
+
+    return (
+        cursos_qs
         .annotate(
             alumnos_total=Count(
                 'curso__grado__matriculas__alumno',
@@ -1036,11 +1049,13 @@ def dashboard_docente(request):
 
 
 @login_required
-@user_passes_test(_is_docente)
+@user_passes_test(_can_view_attendance)
 def mis_cursos_docente(request):
     cursos_docente = list(_get_docente_cursos_qs(request.user))
+    titulo = 'Mis cursos' if _is_docente(request.user) else 'Todos los cursos'
     return render(request, 'aulapro/mis_cursos_docente.html', {
         'cursos_docente': cursos_docente,
+        'titulo_cursos': titulo,
     })
 
 

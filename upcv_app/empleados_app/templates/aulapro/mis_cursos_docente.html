@@ -82,7 +82,7 @@
   <div class="container-fluid">
     <div class="page-title mb-2">
       <div class="row align-items-center g-2">
-        <div class="col-sm-6"><h4 class="mb-0">Mis cursos</h4></div>
+        <div class="col-sm-6"><h4 class="mb-0">{{ titulo_cursos|default:'Mis cursos' }}</h4></div>
       </div>
     </div>
   </div>
@@ -104,6 +104,7 @@
               {% if cd.curso.grado.seccion %}<span class="badge-soft">Sección {{ cd.curso.grado.seccion }}</span>{% endif %}
               {% if cd.curso.grado.jornada %}<span class="badge-soft">{{ cd.curso.grado.jornada }}</span>{% endif %}
               {% if cd.curso.grado.carrera.ciclo_escolar.nombre %}<span class="badge-soft">{{ cd.curso.grado.carrera.ciclo_escolar.nombre }}</span>{% endif %}
+              {% if not is_docente_only %}<span class="badge-soft"><i class="fa fa-user me-1"></i>{{ cd.docente.username }}</span>{% endif %}
             </div>
 
             <div class="actions">
