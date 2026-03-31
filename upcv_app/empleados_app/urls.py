@@ -11,6 +11,7 @@ urlpatterns = [
     path("signin/", views.signin, name="signin"),
     path("logout/", views.signout, name="logout"),
     path("dahsboard/", views.dahsboard, name="dahsboard"),
+    path("establecimientos/<int:establecimiento_id>/dashboard/", views.dashboard_establecimiento, name="dashboard_establecimiento"),
     path("config_general/", views.configuracion_general, name="configuracion_general"),
     path("usuarios/", views.usuarios_list, name="usuarios_list"),
     path("usuarios/nuevo/", views.usuarios_create, name="usuarios_create"),

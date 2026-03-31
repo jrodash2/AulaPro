@@ -56,7 +56,19 @@
   <div class="container-fluid">
     <div class="page-title mb-2">
       <div class="row g-2 align-items-center">
-        <div class="col-sm-6"><h4 class="mb-0">Panel AulaPro</h4></div>
+        <div class="col-sm-6"><h4 class="mb-0">{{ titulo_dashboard }}</h4><p class="mb-0 text-muted">{{ subtitulo_dashboard }}</p></div>
+        <div class="col-sm-6 text-sm-end">
+          <form method="get" class="d-inline-flex align-items-center gap-2">
+            <label class="mb-0" for="id_establecimiento">Establecimiento:</label>
+            <select class="form-select form-select-sm" id="id_establecimiento" name="establecimiento" style="min-width:240px;">
+              {% if is_admin_total %}<option value="all" {% if not selected_establecimiento %}selected{% endif %}>Todos los establecimientos</option>{% endif %}
+              {% for est in establecimientos %}
+                <option value="{{ est.id }}" {% if selected_establecimiento and selected_establecimiento.id == est.id %}selected{% endif %}>{{ est.nombre }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm" type="submit">Aplicar</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -66,7 +78,7 @@
       <div class="card-body py-3 px-3 px-md-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
         <div>
           <h6 class="mb-1 f-w-700">Vista administrativa</h6>
-          <small class="text-muted">Indicadores académicos y operativos del ciclo activo.</small>
+          <small class="text-muted">Indicadores globales y por establecimiento.</small>
         </div>
         <span class="hero-pill">Riho Style</span>
       </div>
@@ -81,11 +93,11 @@
         <div class="card metric-card h-100">
           <div class="card-body d-flex justify-content-between align-items-center">
             <div>
-              <div class="metric-label">Ciclo activo</div>
-              <div class="metric-value" style="font-size:1.2rem;">{{ ciclo_stats.nombre }}</div>
-              <small class="text-muted">{{ ciclo_stats.establecimiento }}</small>
+              <div class="metric-label">Establecimientos</div>
+              <div class="metric-value">{{ ciclo_stats.establecimientos_total }}</div>
+              <small class="text-muted">{{ ciclo_stats.nombre }}</small>
             </div>
-            <span class="metric-icon bg-primary-soft"><i class="fa fa-calendar"></i></span>
+            <span class="metric-icon bg-primary-soft"><i class="fa fa-university"></i></span>
           </div>
         </div>
       </div>
@@ -99,6 +111,35 @@
         <div class="card metric-card h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><div class="metric-label">Asistencias</div><div class="metric-value">{{ ciclo_stats.asistencias_total }}</div><small class="text-muted">Docentes: {{ ciclo_stats.docentes_total }}</small></div><span class="metric-icon bg-info-soft"><i class="fa fa-check-square-o"></i></span></div></div>
       </div>
     </div>
+
+    {% if establecimientos_resumen %}
+    <div class="row g-3 mt-1">
+      <div class="col-12">
+        <div class="card insight-card">
+          <div class="card-header card-no-border"><h6 class="section-title"><span class="section-icon"><i class="fa fa-building"></i></span>Establecimientos</h6></div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead><tr><th>Establecimiento</th><th>Cursos</th><th>Alumnos</th><th>Asistencias</th><th class="text-end">Dashboard</th></tr></thead>
+                <tbody>
+                  {% for est in establecimientos_resumen %}
+                    <tr>
+                      <td>{{ est.nombre }}</td>
+                      <td>{{ est.cursos }}</td>
+                      <td>{{ est.alumnos }}</td>
+                      <td>{{ est.asistencias }}</td>
+                      <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:dashboard_establecimiento' est.id %}">Ver dashboard</a></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
 
     <div class="row g-3 mt-1">
       <div class="col-xxl-6 col-xl-6 col-md-12">
