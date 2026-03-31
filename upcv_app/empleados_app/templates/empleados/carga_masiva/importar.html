@@ -1,0 +1,65 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row align-items-center">
+        <div class="col-sm-8">
+          <h4 class="mb-1">{{ titulo }}</h4>
+          <p class="text-muted mb-0">{{ descripcion }}</p>
+        </div>
+        <div class="col-sm-4 text-sm-end">
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:carga_masiva_home' %}">Volver a carga masiva</a>
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:carga_masiva_plantilla' tipo %}">Descargar plantilla</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0"><h5>Archivo Excel</h5></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+          {% csrf_token %}
+          <div class="col-md-8">
+            <label class="form-label">Seleccione archivo</label>
+            {{ form.archivo }}
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check mb-2">
+              {{ form.confirmar }}
+              <label class="form-check-label" for="id_confirmar">Confirmar y guardar cambios</label>
+            </div>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Procesar archivo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if resultado %}
+      <div class="row g-3 mt-1">
+        <div class="col-md-3"><div class="card"><div class="card-body"><h6>Creados</h6><h3>{{ resultado.creados }}</h3></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body"><h6>Actualizados</h6><h3>{{ resultado.actualizados }}</h3></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body"><h6>Omitidos</h6><h3>{{ resultado.omitidos }}</h3></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body"><h6>Errores</h6><h3>{{ resultado.errores|length }}</h3></div></div></div>
+      </div>
+
+      {% if resultado.errores %}
+        <div class="card mt-3">
+          <div class="card-header"><h5 class="mb-0">Errores detectados</h5></div>
+          <div class="card-body">
+            <ul class="mb-0">
+              {% for error in resultado.errores %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
