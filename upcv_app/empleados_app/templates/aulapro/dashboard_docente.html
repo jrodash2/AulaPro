@@ -1,0 +1,429 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+
+<style>
+  .teacher-dashboard {
+    --card-radius: 14px;
+    --soft-shadow: 0 8px 24px rgba(43, 56, 116, .08);
+  }
+  .teacher-dashboard .page-title {
+    margin-bottom: .45rem;
+  }
+  .teacher-dashboard .page-title h4 {
+    margin-bottom: 0;
+    font-weight: 700;
+  }
+  .teacher-dashboard .metric-card {
+    border: 1px solid rgba(115, 102, 255, .10);
+    border-radius: var(--card-radius);
+    box-shadow: var(--soft-shadow);
+    transition: transform .25s ease, box-shadow .25s ease;
+    animation: fadeInUp .35s ease both;
+  }
+  .teacher-dashboard .metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px rgba(43, 56, 116, .14);
+  }
+  .teacher-dashboard .metric-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+  }
+  .teacher-dashboard .metric-title {
+    font-size: .8rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: .2rem;
+  }
+  .teacher-dashboard .metric-number {
+    font-size: 1.55rem;
+    line-height: 1;
+    font-weight: 800;
+    color: #1f2937;
+  }
+  .teacher-dashboard .metric-sub {
+    display: inline-block;
+    margin-top: .3rem;
+    font-size: .72rem;
+    font-weight: 600;
+    color: #6b7280;
+  }
+  .teacher-dashboard .metric-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .teacher-dashboard .icon-primary { background: linear-gradient(135deg, #7366ff, #5f6fff); }
+  .teacher-dashboard .icon-success { background: linear-gradient(135deg, #2bbf94, #12b886); }
+  .teacher-dashboard .icon-info { background: linear-gradient(135deg, #16c7f9, #2d9cdb); }
+  .teacher-dashboard .icon-warning { background: linear-gradient(135deg, #ffb347, #ff9f43); }
+
+  .teacher-dashboard .card {
+    border: 1px solid rgba(15, 23, 42, .06);
+    border-radius: var(--card-radius);
+    box-shadow: 0 6px 22px rgba(15, 23, 42, .06);
+    animation: fadeInUp .42s ease both;
+  }
+  .teacher-dashboard .card-header {
+    padding: .85rem 1rem .35rem;
+  }
+  .teacher-dashboard .card-header h5 {
+    margin-bottom: .2rem;
+    font-weight: 700;
+  }
+  .teacher-dashboard .card-body {
+    padding: .85rem 1rem 1rem;
+  }
+  .teacher-dashboard .table {
+    margin-bottom: 0;
+  }
+  .teacher-dashboard table.dataTable tbody td,
+  .teacher-dashboard table.dataTable thead th {
+    padding: .55rem .6rem;
+    vertical-align: middle;
+    font-size: .85rem;
+    white-space: nowrap;
+  }
+  .teacher-dashboard .table-responsive {
+    border-radius: 10px;
+  }
+  .teacher-dashboard .btn-sm {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: .3rem .58rem;
+  }
+  .teacher-dashboard .badge-soft {
+    padding: .3rem .48rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    background: rgba(22, 199, 249, .12);
+    color: #127ea0;
+  }
+
+  .teacher-dashboard .course-card {
+    border: 1px solid rgba(115, 102, 255, .12);
+    border-radius: 12px;
+    padding: .85rem;
+    height: 100%;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .05);
+    transition: transform .22s ease, box-shadow .22s ease;
+    animation: fadeInUp .4s ease both;
+  }
+  .teacher-dashboard .course-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .1);
+  }
+  .teacher-dashboard .course-title {
+    font-size: .98rem;
+    font-weight: 700;
+    margin-bottom: .2rem;
+    color: #111827;
+  }
+  .teacher-dashboard .course-meta {
+    font-size: .78rem;
+    color: #6b7280;
+    margin-bottom: .55rem;
+  }
+  .teacher-dashboard .course-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .65rem;
+  }
+  .teacher-dashboard .course-badge {
+    background: #f3f4ff;
+    color: #4b5563;
+    border: 1px solid rgba(115, 102, 255, .16);
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 600;
+    padding: .24rem .48rem;
+    line-height: 1.2;
+  }
+  .teacher-dashboard .course-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+  .teacher-dashboard .course-actions .btn {
+    border-radius: 8px;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .3rem .5rem;
+    transition: all .2s ease;
+  }
+  .teacher-dashboard .alert {
+    border-radius: 10px;
+    padding: .7rem .85rem;
+    margin-bottom: .9rem;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 991px) {
+    .teacher-dashboard .metric-number { font-size: 1.35rem; }
+    .teacher-dashboard .card-body,
+    .teacher-dashboard .card-header { padding-left: .8rem; padding-right: .8rem; }
+  }
+</style>
+
+<div class="page-body teacher-dashboard">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row align-items-center g-2">
+        <div class="col-sm-6">
+          <h4>Dashboard docente</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row g-3">
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body">
+            <div class="metric-inner">
+              <div>
+                <div class="metric-title">Cursos</div>
+                <div class="metric-number">{{ resumen.cursos_total }}</div>
+              </div>
+              <span class="metric-icon icon-primary"><i class="fa fa-book"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body">
+            <div class="metric-inner">
+              <div>
+                <div class="metric-title">Alumnos</div>
+                <div class="metric-number">{{ resumen.alumnos_unicos_total }}</div>
+              </div>
+              <span class="metric-icon icon-success"><i class="fa fa-users"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body">
+            <div class="metric-inner">
+              <div>
+                <div class="metric-title">Asistencias</div>
+                <div class="metric-number">{{ resumen.asistencias_total }}</div>
+                <span class="metric-sub">Hoy: {{ resumen.asistencia_hoy }}</span>
+              </div>
+              <span class="metric-icon icon-info"><i class="fa fa-calendar-check-o"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body">
+            <div class="metric-inner">
+              <div>
+                <div class="metric-title">Asistencia global</div>
+                <div class="metric-number">{{ resumen.porcentaje_general }}%</div>
+              </div>
+              <span class="metric-icon icon-warning"><i class="fa fa-line-chart"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if not cursos_docente %}
+      <div class="alert alert-info mt-3" role="alert">
+        <strong>No tiene cursos asignados.</strong>
+      </div>
+    {% endif %}
+
+    <div class="row g-3 mt-1">
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card h-100">
+          <div class="card-header card-no-border pb-0"><h5>Resumen de asistencia</h5></div>
+          <div class="card-body"><div id="chart-asistencia-curso" style="min-height: 300px;"></div></div>
+        </div>
+      </div>
+      <div class="col-xxl-6 col-xl-6 col-md-12">
+        <div class="card h-100">
+          <div class="card-header card-no-border pb-0"><h5>Cursos con más alumnos</h5></div>
+          <div class="card-body"><div id="chart-alumnos-curso" style="min-height: 300px;"></div></div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Actividad reciente</h5></div>
+          <div class="card-body"><div id="chart-asistencias-fecha" style="min-height: 280px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Mis cursos</h5></div>
+          <div class="card-body pt-2">
+            <div class="row g-3">
+              {% for cd in cursos_docente %}
+                <div class="col-12 col-md-6 col-xxl-4">
+                  <div class="course-card">
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+                      <h6 class="course-title mb-0">{{ cd.curso.nombre }}</h6>
+                      <span class="course-badge"><i class="fa fa-users me-1"></i>{{ cd.alumnos_total|default:0 }}</span>
+                    </div>
+                    <div class="course-meta">{{ cd.curso.grado.nombre|default:'-' }} · {{ cd.curso.grado.carrera.nombre|default:'-' }}</div>
+                    <div class="course-badges">
+                      <span class="course-badge"><i class="fa fa-university me-1"></i>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</span>
+                      {% if cd.curso.grado.jornada %}<span class="course-badge">{{ cd.curso.grado.jornada }}</span>{% endif %}
+                      {% if cd.curso.grado.seccion %}<span class="course-badge">Sección {{ cd.curso.grado.seccion }}</span>{% endif %}
+                      {% if cd.curso.grado.carrera.ciclo_escolar.nombre %}<span class="course-badge">{{ cd.curso.grado.carrera.ciclo_escolar.nombre }}</span>{% endif %}
+                    </div>
+                    <div class="course-actions">
+                      <a class="btn btn-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}"><i class="fa fa-eye me-1"></i>Ver curso</a>
+                      <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:docente_asistencia_home' cd.id %}"><i class="fa fa-check-square-o me-1"></i>Asistencia</a>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="col-12">
+                  <div class="alert alert-light border text-center mb-0">
+                    <strong>No tiene cursos asignados.</strong>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xxl-7">
+        <div class="card h-100">
+          <div class="card-header card-no-border pb-0"><h5>Resumen por curso</h5></div>
+          <div class="card-body">
+            <div class="table-responsive custom-scrollbar">
+              <table class="display" id="tabla-resumen-curso">
+                <thead><tr><th>Curso</th><th>Grado</th><th>Alumnos</th><th>Asistencias</th><th>%</th></tr></thead>
+                <tbody>
+                  {% for item in resumen_cursos %}
+                    <tr>
+                      <td>{{ item.curso.nombre }}</td>
+                      <td>{{ item.grado.nombre|default:'-' }}</td>
+                      <td><span class="badge-soft">{{ item.alumnos_total }}</span></td>
+                      <td>{{ item.asistencias_total }}</td>
+                      <td>{{ item.porcentaje_asistencia }}%</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="5" class="text-center text-muted">No se encontraron alumnos en sus cursos</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xxl-5">
+        <div class="card h-100">
+          <div class="card-header card-no-border pb-0"><h5>Últimas asistencias</h5></div>
+          <div class="card-body">
+            <div class="table-responsive custom-scrollbar">
+              <table class="display" id="tabla-ultimas-asistencias">
+                <thead><tr><th>Fecha</th><th>Curso</th><th>Acción</th></tr></thead>
+                <tbody>
+                  {% for asistencia in ultimas_asistencias %}
+                    <tr>
+                      <td>{{ asistencia.fecha|date:'d/m/Y' }}</td>
+                      <td>
+                        {{ asistencia.curso_docente.curso.nombre }}
+                        <div class="text-muted small">{{ asistencia.curso_docente.curso.grado.nombre|default:'-' }}</div>
+                      </td>
+                      <td><a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:docente_asistencia_detail' asistencia.id %}">Ver</a></td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="text-center text-muted">Aún no hay asistencias registradas</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener("load", function () {
+  const asistenciaCursoLabels = {{ chart_asistencia_curso_labels|safe }};
+  const asistenciaCursoPresentes = {{ chart_asistencia_curso_presentes|safe }};
+  const asistenciaCursoAusentes = {{ chart_asistencia_curso_ausentes|safe }};
+  const alumnosCursoLabels = {{ chart_alumnos_curso_labels|safe }};
+  const alumnosCursoSeries = {{ chart_alumnos_curso_series|safe }};
+  const asistenciasFechaLabels = {{ chart_asistencias_fecha_labels|safe }};
+  const asistenciasFechaSeries = {{ chart_asistencias_fecha_series|safe }};
+
+  function renderEmpty(containerId, text) {
+    const el = document.querySelector(containerId);
+    if (el) {
+      el.innerHTML = `<div class="text-muted text-center py-5">${text}</div>`;
+    }
+  }
+
+  if (typeof ApexCharts === 'undefined') {
+    ['#chart-asistencia-curso', '#chart-alumnos-curso', '#chart-asistencias-fecha'].forEach(id => renderEmpty(id, 'Sin datos disponibles'));
+    return;
+  }
+
+  if (asistenciaCursoLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-asistencia-curso'), {
+      chart: { type: 'bar', height: 300, stacked: true, toolbar: { show: false } },
+      series: [
+        { name: 'Presentes', data: asistenciaCursoPresentes },
+        { name: 'Ausentes', data: asistenciaCursoAusentes }
+      ],
+      xaxis: { categories: asistenciaCursoLabels, labels: { rotate: -25 } },
+      colors: ['#2bcbba', '#ff6b6b']
+    }).render();
+  } else { renderEmpty('#chart-asistencia-curso', 'Aún no hay asistencias registradas'); }
+
+  if (alumnosCursoLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-alumnos-curso'), {
+      chart: { type: 'bar', height: 300, toolbar: { show: false } },
+      series: [{ name: 'Alumnos', data: alumnosCursoSeries }],
+      xaxis: { categories: alumnosCursoLabels, labels: { rotate: -25 } },
+      colors: ['#7366ff']
+    }).render();
+  } else { renderEmpty('#chart-alumnos-curso', 'No se encontraron alumnos en sus cursos'); }
+
+  if (asistenciasFechaLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-asistencias-fecha'), {
+      chart: { type: 'line', height: 280, toolbar: { show: false } },
+      stroke: { curve: 'smooth', width: 3 },
+      series: [{ name: 'Asistencias', data: asistenciasFechaSeries }],
+      xaxis: { categories: asistenciasFechaLabels },
+      colors: ['#16c7f9']
+    }).render();
+  } else { renderEmpty('#chart-asistencias-fecha', 'Aún no hay asistencias registradas'); }
+});
+</script>
+{% endblock %}
