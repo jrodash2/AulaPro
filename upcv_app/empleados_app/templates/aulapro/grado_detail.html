@@ -102,7 +102,8 @@
   }
   .foto-modal-preview-wrap {
     width: 100%;
-    min-height: 220px;
+    min-height: 260px;
+    height: clamp(260px, 42vh, 360px);
     border: 1px dashed #cbd5e1;
     border-radius: 14px;
     background: linear-gradient(180deg, #fff, #f8fafc);
@@ -115,8 +116,17 @@
   .foto-modal-preview-wrap img,
   .foto-modal-preview-wrap video {
     max-width: 100%;
-    max-height: 300px;
+    max-height: 100%;
     border-radius: 12px;
+  }
+  .foto-modal-preview-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .foto-modal-preview-wrap.is-camera-on {
+    background: #0f172a;
+    border-style: solid;
   }
   .foto-camera-guide {
     position: absolute;
@@ -313,7 +323,7 @@
 {% endwith %}
 {% endfor %}
 
-<div class="modal fade" id="fotoAlumnoModal" tabindex="-1" aria-hidden="true" data-photo-ratio="{{ foto_guia_ratio|floatformat:'4' }}" data-photo-shape="{{ foto_guia_shape }}">
+<div class="modal fade" id="fotoAlumnoModal" tabindex="-1" aria-hidden="true" data-photo-ratio="{{ foto_guia_ratio|floatformat:'4' }}" data-photo-shape="{{ foto_guia_shape }}" data-photo-w="{{ foto_guia_w }}" data-photo-h="{{ foto_guia_h }}">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -505,6 +515,7 @@ document.addEventListener('click', function(e){
   const saveBtn = document.getElementById('foto-modal-save');
   const previewImg = document.getElementById('foto-modal-preview-img');
   const previewVideo = document.getElementById('foto-modal-video');
+  const previewWrap = document.querySelector('.foto-modal-preview-wrap');
   const placeholder = document.getElementById('foto-modal-placeholder');
   const cameraGuide = document.getElementById('foto-modal-camera-guide');
   const cameraFrame = document.getElementById('foto-modal-camera-frame');
@@ -514,6 +525,8 @@ document.addEventListener('click', function(e){
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const photoRatio = Math.max(0.2, parseFloat(modalEl.dataset.photoRatio || '0.7143'));
   const photoShape = (modalEl.dataset.photoShape || 'rounded').toLowerCase();
+  const photoW = Math.max(80, parseInt(modalEl.dataset.photoW || '250', 10));
+  const photoH = Math.max(80, parseInt(modalEl.dataset.photoH || '350', 10));
 
   let cameraStream = null;
   let saveUrl = '';
@@ -534,6 +547,7 @@ document.addEventListener('click', function(e){
     previewVideo.classList.add('d-none');
     placeholder.classList.remove('d-none');
     cameraGuide.classList.remove('active');
+    previewWrap.classList.remove('is-camera-on');
   }
 
   function useImagePreview(src) {
@@ -541,6 +555,7 @@ document.addEventListener('click', function(e){
     previewImg.classList.remove('d-none');
     previewVideo.classList.add('d-none');
     placeholder.classList.add('d-none');
+    previewWrap.classList.remove('is-camera-on');
   }
 
   function stopCamera() {
@@ -552,6 +567,7 @@ document.addEventListener('click', function(e){
     captureBtn.classList.add('d-none');
     stopCameraBtn.classList.add('d-none');
     cameraGuide.classList.remove('active');
+    previewWrap.classList.remove('is-camera-on');
   }
 
   function setLoading(isLoading) {
@@ -626,6 +642,7 @@ document.addEventListener('click', function(e){
       captureBtn.classList.remove('d-none');
       stopCameraBtn.classList.remove('d-none');
       cameraGuide.classList.add('active');
+      previewWrap.classList.add('is-camera-on');
       cameraFrame.style.aspectRatio = `${photoRatio}`;
       cameraFrame.style.borderRadius = photoShape === 'circle' ? '50%' : (photoShape === 'square' ? '8px' : '16px');
       selectedFile = null;
@@ -640,33 +657,45 @@ document.addEventListener('click', function(e){
 
   startCameraBtn.addEventListener('click', openCamera);
 
-  function centeredCrop(videoW, videoH, targetRatio) {
-    const sourceRatio = videoW / videoH;
-    let cropW = videoW;
-    let cropH = videoH;
-    if (sourceRatio > targetRatio) {
-      cropW = Math.round(videoH * targetRatio);
-      cropH = videoH;
-    } else {
-      cropW = videoW;
-      cropH = Math.round(videoW / targetRatio);
-    }
-    const cropX = Math.round((videoW - cropW) / 2);
-    const cropY = Math.round((videoH - cropH) / 2);
-    return { cropX, cropY, cropW, cropH };
+  function cropFromGuide(videoW, videoH) {
+    const wrapRect = previewWrap.getBoundingClientRect();
+    const frameRect = cameraFrame.getBoundingClientRect();
+    const frameX = frameRect.left - wrapRect.left;
+    const frameY = frameRect.top - wrapRect.top;
+    const frameW = frameRect.width;
+    const frameH = frameRect.height;
+
+    const scale = Math.max(wrapRect.width / videoW, wrapRect.height / videoH);
+    const renderedW = videoW * scale;
+    const renderedH = videoH * scale;
+    const offsetX = (wrapRect.width - renderedW) / 2;
+    const offsetY = (wrapRect.height - renderedH) / 2;
+
+    let sx = (frameX - offsetX) / scale;
+    let sy = (frameY - offsetY) / scale;
+    let sw = frameW / scale;
+    let sh = frameH / scale;
+
+    sx = Math.max(0, Math.min(videoW - 1, sx));
+    sy = Math.max(0, Math.min(videoH - 1, sy));
+    sw = Math.max(20, Math.min(videoW - sx, sw));
+    sh = Math.max(20, Math.min(videoH - sy, sh));
+
+    return { sx, sy, sw, sh };
   }
 
   captureBtn.addEventListener('click', function () {
     if (!cameraStream) return;
     const sourceW = previewVideo.videoWidth || 640;
     const sourceH = previewVideo.videoHeight || 480;
-    const { cropX, cropY, cropW, cropH } = centeredCrop(sourceW, sourceH, photoRatio);
-    const targetH = 1200;
-    const targetW = Math.max(300, Math.round(targetH * photoRatio));
+    const { sx, sy, sw, sh } = cropFromGuide(sourceW, sourceH);
+    const qualityScale = Math.max(2, Math.round(1200 / Math.max(photoH, 1)));
+    const targetW = Math.round(photoW * qualityScale);
+    const targetH = Math.round(photoH * qualityScale);
     canvas.width = targetW;
     canvas.height = targetH;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(previewVideo, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+    ctx.drawImage(previewVideo, sx, sy, sw, sh, 0, 0, targetW, targetH);
     capturedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
     useImagePreview(capturedDataUrl);
     stopCamera();
