@@ -525,8 +525,6 @@ document.addEventListener('click', function(e){
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
   const photoRatio = Math.max(0.2, parseFloat(modalEl.dataset.photoRatio || '0.7143'));
   const photoShape = (modalEl.dataset.photoShape || 'rounded').toLowerCase();
-  const photoW = Math.max(80, parseInt(modalEl.dataset.photoW || '250', 10));
-  const photoH = Math.max(80, parseInt(modalEl.dataset.photoH || '350', 10));
 
   let cameraStream = null;
   let saveUrl = '';
@@ -660,10 +658,15 @@ document.addEventListener('click', function(e){
   function cropFromGuide(videoW, videoH) {
     const wrapRect = previewWrap.getBoundingClientRect();
     const frameRect = cameraFrame.getBoundingClientRect();
-    const frameX = frameRect.left - wrapRect.left;
-    const frameY = frameRect.top - wrapRect.top;
-    const frameW = frameRect.width;
-    const frameH = frameRect.height;
+    const frameStyle = window.getComputedStyle(cameraFrame);
+    const borderL = parseFloat(frameStyle.borderLeftWidth || '0');
+    const borderR = parseFloat(frameStyle.borderRightWidth || '0');
+    const borderT = parseFloat(frameStyle.borderTopWidth || '0');
+    const borderB = parseFloat(frameStyle.borderBottomWidth || '0');
+    const frameX = (frameRect.left - wrapRect.left) + borderL;
+    const frameY = (frameRect.top - wrapRect.top) + borderT;
+    const frameW = Math.max(20, frameRect.width - borderL - borderR);
+    const frameH = Math.max(20, frameRect.height - borderT - borderB);
 
     const scale = Math.max(wrapRect.width / videoW, wrapRect.height / videoH);
     const renderedW = videoW * scale;
@@ -689,9 +692,9 @@ document.addEventListener('click', function(e){
     const sourceW = previewVideo.videoWidth || 640;
     const sourceH = previewVideo.videoHeight || 480;
     const { sx, sy, sw, sh } = cropFromGuide(sourceW, sourceH);
-    const qualityScale = Math.max(2, Math.round(1200 / Math.max(photoH, 1)));
-    const targetW = Math.round(photoW * qualityScale);
-    const targetH = Math.round(photoH * qualityScale);
+    const outScale = Math.max(1, Math.min(3, 1400 / Math.max(sw, sh)));
+    const targetW = Math.max(320, Math.round(sw * outScale));
+    const targetH = Math.max(320, Math.round(sh * outScale));
     canvas.width = targetW;
     canvas.height = targetH;
     const ctx = canvas.getContext('2d');
