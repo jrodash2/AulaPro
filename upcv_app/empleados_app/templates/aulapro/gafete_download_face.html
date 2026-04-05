@@ -1,0 +1,82 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Descargando gafete {{ lado }}</title>
+  {% include 'empleados/partials_gafete_estilos.html' %}
+  <style>
+    body { margin: 0; padding: 24px; background: #f1f5f9; }
+    .download-wrap { display: flex; min-height: calc(100vh - 48px); align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+    .download-card { background: #fff; border-radius: 14px; box-shadow: 0 12px 24px rgba(15, 23, 42, .12); padding: 14px; }
+    .gafete-canvas-real { transform: none !important; }
+    .status { font-family: Arial, sans-serif; color: #334155; font-size: 14px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <div class="download-wrap">
+    <div class="download-card">
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face=face face_layout=face_layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+    </div>
+    <div id="download-status" class="status">Preparando descarga…</div>
+  </div>
+
+  <script>
+    (function () {
+      async function runExport() {
+        const status = document.getElementById('download-status');
+        const element = document.getElementById('download-canvas');
+        if (!element) {
+          status.textContent = 'No se encontró el lienzo para descargar.';
+          return;
+        }
+
+        try {
+          await document.fonts.ready;
+          const canvas = await html2canvas(element, {
+            useCORS: true,
+            backgroundColor: null,
+            scale: 1,
+            width: {{ canvas_width }},
+            height: {{ canvas_height }},
+            onclone: (clonedDoc) => {
+              const clonedCanvas = clonedDoc.getElementById('download-canvas');
+              if (!clonedCanvas) return;
+              clonedCanvas.querySelectorAll('img.gafete-item[data-key="photo"]').forEach((photoImg) => {
+                const photoUrl = photoImg.currentSrc || photoImg.getAttribute('src') || '';
+                if (!photoUrl) return;
+                const photoBox = clonedDoc.createElement('div');
+                photoBox.className = photoImg.className;
+                photoBox.dataset.key = 'photo';
+                photoBox.style.cssText = photoImg.style.cssText;
+                photoBox.style.objectFit = '';
+                photoBox.style.objectPosition = '';
+                photoBox.style.backgroundImage = `url("${photoUrl}")`;
+                photoBox.style.backgroundSize = 'cover';
+                photoBox.style.backgroundPosition = 'center center';
+                photoBox.style.backgroundRepeat = 'no-repeat';
+                photoBox.style.overflow = 'hidden';
+                photoImg.replaceWith(photoBox);
+              });
+            },
+          });
+          const link = document.createElement('a');
+          link.href = canvas.toDataURL('image/jpeg', 0.95);
+          link.download = '{{ filename }}';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
+        } catch (error) {
+          console.error('Error exportando gafete', error);
+          status.textContent = 'No se pudo generar la descarga. Revise consola del navegador.';
+        }
+      }
+
+      window.addEventListener('load', runExport);
+    })();
+  </script>
+</body>
+</html>

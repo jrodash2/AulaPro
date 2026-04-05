@@ -1743,6 +1743,32 @@ def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_wi
     return buffer.getvalue()
 
 
+def _build_gafete_download_context(matricula, lado):
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if not establecimiento:
+        return None
+    orientation = orientation_for_establecimiento(establecimiento)
+    layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation)
+    canvas_width, canvas_height = canvas_for_orientation(orientation)
+    face = "back" if lado == "reverso" else "front"
+    return {
+        "matricula": matricula,
+        "alumno": matricula.alumno,
+        "grado": matricula.grado,
+        "establecimiento": establecimiento,
+        "configuracion": ConfiguracionGeneral.objects.first(),
+        "layout": layout,
+        "face": face,
+        "face_layout": obtener_layout_cara(layout, face),
+        "canvas_width": canvas_width,
+        "canvas_height": canvas_height,
+        "gafete_w": canvas_width,
+        "gafete_h": canvas_height,
+        "filename": _build_gafete_filename(matricula.alumno, lado=lado),
+        "lado": lado,
+    }
+
+
 @login_required
 @user_passes_test(_can_access_backoffice)
 def gafete_jpg(request, matricula_id):
@@ -1790,9 +1816,19 @@ def descargar_gafete_frente_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    request.GET = request.GET.copy()
-    request.GET["lado"] = "frente"
-    return gafete_jpg(request, matricula_id)
+    matricula = get_object_or_404(
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
+        pk=matricula_id,
+    )
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if establecimiento:
+        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
+        if denied:
+            return denied
+    ctx = _build_gafete_download_context(matricula, "frente")
+    if not ctx:
+        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
+    return render(request, "aulapro/gafete_download_face.html", ctx)
 
 
 @login_required
@@ -1801,9 +1837,19 @@ def descargar_gafete_reverso_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    request.GET = request.GET.copy()
-    request.GET["lado"] = "reverso"
-    return gafete_jpg(request, matricula_id)
+    matricula = get_object_or_404(
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
+        pk=matricula_id,
+    )
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if establecimiento:
+        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
+        if denied:
+            return denied
+    ctx = _build_gafete_download_context(matricula, "reverso")
+    if not ctx:
+        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
+    return render(request, "aulapro/gafete_download_face.html", ctx)
 
 
 @login_required
