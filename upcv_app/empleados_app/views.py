@@ -189,6 +189,10 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
+        if "w" in cfg:
+            item["w"] = max(40, min(canvas_width, int(cfg.get("w") or 280)))
+        if "h" in cfg:
+            item["h"] = max(30, min(canvas_height, int(cfg.get("h") or 70)))
         if str(key).startswith("texto_libre_"):
             item["text"] = str(cfg.get("text") or "")
         result_items[key] = item
@@ -1580,6 +1584,12 @@ def _apply_contain_image(src_image, target_w, target_h):
     return layer
 
 
+def _open_normalized_image(file_obj):
+    image = Image.open(file_obj)
+    image = ImageOps.exif_transpose(image)
+    return image
+
+
 def _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, fill, align="left"):
     words = str(text or "").split()
     if not words:
@@ -1624,7 +1634,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         radius = max(0, int(photo_cfg.get("radius", 20)))
         try:
             with matricula.alumno.imagen.open("rb") as photo_file:
-                photo = Image.open(photo_file).convert("RGB")
+                photo = _open_normalized_image(photo_file).convert("RGB")
                 photo = _apply_cover_image(photo, w, h)
                 alpha_mask = Image.new("L", (w, h), 0)
                 alpha_draw = ImageDraw.Draw(alpha_mask)
@@ -1685,9 +1695,15 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         color = _parse_color(cfg.get("color", "#111111"), default="#111111")
         align = str(cfg.get("align", "left")).lower()
         font = _load_font(font_size=font_size, bold=(weight == "700"))
-        max_w = max(20, int(cfg.get("w", 280)))
-        max_h = max(20, int(cfg.get("h", 70)))
-        _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
+        if "w" in cfg and "h" in cfg:
+            max_w = max(20, int(cfg.get("w", 280)))
+            max_h = max(20, int(cfg.get("h", 70)))
+            _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
+        else:
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_w = text_bbox[2] - text_bbox[0]
+            tx = x - text_w // 2 if align == "center" else x - text_w if align == "right" else x
+            draw.text((tx, y), text, fill=color, font=font)
 
 
 def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, canvas_height):
@@ -1793,12 +1809,23 @@ def gafete_jpg(request, matricula_id):
     lado = (request.GET.get("lado") or "frente").strip().lower()
     if lado not in {"frente", "reverso"}:
         lado = "frente"
-    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado=lado)
-
     filename = _build_gafete_filename(matricula.alumno, lado=lado)
-    response = HttpResponse(image_bytes, content_type="image/jpeg")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return render(
+        request,
+        "aulapro/gafete_download.html",
+        {
+            "alumno": matricula.alumno,
+            "grado": matricula.grado,
+            "establecimiento": establecimiento,
+            "layout": layout,
+            "canvas_width": canvas_width,
+            "canvas_height": canvas_height,
+            "gafete_w": canvas_width,
+            "gafete_h": canvas_height,
+            "lado": lado,
+            "download_filename": filename,
+        },
+    )
 
 
 @login_required

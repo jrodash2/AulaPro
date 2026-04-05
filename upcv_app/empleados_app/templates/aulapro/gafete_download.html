@@ -6,10 +6,22 @@
   <title>Descargar gafete</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   {% include 'empleados/partials_gafete_estilos.html' %}
-  <style>body{margin:0;padding:8px}</style>
+  <style>body{margin:0;padding:8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif} .download-status{margin:8px 0 0;color:#334155;font-size:.9rem} .download-actions{margin-top:10px} </style>
 </head>
 <body>
-  {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height %}
+  <div id="download-wrapper">
+    {% if lado|lower == 'reverso' %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+    {% else %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+    {% endif %}
+  </div>
+  <p id="download-status" class="download-status">Preparando descarga...</p>
+  <div class="download-actions">
+    <a id="manual-download" class="btn btn-primary btn-sm d-none" href="#" download>Descargar ahora</a>
+  </div>
   <script>
     const element = document.getElementById('download-canvas');
     html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
