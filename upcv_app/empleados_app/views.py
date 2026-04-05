@@ -181,6 +181,8 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
         item = {
             "x": int(cfg.get("x") or 0),
             "y": int(cfg.get("y") or 0),
+            "w": max(40, min(canvas_width, int(cfg.get("w") or 280))),
+            "h": max(30, min(canvas_height, int(cfg.get("h") or 70))),
             "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
             "font_weight": weight,
             "color": color,
@@ -1755,6 +1757,32 @@ def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_wi
     buffer = BytesIO()
     output.save(buffer, format="JPEG", quality=95, optimize=True)
     return buffer.getvalue()
+
+
+def _build_gafete_download_context(matricula, lado):
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if not establecimiento:
+        return None
+    orientation = orientation_for_establecimiento(establecimiento)
+    layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation)
+    canvas_width, canvas_height = canvas_for_orientation(orientation)
+    face = "back" if lado == "reverso" else "front"
+    return {
+        "matricula": matricula,
+        "alumno": matricula.alumno,
+        "grado": matricula.grado,
+        "establecimiento": establecimiento,
+        "configuracion": ConfiguracionGeneral.objects.first(),
+        "layout": layout,
+        "face": face,
+        "face_layout": obtener_layout_cara(layout, face),
+        "canvas_width": canvas_width,
+        "canvas_height": canvas_height,
+        "gafete_w": canvas_width,
+        "gafete_h": canvas_height,
+        "filename": _build_gafete_filename(matricula.alumno, lado=lado),
+        "lado": lado,
+    }
 
 
 @login_required
