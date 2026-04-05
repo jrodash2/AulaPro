@@ -235,9 +235,9 @@
               <td>
                 <div class="gafete-actions" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Frente</a>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Frente</a>
                   {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}"><i class="fa fa-download me-1"></i>Posterior</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Posterior</a>
                   {% else %}
                     <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
                   {% endif %}
@@ -308,9 +308,9 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Descargar frente</a>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar frente</a>
         {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}"><i class="fa fa-download me-1"></i>Descargar posterior</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar posterior</a>
         {% else %}
           <button class="btn btn-outline-secondary btn-sm" type="button" disabled>Posterior no disponible</button>
         {% endif %}
@@ -420,70 +420,7 @@ window.matriculaModalConfig = {
 };
 </script>
 {% if not is_gestor %}
-<script>
-(function () {
-  function balancedLineBreaks(text, maxLines) {
-    const words = (text || '').trim().split(/\s+/).filter(Boolean);
-    if (!words.length) return '';
-    if (words.length <= 2) return words.join(' ');
 
-    const n = words.length;
-    let best = null;
-
-    function score(parts) {
-      const lengths = parts.map((p) => p.length);
-      const maxLen = Math.max(...lengths);
-      const minLen = Math.min(...lengths);
-      return maxLen * 100 + (maxLen - minLen);
-    }
-
-    function buildParts(cuts) {
-      const parts = [];
-      let start = 0;
-      for (const cut of cuts) {
-        parts.push(words.slice(start, cut).join(' '));
-        start = cut;
-      }
-      parts.push(words.slice(start).join(' '));
-      return parts;
-    }
-
-    if (maxLines >= 2) {
-      for (let i = 1; i < n; i++) {
-        const parts = buildParts([i]);
-        const candidate = { parts, s: score(parts) };
-        if (!best || candidate.s < best.s) best = candidate;
-      }
-    }
-
-    if (maxLines >= 3 && n >= 3) {
-      for (let i = 1; i < n - 1; i++) {
-        for (let j = i + 1; j < n; j++) {
-          const parts = buildParts([i, j]);
-          const candidate = { parts, s: score(parts) };
-          if (!best || candidate.s < best.s) best = candidate;
-        }
-      }
-    }
-
-    return (best ? best.parts : [text]).join('<br>');
-  }
-
-  function formatAllGradoTexts() {
-    document.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
-      const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
-      if (!raw) return;
-      gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', formatAllGradoTexts);
-  } else {
-    formatAllGradoTexts();
-  }
-})();
-</script>
 
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script>
