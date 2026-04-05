@@ -41,6 +41,26 @@
             scale: 1,
             width: {{ canvas_width }},
             height: {{ canvas_height }},
+            onclone: (clonedDoc) => {
+              const clonedCanvas = clonedDoc.getElementById('download-canvas');
+              if (!clonedCanvas) return;
+              clonedCanvas.querySelectorAll('img.gafete-item[data-key="photo"]').forEach((photoImg) => {
+                const photoUrl = photoImg.currentSrc || photoImg.getAttribute('src') || '';
+                if (!photoUrl) return;
+                const photoBox = clonedDoc.createElement('div');
+                photoBox.className = photoImg.className;
+                photoBox.dataset.key = 'photo';
+                photoBox.style.cssText = photoImg.style.cssText;
+                photoBox.style.objectFit = '';
+                photoBox.style.objectPosition = '';
+                photoBox.style.backgroundImage = `url("${photoUrl}")`;
+                photoBox.style.backgroundSize = 'cover';
+                photoBox.style.backgroundPosition = 'center center';
+                photoBox.style.backgroundRepeat = 'no-repeat';
+                photoBox.style.overflow = 'hidden';
+                photoImg.replaceWith(photoBox);
+              });
+            },
           });
           const link = document.createElement('a');
           link.href = canvas.toDataURL('image/jpeg', 0.95);
