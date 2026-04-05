@@ -80,41 +80,42 @@
               </section>
 
               <section id="tab-props" class="editor-tab-panel d-none">
+                <div id="prop-empty-state" class="alert alert-light-info py-2 mb-3">Seleccione un elemento para editar sus propiedades.</div>
                 <div class="row g-2 mb-3">
-                  <div class="col-6"><label class="form-label mb-1">X</label><input id="prop-x" type="number" class="form-control form-control-sm"></div>
-                  <div class="col-6"><label class="form-label mb-1">Y</label><input id="prop-y" type="number" class="form-control form-control-sm"></div>
+                  <div class="col-6"><label class="form-label mb-1">X</label><input id="prop-x" type="number" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Y</label><input id="prop-y" type="number" class="form-control form-control-sm prop-input"></div>
                 </div>
                 <div class="mb-3 form-check">
-                  <input id="prop-visible" type="checkbox" class="form-check-input">
+                  <input id="prop-visible" type="checkbox" class="form-check-input prop-input">
                   <label for="prop-visible" class="form-check-label">Visible</label>
                 </div>
 
                 <div id="text-props">
                 <div class="mb-3">
                   <label class="form-label">Contenido</label>
-                  <input id="prop-text-content" type="text" class="form-control" placeholder="Texto fijo o placeholder">
+                  <input id="prop-text-content" type="text" class="form-control prop-input" placeholder="Texto fijo o placeholder">
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Color</label>
                   <div class="d-flex gap-2">
-                    <input id="prop-color" type="color" class="form-control form-control-color" style="width: 64px;">
-                    <input id="prop-color-text" type="text" class="form-control" placeholder="#111111">
+                    <input id="prop-color" type="color" class="form-control form-control-color prop-input" style="width: 64px;">
+                    <input id="prop-color-text" type="text" class="form-control prop-input" placeholder="#111111">
                   </div>
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Tamaño</label>
-                  <input id="prop-size" type="number" min="10" max="120" class="form-control">
+                  <input id="prop-size" type="number" min="10" max="120" class="form-control prop-input">
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Peso</label>
-                  <select id="prop-weight" class="form-control">
+                  <select id="prop-weight" class="form-control prop-input">
                     <option value="400">Normal (400)</option>
                     <option value="700">Negrita (700)</option>
                   </select>
                 </div>
                   <div class="mb-3">
                     <label class="form-label">Alineación</label>
-                    <select id="prop-align" class="form-control">
+                    <select id="prop-align" class="form-control prop-input">
                       <option value="left">Izquierda</option>
                       <option value="center">Centro</option>
                       <option value="right">Derecha</option>
@@ -126,16 +127,16 @@
                 <div class="mb-3">
                   <label class="form-label d-block">Forma</label>
                   <div class="d-flex gap-3">
-                    <div class="form-check"><input class="form-check-input" type="radio" name="photo-shape" id="shape-rounded" value="rounded"><label class="form-check-label" for="shape-rounded">Cuadro</label></div>
-                    <div class="form-check"><input class="form-check-input" type="radio" name="photo-shape" id="shape-circle" value="circle"><label class="form-check-label" for="shape-circle">Círculo</label></div>
+                    <div class="form-check"><input class="form-check-input prop-input" type="radio" name="photo-shape" id="shape-rounded" value="rounded"><label class="form-check-label" for="shape-rounded">Cuadro</label></div>
+                    <div class="form-check"><input class="form-check-input prop-input" type="radio" name="photo-shape" id="shape-circle" value="circle"><label class="form-check-label" for="shape-circle">Círculo</label></div>
                   </div>
                 </div>
-                <div class="mb-3 form-check"><input id="photo-border" type="checkbox" class="form-check-input"><label for="photo-border" class="form-check-label">Borde</label></div>
-                <div class="mb-3"><label class="form-label">Ancho borde</label><input id="photo-border-width" type="number" min="0" max="20" class="form-control"></div>
-                <div class="mb-3"><label class="form-label">Color borde</label><input id="photo-border-color" type="color" class="form-control form-control-color"></div>
-                <div class="mb-3"><label class="form-label">Width</label><input id="photo-w" type="number" min="40" max="500" class="form-control"></div>
-                <div class="mb-3"><label class="form-label">Height</label><input id="photo-h" type="number" min="40" max="500" class="form-control"></div>
-                <div class="mb-3"><label class="form-label">Radius (solo cuadro)</label><input id="photo-radius" type="number" min="0" max="200" class="form-control"></div>
+                <div class="mb-3 form-check"><input id="photo-border" type="checkbox" class="form-check-input prop-input"><label for="photo-border" class="form-check-label">Borde</label></div>
+                <div class="mb-3"><label class="form-label">Ancho borde</label><input id="photo-border-width" type="number" min="0" max="20" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Color borde</label><input id="photo-border-color" type="color" class="form-control form-control-color prop-input"></div>
+                <div class="mb-3"><label class="form-label">Width</label><input id="photo-w" type="number" min="40" max="500" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Height</label><input id="photo-h" type="number" min="40" max="500" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Radius (solo cuadro)</label><input id="photo-radius" type="number" min="0" max="200" class="form-control prop-input"></div>
                 </div>
               </section>
 

@@ -21,6 +21,8 @@
   const propY = document.getElementById('prop-y');
   const propVisible = document.getElementById('prop-visible');
   const propAlign = document.getElementById('prop-align');
+  const propEmptyState = document.getElementById('prop-empty-state');
+  const propInputs = Array.from(document.querySelectorAll('.prop-input'));
 
   const colorInput = document.getElementById('prop-color');
   const colorText = document.getElementById('prop-color-text');
@@ -56,6 +58,17 @@
   }
 
   function syncLayoutInput() { layoutInput.value = JSON.stringify({ layout }); }
+
+  function setPropsEnabled(enabled) {
+    propInputs.forEach((el) => { el.disabled = !enabled; });
+    if (propEmptyState) propEmptyState.classList.toggle('d-none', enabled);
+  }
+
+  function activateTab(tab) {
+    document.querySelectorAll('.editor-tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tab-layers')?.classList.toggle('d-none', tab !== 'layers');
+    document.getElementById('tab-props')?.classList.toggle('d-none', tab !== 'props');
+  }
 
   function showFace(face) {
     currentFace = face === 'back' ? 'back' : 'front';
@@ -137,9 +150,15 @@
       activeKeyLabel.textContent = `Elemento activo (${currentFace}): ninguno`;
       textProps.classList.add('d-none');
       photoProps.classList.add('d-none');
+      setPropsEnabled(false);
       return;
     }
     const itemCfg = getCfg(key);
+    if (!itemCfg) {
+      setPropsEnabled(false);
+      return;
+    }
+    setPropsEnabled(true);
     activeKeyLabel.textContent = `Elemento activo (${currentFace}): ${labelsMap[key] || key}`;
     propX.value = itemCfg.x || 0;
     propY.value = itemCfg.y || 0;
@@ -204,16 +223,13 @@
     const row = e.target.closest('.layer-item[data-key]');
     if (!row) return;
     setActive(row.dataset.key);
+    activateTab('props');
     renderLayers();
   });
 
   document.querySelectorAll('.face-switch').forEach((btn) => btn.addEventListener('click', () => showFace(btn.dataset.face)));
 
-  document.querySelectorAll('.editor-tab-btn').forEach((btn) => btn.addEventListener('click', () => {
-    document.querySelectorAll('.editor-tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
-    document.getElementById('tab-layers')?.classList.toggle('d-none', btn.dataset.tab !== 'layers');
-    document.getElementById('tab-props')?.classList.toggle('d-none', btn.dataset.tab !== 'props');
-  }));
+  document.querySelectorAll('.editor-tab-btn').forEach((btn) => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
 
   function bindCanvas(canvasEl) {
     let drag = null;
@@ -224,6 +240,7 @@
       const key = item.dataset.key;
       if (!allowedInCurrentFace(key) || !isEnabled(key)) return;
       setActive(key);
+      activateTab('props');
       const itemCfg = getCfg(key);
       const rect = canvasEl.getBoundingClientRect();
       drag = { item, key, pointerId: e.pointerId, sx: e.clientX - rect.left - (itemCfg.x || 0), sy: e.clientY - rect.top - (itemCfg.y || 0) };
@@ -247,6 +264,7 @@
     canvasEl.addEventListener('click', (e) => {
       const item = e.target.closest('.gafete-item[data-key]');
       setActive(item ? item.dataset.key : null);
+      if (item) activateTab('props');
       renderLayers();
     });
   }
@@ -256,10 +274,12 @@
   function applyCommonPositionProps() {
     if (!activeKey) return;
     const itemCfg = getCfg(activeKey);
-    itemCfg.x = parseInt(propX.value || '0', 10);
-    itemCfg.y = parseInt(propY.value || '0', 10);
+    if (!itemCfg) return;
+    itemCfg.x = Number.isFinite(parseInt(propX.value, 10)) ? parseInt(propX.value, 10) : (itemCfg.x || 0);
+    itemCfg.y = Number.isFinite(parseInt(propY.value, 10)) ? parseInt(propY.value, 10) : (itemCfg.y || 0);
     itemCfg.visible = !!propVisible.checked;
     refreshItems();
+    setActive(activeKey);
     syncLayoutInput();
   }
   [propX, propY, propVisible].forEach((el) => {
@@ -270,39 +290,43 @@
   function applyTextProps() {
     if (!activeKey || activeKey === 'photo') return;
     const itemCfg = getCfg(activeKey);
+    if (!itemCfg) return;
     itemCfg.color = colorInput.value;
-    itemCfg.font_size = parseInt(sizeInput.value || '24', 10);
+    itemCfg.font_size = Number.isFinite(parseInt(sizeInput.value, 10)) ? parseInt(sizeInput.value, 10) : (itemCfg.font_size || 24);
     itemCfg.font_weight = weightInput.value;
     itemCfg.align = propAlign.value || 'left';
     itemCfg.visible = !!propVisible.checked;
     if (activeKey.startsWith('texto_libre_')) itemCfg.text = textContentInput.value || '';
     refreshItems();
+    setActive(activeKey);
     syncLayoutInput();
   }
-  colorInput.addEventListener('input', applyTextProps);
-  colorText.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
-  sizeInput.addEventListener('input', applyTextProps);
-  weightInput.addEventListener('change', applyTextProps);
+  colorInput?.addEventListener('input', applyTextProps);
+  colorText?.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) { colorInput.value = colorText.value; applyTextProps(); } });
+  sizeInput?.addEventListener('input', applyTextProps);
+  weightInput?.addEventListener('change', applyTextProps);
   textContentInput?.addEventListener('input', applyTextProps);
   propAlign?.addEventListener('change', applyTextProps);
 
   function applyPhotoProps() {
     if (activeKey !== 'photo') return;
     const itemCfg = getCfg('photo');
+    if (!itemCfg) return;
     itemCfg.shape = shapeCircle.checked ? 'circle' : 'rounded';
     itemCfg.border = !!photoBorder.checked;
-    itemCfg.border_width = parseInt(photoBorderWidth.value || '4', 10);
+    itemCfg.border_width = Number.isFinite(parseInt(photoBorderWidth.value, 10)) ? parseInt(photoBorderWidth.value, 10) : (itemCfg.border_width || 4);
     itemCfg.border_color = photoBorderColor.value || '#ffffff';
-    itemCfg.w = parseInt(photoW.value || '250', 10);
-    itemCfg.h = parseInt(photoH.value || '350', 10);
-    itemCfg.radius = parseInt(photoRadius.value || '20', 10);
+    itemCfg.w = Number.isFinite(parseInt(photoW.value, 10)) ? parseInt(photoW.value, 10) : (itemCfg.w || 250);
+    itemCfg.h = Number.isFinite(parseInt(photoH.value, 10)) ? parseInt(photoH.value, 10) : (itemCfg.h || 350);
+    itemCfg.radius = Number.isFinite(parseInt(photoRadius.value, 10)) ? parseInt(photoRadius.value, 10) : (itemCfg.radius || 20);
     itemCfg.visible = !!propVisible.checked;
     refreshItems();
+    setActive(activeKey);
     syncLayoutInput();
   }
   [shapeRounded, shapeCircle, photoBorder, photoBorderWidth, photoBorderColor, photoW, photoH, photoRadius].forEach((el) => {
-    el.addEventListener('input', applyPhotoProps);
-    el.addEventListener('change', applyPhotoProps);
+    el?.addEventListener('input', applyPhotoProps);
+    el?.addEventListener('change', applyPhotoProps);
   });
 
   document.getElementById('reset-layout')?.addEventListener('click', () => {
@@ -324,7 +348,9 @@
     alert(res.ok ? 'Diseño guardado' : 'No se pudo guardar el diseño');
   });
 
+  activateTab('layers');
   refreshItems();
   showFace('front');
+  setPropsEnabled(false);
   syncLayoutInput();
 })();
