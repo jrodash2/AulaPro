@@ -28,9 +28,24 @@ DEFAULT_FACE_ITEMS = {
     "texto_libre_1": {"x": 80, "y": 120, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
     "texto_libre_2": {"x": 80, "y": 170, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
     "texto_libre_3": {"x": 80, "y": 220, "font_size": 24, "font_weight": "400", "color": "#111111", "align": "left", "visible": False, "text": ""},
+    "image": {"x": 30, "y": 30, "w": 220, "h": 220, "src": "", "object_fit": "contain", "visible": False},
 }
 
 DEFAULT_ENABLED_FIELDS = ["photo", "nombres", "apellidos", "codigo_alumno", "grado", "telefono", "establecimiento"]
+BACK_VISIBLE_KEYS = {
+    "nombres",
+    "apellidos",
+    "codigo_alumno",
+    "grado",
+    "grado_descripcion",
+    "cui",
+    "telefono",
+    "establecimiento",
+    "sitio_web",
+    "texto_libre_1",
+    "texto_libre_2",
+    "texto_libre_3",
+}
 
 
 def canvas_for_orientation(orientation):
@@ -92,6 +107,52 @@ def _merge_face(face, default_face):
     return out
 
 
+def is_item_allowed_in_face(face, key):
+    target_face = "back" if str(face or "front") == "back" else "front"
+    key = str(key or "")
+    if key.startswith("texto_libre_") or key.startswith("image"):
+        return True
+    if key not in DEFAULT_FACE_ITEMS:
+        return False
+    if target_face == "front":
+        return True
+    return key in BACK_VISIBLE_KEYS
+
+
+def is_item_visible_in_face(face_layout, face, key):
+    if not is_item_allowed_in_face(face, key):
+        return False
+    if not isinstance(face_layout, dict):
+        return False
+    items = face_layout.get("items")
+    if not isinstance(items, dict):
+        return False
+    item_cfg = items.get(key)
+    if not isinstance(item_cfg, dict):
+        return False
+    enabled_fields = face_layout.get("enabled_fields")
+    if not isinstance(enabled_fields, list) or key not in enabled_fields:
+        return False
+    default_cfg = DEFAULT_FACE_ITEMS.get(key, {})
+    default_visible = bool(default_cfg.get("visible", True))
+    return bool(item_cfg.get("visible", default_visible))
+
+
+def enforce_face_visibility_rules(face_layout, face):
+    if not isinstance(face_layout, dict):
+        return _default_face(empty=(str(face or "front") == "back"))
+    out = copy.deepcopy(face_layout)
+    items = out.get("items")
+    if not isinstance(items, dict):
+        items = {}
+    out["items"] = items
+    enabled = out.get("enabled_fields")
+    if not isinstance(enabled, list):
+        enabled = []
+    out["enabled_fields"] = [k for k in enabled if is_item_allowed_in_face(face, k) and k in items]
+    return out
+
+
 def normalizar_layout_gafete(raw_layout, orientation='H'):
     base = default_layout_front_back(orientation=orientation)
     if not isinstance(raw_layout, dict):
@@ -108,6 +169,8 @@ def normalizar_layout_gafete(raw_layout, orientation='H'):
     if isinstance(raw_layout.get("front"), dict) or isinstance(raw_layout.get("back"), dict):
         base["front"] = _merge_face(raw_layout.get("front"), _default_face(empty=False))
         base["back"] = _merge_face(raw_layout.get("back"), _default_face(empty=True))
+        base["front"] = enforce_face_visibility_rules(base["front"], "front")
+        base["back"] = enforce_face_visibility_rules(base["back"], "back")
         return base
 
     # Formato legado
@@ -129,13 +192,15 @@ def normalizar_layout_gafete(raw_layout, orientation='H'):
         legacy_front["items"] = converted
 
     base["front"] = _merge_face(legacy_front, _default_face(empty=False))
+    base["front"] = enforce_face_visibility_rules(base["front"], "front")
+    base["back"] = enforce_face_visibility_rules(base["back"], "back")
     return base
 
 
 def obtener_layout_cara(layout, face='front'):
     normalized = normalizar_layout_gafete(layout)
     target = 'back' if face == 'back' else 'front'
-    return normalized.get(target, _default_face(empty=(target == 'back')))
+    return enforce_face_visibility_rules(normalized.get(target, _default_face(empty=(target == 'back'))), target)
 
 
 def serializar_layout_frente_reverso(layout, orientation='H'):
