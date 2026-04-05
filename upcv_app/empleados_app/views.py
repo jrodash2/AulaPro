@@ -118,16 +118,21 @@ def _docente_alumnos_qs(user):
 
 
 def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3", "image"}
+    base_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3", "image"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
     allowed_fit = {"contain", "cover"}
 
     result_items = {}
-    valid_enabled = [field for field in (enabled_fields or []) if field in allowed_keys]
+    valid_enabled = [
+        field for field in (enabled_fields or [])
+        if field in base_keys or str(field).startswith("texto_libre_") or str(field).startswith("image")
+    ]
 
     for key, cfg in (items or {}).items():
-        if key not in allowed_keys or not isinstance(cfg, dict):
+        is_dynamic_text = str(key).startswith("texto_libre_")
+        is_dynamic_image = str(key).startswith("image")
+        if (key not in base_keys and not is_dynamic_text and not is_dynamic_image) or not isinstance(cfg, dict):
             continue
 
         if key == "photo":
@@ -151,7 +156,7 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
             }
             continue
 
-        if key == "image":
+        if key == "image" or is_dynamic_image:
             fit = str(cfg.get("object_fit") or "contain").lower()
             result_items[key] = {
                 "x": int(cfg.get("x") or 0),
@@ -176,13 +181,15 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
         item = {
             "x": int(cfg.get("x") or 0),
             "y": int(cfg.get("y") or 0),
+            "w": max(40, min(canvas_width, int(cfg.get("w") or 280))),
+            "h": max(30, min(canvas_height, int(cfg.get("h") or 70))),
             "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
             "font_weight": weight,
             "color": color,
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
-        if key.startswith("texto_libre_"):
+        if str(key).startswith("texto_libre_"):
             item["text"] = str(cfg.get("text") or "")
         result_items[key] = item
 
@@ -1436,11 +1443,25 @@ def editor_gafete(request, establecimiento_id):
 @user_passes_test(_can_access_backoffice)
 @require_POST
 def subir_imagen_gafete(request, establecimiento_id):
-    """
-    Vista legacy conservada para compatibilidad con rutas antiguas.
-    El flujo actual no permite subir imágenes desde el editor del reverso.
-    """
-    return JsonResponse({"ok": False, "error": "Función deshabilitada en el editor actual."}, status=410)
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
+    if denied:
+        return denied
+    _ = get_object_or_404(Establecimiento, pk=establecimiento_id)
+    image = request.FILES.get("image")
+    if not image:
+        return JsonResponse({"ok": False, "error": "Debe seleccionar una imagen."}, status=400)
+    if image.size > 4 * 1024 * 1024:
+        return JsonResponse({"ok": False, "error": "La imagen supera 4MB."}, status=400)
+    if image.content_type not in {"image/jpeg", "image/png", "image/webp", "image/svg+xml"}:
+        return JsonResponse({"ok": False, "error": "Formato no permitido."}, status=400)
+    try:
+        stored_path = default_storage.save(f"gafetes/overlays/{uuid4().hex}_{image.name}", image)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "No se pudo almacenar la imagen."}, status=500)
+    return JsonResponse({"ok": True, "url": default_storage.url(stored_path)})
 
 
 @login_required
@@ -1559,6 +1580,35 @@ def _apply_contain_image(src_image, target_w, target_h):
     return layer
 
 
+def _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, fill, align="left"):
+    words = str(text or "").split()
+    if not words:
+        return
+    lines = []
+    line = words[0]
+    for word in words[1:]:
+        candidate = f"{line} {word}".strip()
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        if bbox[2] - bbox[0] <= max_w:
+            line = candidate
+        else:
+            lines.append(line)
+            line = word
+    lines.append(line)
+
+    line_h = draw.textbbox((0, 0), "Ag", font=font)[3] + 2
+    max_lines = max(1, int(max_h // line_h))
+    lines = lines[:max_lines]
+    for idx, ln in enumerate(lines):
+        tw = draw.textbbox((0, 0), ln, font=font)[2]
+        tx = x
+        if align == "center":
+            tx = x + max((max_w - tw) // 2, 0)
+        elif align == "right":
+            tx = x + max(max_w - tw, 0)
+        draw.text((tx, y + idx * line_h), ln, fill=fill, font=font)
+
+
 def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout, face="front"):
     items = face_layout.get("items", {}) if isinstance(face_layout, dict) else {}
 
@@ -1599,8 +1649,11 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         except Exception:
             pass
 
-    image_cfg = items.get("image", {}) if isinstance(items.get("image", {}), dict) else {}
-    if is_item_visible_in_face(face_layout, face, "image") and image_cfg.get("src"):
+    image_keys = [key for key in items.keys() if str(key).startswith("image")]
+    for image_key in image_keys:
+        image_cfg = items.get(image_key, {}) if isinstance(items.get(image_key, {}), dict) else {}
+        if not is_item_visible_in_face(face_layout, face, image_key) or not image_cfg.get("src"):
+            continue
         try:
             from urllib.request import urlopen
             img_src = str(image_cfg.get("src"))
@@ -1620,7 +1673,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
 
     draw = ImageDraw.Draw(canvas)
     for key, cfg in items.items():
-        if key in {"photo", "image"} or not isinstance(cfg, dict) or not is_item_visible_in_face(face_layout, face, key):
+        if str(key).startswith("image") or key == "photo" or not isinstance(cfg, dict) or not is_item_visible_in_face(face_layout, face, key):
             continue
         text = cfg.get("text") if key.startswith("texto_libre_") else _field_text_for_key(key, matricula, establecimiento)
         if not text:
@@ -1632,10 +1685,9 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         color = _parse_color(cfg.get("color", "#111111"), default="#111111")
         align = str(cfg.get("align", "left")).lower()
         font = _load_font(font_size=font_size, bold=(weight == "700"))
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_w = text_bbox[2] - text_bbox[0]
-        tx = x - text_w // 2 if align == "center" else x - text_w if align == "right" else x
-        draw.text((tx, y), text, fill=color, font=font)
+        max_w = max(20, int(cfg.get("w", 280)))
+        max_h = max(20, int(cfg.get("h", 70)))
+        _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
 
 
 def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, canvas_height):

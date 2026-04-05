@@ -66,6 +66,11 @@
 
               <section id="tab-layers" class="editor-tab-panel">
                 <label class="form-label fw-semibold d-block mb-2">Capas del lado activo</label>
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" id="add-text-btn" class="btn btn-outline-primary btn-sm flex-fill"><i class="fa fa-font me-1"></i>Agregar texto</button>
+                  <button type="button" id="add-image-btn" class="btn btn-outline-secondary btn-sm flex-fill"><i class="fa fa-image me-1"></i>Agregar imagen</button>
+                </div>
+                <input id="add-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" class="d-none">
                 <div id="layers-list" class="layers-list"></div>
                 <small class="text-muted d-block mt-2">Usa el switch de cada fila para mostrar/ocultar capas.</small>
               </section>
@@ -75,6 +80,8 @@
                 <div class="row g-2 mb-3">
                   <div class="col-6"><label class="form-label mb-1">X</label><input id="prop-x" type="number" class="form-control form-control-sm prop-input"></div>
                   <div class="col-6"><label class="form-label mb-1">Y</label><input id="prop-y" type="number" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Width</label><input id="prop-w" type="number" min="20" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Height</label><input id="prop-h" type="number" min="20" class="form-control form-control-sm prop-input"></div>
                 </div>
 
                 <div id="text-props">
@@ -107,6 +114,20 @@
                       <option value="center">Centro</option>
                       <option value="right">Derecha</option>
                     </select>
+                  </div>
+                </div>
+
+                <div id="image-props" class="d-none">
+                  <div class="mb-3">
+                    <label class="form-label">Ajuste imagen</label>
+                    <select id="image-fit" class="form-control prop-input">
+                      <option value="contain">Contain</option>
+                      <option value="cover">Cover</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Archivo actual</label>
+                    <input id="image-src" type="text" class="form-control prop-input" readonly>
                   </div>
                 </div>
 
@@ -157,7 +178,22 @@
   .gafete-canvas-real .gafete-item { position:absolute; user-select:none; cursor:move; z-index:5; pointer-events:auto; touch-action:none; border:1px dashed transparent; }
   .gafete-canvas-real .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
   .gafete-canvas-real .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .95); box-shadow: 0 0 0 4px rgba(115, 102, 255, .16); }
+  .gafete-canvas-real .gafete-item.free-text { white-space: normal; overflow-wrap: break-word; line-height: 1.2; display: block; }
+  .gafete-canvas-real .gafete-item.free-image { object-fit: contain; }
   .gafete-canvas-real .gafete-item.dragging { opacity: .9; }
+  .gafete-canvas-real .resize-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    right: -7px;
+    bottom: -7px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #7366ff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    cursor: nwse-resize;
+    z-index: 100;
+  }
 
   .gafete-canvas-real .grado-gafete {
 width: 470px;      /* antes era muy pequeño */

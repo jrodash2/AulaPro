@@ -109,6 +109,9 @@ def _merge_face(face, default_face):
 
 def is_item_allowed_in_face(face, key):
     target_face = "back" if str(face or "front") == "back" else "front"
+    key = str(key or "")
+    if key.startswith("texto_libre_") or key.startswith("image"):
+        return True
     if key not in DEFAULT_FACE_ITEMS:
         return False
     if target_face == "front":
