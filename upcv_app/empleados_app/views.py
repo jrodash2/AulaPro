@@ -1809,12 +1809,23 @@ def gafete_jpg(request, matricula_id):
     lado = (request.GET.get("lado") or "frente").strip().lower()
     if lado not in {"frente", "reverso"}:
         lado = "frente"
-    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado=lado)
-
     filename = _build_gafete_filename(matricula.alumno, lado=lado)
-    response = HttpResponse(image_bytes, content_type="image/jpeg")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    return render(
+        request,
+        "aulapro/gafete_download.html",
+        {
+            "alumno": matricula.alumno,
+            "grado": matricula.grado,
+            "establecimiento": establecimiento,
+            "layout": layout,
+            "canvas_width": canvas_width,
+            "canvas_height": canvas_height,
+            "gafete_w": canvas_width,
+            "gafete_h": canvas_height,
+            "lado": lado,
+            "download_filename": filename,
+        },
+    )
 
 
 @login_required
