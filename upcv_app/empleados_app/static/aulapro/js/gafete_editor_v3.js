@@ -115,45 +115,26 @@
     if (!layersList) return;
     const face = faceData();
     const enabled = face.enabled_fields || [];
+    const allKeys = Object.keys(face.items || {}).filter((key) => allowedInCurrentFace(key));
+    const orderedKeys = [
+      ...enabled.filter((key) => allKeys.includes(key)),
+      ...allKeys.filter((key) => !enabled.includes(key)),
+    ];
     layersList.innerHTML = '';
-    enabled.forEach((key, idx) => {
+    orderedKeys.forEach((key, idx) => {
       const itemCfg = (face.items || {})[key];
-      if (!itemCfg || !allowedInCurrentFace(key)) return;
+      if (!itemCfg) return;
+      const isVisible = enabled.includes(key) && itemCfg.visible !== false;
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = `layer-item ${activeKey === key ? 'is-active' : ''}`;
+      row.className = `layer-item ${activeKey === key ? 'is-active' : ''} ${isVisible ? '' : 'is-hidden'}`;
       row.dataset.key = key;
       row.innerHTML = `
-        <span class="layer-name"><i class="fa ${key === 'photo' ? 'fa-image' : 'fa-font'}"></i>${labelsMap[key] || key}</span>
+        <span class="layer-name"><i class="fa ${isVisible ? 'fa-eye text-success' : 'fa-eye-slash text-muted'}"></i>${labelsMap[key] || key}</span>
         <span class="d-flex align-items-center gap-2">
-          <small class="layer-meta">#${idx + 1}</small>
+          <small class="layer-meta">${isVisible ? 'Visible' : 'Oculto'}</small>
           <span class="form-check form-switch m-0">
-            <input class="form-check-input layer-visible-toggle" type="checkbox" data-key="${key}" ${itemCfg.visible !== false ? 'checked' : ''}>
-          </span>
-        </span>
-      `;
-      layersList.appendChild(row);
-    });
-  }
-
-  function renderLayers() {
-    if (!layersList) return;
-    const face = faceData();
-    const enabled = face.enabled_fields || [];
-    layersList.innerHTML = '';
-    enabled.forEach((key, idx) => {
-      const itemCfg = (face.items || {})[key];
-      if (!itemCfg || !allowedInCurrentFace(key)) return;
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = `layer-item ${activeKey === key ? 'is-active' : ''}`;
-      row.dataset.key = key;
-      row.innerHTML = `
-        <span class="layer-name"><i class="fa ${key === 'photo' ? 'fa-image' : 'fa-font'}"></i>${labelsMap[key] || key}</span>
-        <span class="d-flex align-items-center gap-2">
-          <small class="layer-meta">#${idx + 1}</small>
-          <span class="form-check form-switch m-0">
-            <input class="form-check-input layer-visible-toggle" type="checkbox" data-key="${key}" ${itemCfg.visible !== false ? 'checked' : ''}>
+            <input class="form-check-input layer-visible-toggle" type="checkbox" data-key="${key}" ${isVisible ? 'checked' : ''}>
           </span>
         </span>
       `;
@@ -216,31 +197,9 @@
       const key = toggle.dataset.key;
       const itemCfg = getCfg(key);
       if (!itemCfg) return;
+      const face = faceData();
       itemCfg.visible = !!toggle.checked;
-      if (itemCfg.visible && !faceData().enabled_fields.includes(key)) faceData().enabled_fields.push(key);
-      if (!itemCfg.visible) faceData().enabled_fields = faceData().enabled_fields.filter((f) => f !== key);
-      refreshItems();
-      syncLayoutInput();
-      e.stopPropagation();
-      return;
-    }
-    const row = e.target.closest('.layer-item[data-key]');
-    if (!row) return;
-    setActive(row.dataset.key);
-    activateTab('props');
-    renderLayers();
-  });
-
-  layersList?.addEventListener('click', (e) => {
-    const toggle = e.target.closest('.layer-visible-toggle');
-    if (toggle) {
-      const key = toggle.dataset.key;
-      const itemCfg = getCfg(key);
-      if (!itemCfg) return;
-      itemCfg.visible = !!toggle.checked;
-      if (itemCfg.visible && !faceData().enabled_fields.includes(key)) faceData().enabled_fields.push(key);
-      if (!itemCfg.visible) faceData().enabled_fields = faceData().enabled_fields.filter((f) => f !== key);
-      refreshChecklist();
+      if (itemCfg.visible && !face.enabled_fields.includes(key)) face.enabled_fields.push(key);
       refreshItems();
       syncLayoutInput();
       e.stopPropagation();
