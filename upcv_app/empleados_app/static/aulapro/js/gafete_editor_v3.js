@@ -130,8 +130,16 @@
       el.style.borderRadius = itemCfg.shape === 'circle' ? '50%' : `${itemCfg.radius || 20}px`;
       return;
     }
-    el.style.width = `${itemCfg.w || 280}px`;
-    el.style.height = `${itemCfg.h || 70}px`;
+    if (itemCfg.w != null) {
+      el.style.width = `${itemCfg.w}px`;
+      el.style.whiteSpace = 'normal';
+      el.style.overflow = 'hidden';
+    } else {
+      el.style.width = '';
+      el.style.whiteSpace = 'nowrap';
+      el.style.overflow = '';
+    }
+    if (itemCfg.h != null) el.style.height = `${itemCfg.h}px`; else el.style.height = '';
     el.style.fontSize = `${itemCfg.font_size || 24}px`;
     el.style.fontWeight = `${itemCfg.font_weight || '400'}`;
     el.style.color = itemCfg.color || '#111111';
@@ -260,8 +268,8 @@
     activeKeyLabel.textContent = `Elemento activo (${currentFace}): ${labelForKey(key)}`;
     propX.value = itemCfg.x || 0;
     propY.value = itemCfg.y || 0;
-    propW.value = itemCfg.w || (key === 'photo' ? 250 : 280);
-    propH.value = itemCfg.h || (key === 'photo' ? 350 : 70);
+    propW.value = itemCfg.w || (key === 'photo' ? 250 : '');
+    propH.value = itemCfg.h || (key === 'photo' ? 350 : '');
     if (key === 'photo' && currentFace === 'front') {
       textProps.classList.add('d-none');
       photoProps.classList.remove('d-none');
@@ -413,8 +421,14 @@
     if (!itemCfg) return;
     itemCfg.x = Number.isFinite(parseInt(propX.value, 10)) ? parseInt(propX.value, 10) : (itemCfg.x || 0);
     itemCfg.y = Number.isFinite(parseInt(propY.value, 10)) ? parseInt(propY.value, 10) : (itemCfg.y || 0);
-    itemCfg.w = Number.isFinite(parseInt(propW.value, 10)) ? Math.max(40, parseInt(propW.value, 10)) : (itemCfg.w || (activeKey === 'photo' ? 250 : 280));
-    itemCfg.h = Number.isFinite(parseInt(propH.value, 10)) ? Math.max(30, parseInt(propH.value, 10)) : (itemCfg.h || (activeKey === 'photo' ? 350 : 70));
+    const newW = parseInt(propW.value, 10);
+    const newH = parseInt(propH.value, 10);
+    if (Number.isFinite(newW)) itemCfg.w = Math.max(40, newW);
+    else if (activeKey === 'photo' || isImageKey(activeKey) || itemCfg.w != null) itemCfg.w = itemCfg.w || (activeKey === 'photo' ? 250 : 220);
+    else delete itemCfg.w;
+    if (Number.isFinite(newH)) itemCfg.h = Math.max(30, newH);
+    else if (activeKey === 'photo' || isImageKey(activeKey) || itemCfg.h != null) itemCfg.h = itemCfg.h || (activeKey === 'photo' ? 350 : 220);
+    else delete itemCfg.h;
     refreshItems();
     setActive(activeKey);
     syncLayoutInput();

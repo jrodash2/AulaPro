@@ -189,6 +189,10 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
+        if "w" in cfg:
+            item["w"] = max(40, min(canvas_width, int(cfg.get("w") or 280)))
+        if "h" in cfg:
+            item["h"] = max(30, min(canvas_height, int(cfg.get("h") or 70)))
         if str(key).startswith("texto_libre_"):
             item["text"] = str(cfg.get("text") or "")
         result_items[key] = item
@@ -1691,9 +1695,15 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         color = _parse_color(cfg.get("color", "#111111"), default="#111111")
         align = str(cfg.get("align", "left")).lower()
         font = _load_font(font_size=font_size, bold=(weight == "700"))
-        max_w = max(20, int(cfg.get("w", 280)))
-        max_h = max(20, int(cfg.get("h", 70)))
-        _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
+        if "w" in cfg and "h" in cfg:
+            max_w = max(20, int(cfg.get("w", 280)))
+            max_h = max(20, int(cfg.get("h", 70)))
+            _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
+        else:
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_w = text_bbox[2] - text_bbox[0]
+            tx = x - text_w // 2 if align == "center" else x - text_w if align == "right" else x
+            draw.text((tx, y), text, fill=color, font=font)
 
 
 def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, canvas_height):
