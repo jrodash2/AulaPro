@@ -235,9 +235,9 @@
               <td>
                 <div class="gafete-actions" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Frente</a>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Frente</a>
                   {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}"><i class="fa fa-download me-1"></i>Posterior</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Posterior</a>
                   {% else %}
                     <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
                   {% endif %}
@@ -308,9 +308,9 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}"><i class="fa fa-download me-1"></i>Descargar frente</a>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar frente</a>
         {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}"><i class="fa fa-download me-1"></i>Descargar posterior</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar posterior</a>
         {% else %}
           <button class="btn btn-outline-secondary btn-sm" type="button" disabled>Posterior no disponible</button>
         {% endif %}
