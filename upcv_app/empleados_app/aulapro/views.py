@@ -16,7 +16,7 @@ from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -862,6 +862,26 @@ def _validate_image_payload(image_bytes):
     return None
 
 
+def _normalize_image_payload(image_bytes, output_ext="jpg"):
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        normalized = ImageOps.exif_transpose(img)
+        out = io.BytesIO()
+        ext = str(output_ext or "jpg").lower()
+        if ext in {"jpg", "jpeg"}:
+            normalized = normalized.convert("RGB")
+            normalized.save(out, format="JPEG", quality=92, optimize=True)
+            return out.getvalue(), "jpg"
+        if ext == "png":
+            normalized.save(out, format="PNG", optimize=True)
+            return out.getvalue(), "png"
+        if ext == "webp":
+            normalized.save(out, format="WEBP", quality=92, method=6)
+            return out.getvalue(), "webp"
+        normalized = normalized.convert("RGB")
+        normalized.save(out, format="JPEG", quality=92, optimize=True)
+        return out.getvalue(), "jpg"
+
+
 @login_required
 @user_passes_test(_can_manage)
 @require_POST
@@ -893,6 +913,7 @@ def guardar_foto_alumno_grado(request, est_id, ciclo_id, car_id, grado_id, matri
         if payload_error:
             return JsonResponse({"ok": False, "message": payload_error}, status=400)
         safe_ext = ALUMNO_IMAGE_MIME_EXT.get(mime, "jpg" if ext == "jpeg" else (ext or "jpg"))
+        image_bytes, safe_ext = _normalize_image_payload(image_bytes, safe_ext)
         content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{safe_ext}")
     elif captured_data:
         if not captured_data.startswith("data:image/"):
@@ -909,6 +930,7 @@ def guardar_foto_alumno_grado(request, est_id, ciclo_id, car_id, grado_id, matri
         if payload_error:
             return JsonResponse({"ok": False, "message": payload_error}, status=400)
         ext = ALUMNO_IMAGE_MIME_EXT[mime]
+        image_bytes, ext = _normalize_image_payload(image_bytes, ext)
         content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{ext}")
     else:
         return JsonResponse({"ok": False, "message": "Debe seleccionar un archivo o tomar una foto."}, status=400)

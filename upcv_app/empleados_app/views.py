@@ -1580,6 +1580,12 @@ def _apply_contain_image(src_image, target_w, target_h):
     return layer
 
 
+def _open_normalized_image(file_obj):
+    image = Image.open(file_obj)
+    image = ImageOps.exif_transpose(image)
+    return image
+
+
 def _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, fill, align="left"):
     words = str(text or "").split()
     if not words:
@@ -1624,7 +1630,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout,
         radius = max(0, int(photo_cfg.get("radius", 20)))
         try:
             with matricula.alumno.imagen.open("rb") as photo_file:
-                photo = Image.open(photo_file).convert("RGB")
+                photo = _open_normalized_image(photo_file).convert("RGB")
                 photo = _apply_cover_image(photo, w, h)
                 alpha_mask = Image.new("L", (w, h), 0)
                 alpha_draw = ImageDraw.Draw(alpha_mask)
@@ -1816,19 +1822,9 @@ def descargar_gafete_frente_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    matricula = get_object_or_404(
-        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
-        pk=matricula_id,
-    )
-    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
-    if establecimiento:
-        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
-        if denied:
-            return denied
-    ctx = _build_gafete_download_context(matricula, "frente")
-    if not ctx:
-        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
-    return render(request, "aulapro/gafete_download_face.html", ctx)
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "frente"
+    return gafete_jpg(request, matricula_id)
 
 
 @login_required
@@ -1837,19 +1833,9 @@ def descargar_gafete_reverso_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    matricula = get_object_or_404(
-        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
-        pk=matricula_id,
-    )
-    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
-    if establecimiento:
-        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
-        if denied:
-            return denied
-    ctx = _build_gafete_download_context(matricula, "reverso")
-    if not ctx:
-        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
-    return render(request, "aulapro/gafete_download_face.html", ctx)
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "reverso"
+    return gafete_jpg(request, matricula_id)
 
 
 @login_required

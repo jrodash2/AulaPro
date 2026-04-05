@@ -112,8 +112,8 @@
 {% if user.is_authenticated %}
 <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
   {% if matricula_activa %}
-    <a href="{% url 'empleados:descargar_gafete_frente_jpg' matricula_activa.id %}" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Descargar frente</a>
-    <a href="{% url 'empleados:descargar_gafete_reverso_jpg' matricula_activa.id %}" class="btn btn-outline-primary" target="_blank" rel="noopener noreferrer">Descargar reverso</a>
+    <a href="{% url 'empleados:descargar_gafete_frente_jpg' matricula_activa.id %}" class="btn btn-primary">Descargar frente</a>
+    <a href="{% url 'empleados:descargar_gafete_reverso_jpg' matricula_activa.id %}" class="btn btn-outline-primary">Descargar reverso</a>
   {% else %}
     <button type="button" class="btn btn-secondary" disabled>Sin matrícula activa para descargar gafete</button>
   {% endif %}
