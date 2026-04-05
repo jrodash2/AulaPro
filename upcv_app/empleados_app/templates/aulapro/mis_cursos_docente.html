@@ -1,0 +1,124 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<style>
+  .mis-cursos .curso-card {
+    border: 1px solid rgba(30, 41, 59, .08);
+    border-radius: 14px;
+    background: #fff;
+    padding: .95rem;
+    height: 100%;
+    box-shadow: 0 8px 20px rgba(30, 41, 59, .06);
+    transition: transform .22s ease, box-shadow .22s ease;
+    animation: fadeInUp .35s ease both;
+  }
+  .mis-cursos .curso-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 24px rgba(30, 41, 59, .12);
+  }
+  .mis-cursos .curso-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: .25rem;
+    color: #111827;
+  }
+  .mis-cursos .curso-meta {
+    color: #64748b;
+    font-size: .8rem;
+    margin-bottom: .65rem;
+  }
+  .mis-cursos .badges-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .38rem;
+    margin-bottom: .75rem;
+  }
+  .mis-cursos .badge-soft {
+    border: 1px solid rgba(115, 102, 255, .16);
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .24rem .52rem;
+    color: #4b5563;
+    background: #f3f4ff;
+  }
+  .mis-cursos .badge-count {
+    background: rgba(22, 199, 249, .12);
+    color: #127ea0;
+    border-color: rgba(22, 199, 249, .2);
+  }
+  .mis-cursos .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .42rem;
+  }
+  .mis-cursos .actions .btn {
+    border-radius: 9px;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .34rem .58rem;
+    transition: all .2s ease;
+  }
+  .mis-cursos .actions .btn:hover {
+    transform: translateY(-1px);
+  }
+  .mis-cursos .empty-state {
+    border: 1px dashed rgba(100, 116, 139, .35);
+    border-radius: 12px;
+    background: rgba(248, 250, 252, .75);
+    color: #64748b;
+    padding: 1rem;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
+<div class="page-body mis-cursos">
+  <div class="container-fluid">
+    <div class="page-title mb-2">
+      <div class="row align-items-center g-2">
+        <div class="col-sm-6"><h4 class="mb-0">{{ titulo_cursos|default:'Mis cursos' }}</h4></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row g-3">
+      {% for cd in cursos_docente %}
+        <div class="col-12 col-md-6 col-xxl-4">
+          <div class="curso-card">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+              <h6 class="curso-title mb-0">{{ cd.curso.nombre }}</h6>
+              <span class="badge-soft badge-count"><i class="fa fa-users me-1"></i>{{ cd.alumnos_total|default:0 }}</span>
+            </div>
+
+            <div class="curso-meta">{{ cd.curso.grado.nombre|default:'-' }} · {{ cd.curso.grado.carrera.nombre|default:'-' }}</div>
+
+            <div class="badges-wrap">
+              <span class="badge-soft"><i class="fa fa-university me-1"></i>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</span>
+              {% if cd.curso.grado.seccion %}<span class="badge-soft">Sección {{ cd.curso.grado.seccion }}</span>{% endif %}
+              {% if cd.curso.grado.jornada %}<span class="badge-soft">{{ cd.curso.grado.jornada }}</span>{% endif %}
+              {% if cd.curso.grado.carrera.ciclo_escolar.nombre %}<span class="badge-soft">{{ cd.curso.grado.carrera.ciclo_escolar.nombre }}</span>{% endif %}
+              {% if not is_docente_only %}<span class="badge-soft"><i class="fa fa-user me-1"></i>{{ cd.docente.username }}</span>{% endif %}
+            </div>
+
+            <div class="actions">
+              <a class="btn btn-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}"><i class="fa fa-eye me-1"></i>Ver curso</a>
+              <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:docente_asistencia_home' cd.id %}"><i class="fa fa-check-square-o me-1"></i>Tomar asistencia</a>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="empty-state">No tiene cursos asignados</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
