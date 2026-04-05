@@ -1,0 +1,82 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="row mb-3">
+      <div class="col-12 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">Boleta de asistencia · {{ empleado }}</h4>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-secondary" href="{% url 'empleados:empleado_detalle' empleado.id %}">Volver al alumno</a>
+          <a class="btn btn-outline-primary" href="?fecha_inicio={{ fecha_inicio }}&fecha_fin={{ fecha_fin }}&formato=xlsx">Exportar Excel</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <form method="get" class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Fecha inicio</label>
+            <input type="date" name="fecha_inicio" value="{{ fecha_inicio }}" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha fin</label>
+            <input type="date" name="fecha_fin" value="{{ fecha_fin }}" class="form-control">
+          </div>
+          <div class="col-md-6 d-flex align-items-end gap-2">
+            <button class="btn btn-primary" type="submit">Filtrar</button>
+            <a class="btn btn-light" href="{% url 'empleados:empleado_boleta_asistencia' id=empleado.id %}">Limpiar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-md-3"><div class="card"><div class="card-body"><h6>Total</h6><h3>{{ resumen.total }}</h3></div></div></div>
+      <div class="col-md-3"><div class="card"><div class="card-body"><h6>Asistencias</h6><h3 class="text-success">{{ resumen.asistencias }}</h3></div></div></div>
+      <div class="col-md-3"><div class="card"><div class="card-body"><h6>Inasistencias</h6><h3 class="text-danger">{{ resumen.inasistencias }}</h3></div></div></div>
+      <div class="col-md-3"><div class="card"><div class="card-body"><h6>% Asistencia</h6><h3>{{ resumen.porcentaje }}%</h3></div></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h5 class="mb-0">Detalle de registros</h5></div>
+      <div class="card-body table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Curso</th>
+              <th>Grado</th>
+              <th>Estado</th>
+              <th>Periodo</th>
+              <th>Docente</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for detalle in detalles %}
+              <tr>
+                <td>{{ detalle.asistencia.fecha|date:"d/m/Y" }}</td>
+                <td>{{ detalle.asistencia.curso_docente.curso.nombre }}</td>
+                <td>{{ detalle.asistencia.curso_docente.curso.grado.nombre }}</td>
+                <td>
+                  {% if detalle.presente %}
+                    <span class="badge badge-light-success">Presente</span>
+                  {% else %}
+                    <span class="badge badge-light-danger">Ausente</span>
+                  {% endif %}
+                </td>
+                <td>{{ detalle.asistencia.periodo.nombre|default:"-" }}</td>
+                <td>{{ detalle.asistencia.curso_docente.docente.get_full_name|default:detalle.asistencia.curso_docente.docente.username }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center text-muted">No hay registros de asistencia para el rango seleccionado.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
