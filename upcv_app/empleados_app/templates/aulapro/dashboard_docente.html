@@ -1,0 +1,310 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<style>
+  .docente-dashboard .welcome-card {
+    border: 0;
+    border-radius: 16px;
+    background: linear-gradient(120deg, rgba(115, 102, 255, .12), rgba(22, 199, 249, .10));
+    box-shadow: 0 10px 30px rgba(30, 41, 59, .08);
+  }
+  .docente-dashboard .welcome-badge {
+    background: rgba(115, 102, 255, .16);
+    color: #5f4bf1;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .26rem .62rem;
+    letter-spacing: .02em;
+  }
+  .docente-dashboard .metric-card {
+    border-radius: 14px;
+    border: 1px solid rgba(30, 41, 59, .08);
+    box-shadow: 0 8px 22px rgba(30, 41, 59, .07);
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .docente-dashboard .metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 26px rgba(30, 41, 59, .12);
+  }
+  .docente-dashboard .metric-value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #111827;
+  }
+  .docente-dashboard .metric-label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: .32rem;
+  }
+  .docente-dashboard .metric-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .95rem;
+    color: #fff;
+  }
+  .docente-dashboard .bg-primary-soft { background: linear-gradient(135deg, #7366ff, #5f6fff); }
+  .docente-dashboard .bg-success-soft { background: linear-gradient(135deg, #2bbf94, #12b886); }
+  .docente-dashboard .bg-info-soft { background: linear-gradient(135deg, #16c7f9, #2d9cdb); }
+  .docente-dashboard .bg-warning-soft { background: linear-gradient(135deg, #ffb347, #ff9f43); }
+
+  .docente-dashboard .insight-card,
+  .docente-dashboard .latest-card {
+    border-radius: 14px;
+    border: 1px solid rgba(30, 41, 59, .07);
+    box-shadow: 0 8px 24px rgba(30, 41, 59, .06);
+    animation: fadeInUp .35s ease both;
+  }
+  .docente-dashboard .insight-card .card-header,
+  .docente-dashboard .latest-card .card-header {
+    padding: .9rem 1rem .45rem;
+  }
+  .docente-dashboard .insight-card .card-body,
+  .docente-dashboard .latest-card .card-body {
+    padding: .8rem 1rem 1rem;
+  }
+  .docente-dashboard .section-title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 0;
+    font-weight: 700;
+  }
+  .docente-dashboard .section-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .72rem;
+    background: rgba(115,102,255,.12);
+    color: #5f4bf1;
+  }
+
+  .docente-dashboard .latest-wrap { width: 100%; }
+  .docente-dashboard .latest-table { width: 100% !important; margin-bottom: 0; }
+  .docente-dashboard .latest-table thead th {
+    color: #475569;
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    border-bottom: 1px solid rgba(15,23,42,.1);
+    padding: .58rem .6rem;
+  }
+  .docente-dashboard .latest-table tbody td {
+    vertical-align: middle;
+    border-top: 1px solid rgba(15,23,42,.06);
+    padding: .72rem .6rem;
+  }
+  .docente-dashboard .latest-table .col-fecha { width: 140px; color: #475569; font-weight: 600; }
+  .docente-dashboard .latest-table .col-curso { width: auto; }
+  .docente-dashboard .latest-table .col-accion { width: 120px; text-align: right; }
+  .docente-dashboard .course-main { font-weight: 700; color: #1f2937; white-space: normal; word-break: break-word; }
+  .docente-dashboard .course-sub { font-size: .76rem; color: #64748b; margin-top: .08rem; white-space: normal; }
+  .docente-dashboard .btn-ver {
+    border-radius: 9px;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .33rem .64rem;
+    transition: all .2s ease;
+  }
+  .docente-dashboard .btn-ver:hover { transform: translateY(-1px); }
+  .docente-dashboard .quick-link { border:1px solid rgba(30,41,59,.08); border-radius:10px; padding:.5rem .72rem; background:#fff; font-size:.8rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:.4rem; text-decoration:none; transition:all .2s ease; }
+  .docente-dashboard .quick-link:hover { transform: translateY(-1px); box-shadow:0 8px 16px rgba(30,41,59,.08); color:#4f46e5; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 767px) {
+    .docente-dashboard .metric-value { font-size: 1.4rem; }
+    .docente-dashboard .latest-table .col-fecha { width: 110px; }
+    .docente-dashboard .latest-table .col-accion { width: 96px; }
+  }
+</style>
+
+<div class="page-body docente-dashboard">
+  <div class="container-fluid">
+    <div class="page-title mb-2">
+      <div class="row g-2 align-items-center">
+        <div class="col-sm-6"><h4 class="mb-0">Dashboard docente</h4></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card welcome-card mb-3">
+      <div class="card-body py-3 px-3 px-md-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <h6 class="mb-1 f-w-700">Resumen académico</h6>
+          <small class="text-muted">Vista ejecutiva de cursos y actividad reciente.</small>
+        </div>
+        <span class="welcome-badge">Riho Style</span>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="quick-link" href="{% url 'empleados:mis_cursos_docente' %}"><i class="fa fa-book"></i>Mis cursos</a>
+      <a class="quick-link" href="{% url 'empleados:empleado_lista' %}"><i class="fa fa-users"></i>Alumnos</a>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body d-flex justify-content-between align-items-center gap-2">
+            <div>
+              <div class="metric-label">Cursos</div>
+              <div class="metric-value">{{ resumen.cursos_total }}</div>
+            </div>
+            <span class="metric-icon bg-primary-soft"><i class="fa fa-book"></i></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body d-flex justify-content-between align-items-center gap-2">
+            <div>
+              <div class="metric-label">Alumnos</div>
+              <div class="metric-value">{{ resumen.alumnos_unicos_total }}</div>
+            </div>
+            <span class="metric-icon bg-success-soft"><i class="fa fa-users"></i></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body d-flex justify-content-between align-items-center gap-2">
+            <div>
+              <div class="metric-label">Asistencias</div>
+              <div class="metric-value">{{ resumen.asistencias_total }}</div>
+              <small class="text-muted">Hoy: {{ resumen.asistencia_hoy }}</small>
+            </div>
+            <span class="metric-icon bg-info-soft"><i class="fa fa-calendar-check-o"></i></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3 col-sm-6">
+        <div class="card metric-card h-100">
+          <div class="card-body d-flex justify-content-between align-items-center gap-2">
+            <div>
+              <div class="metric-label">Asistencia global</div>
+              <div class="metric-value">{{ resumen.porcentaje_general }}%</div>
+            </div>
+            <span class="metric-icon bg-warning-soft"><i class="fa fa-line-chart"></i></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-xl-6">
+        <div class="card insight-card h-100">
+          <div class="card-header card-no-border">
+            <h6 class="section-title"><span class="section-icon"><i class="fa fa-bar-chart"></i></span>Cursos con más alumnos</h6>
+          </div>
+          <div class="card-body"><div id="chart-alumnos-curso" style="min-height: 310px;"></div></div>
+        </div>
+      </div>
+      <div class="col-xl-6">
+        <div class="card insight-card h-100">
+          <div class="card-header card-no-border">
+            <h6 class="section-title"><span class="section-icon"><i class="fa fa-line-chart"></i></span>Actividad reciente</h6>
+          </div>
+          <div class="card-body"><div id="chart-asistencias-fecha" style="min-height: 310px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-12">
+        <div class="card latest-card">
+          <div class="card-header card-no-border">
+            <h6 class="section-title"><span class="section-icon"><i class="fa fa-clock-o"></i></span>Últimas asistencias</h6>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive custom-scrollbar latest-wrap">
+              <table class="display latest-table" id="tabla-ultimas-asistencias">
+                <thead>
+                  <tr>
+                    <th class="col-fecha">Fecha</th>
+                    <th class="col-curso">Curso</th>
+                    <th class="col-accion">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for asistencia in ultimas_asistencias %}
+                    <tr>
+                      <td class="col-fecha">{{ asistencia.fecha|date:'d/m/Y' }}</td>
+                      <td class="col-curso">
+                        <div class="course-main">{{ asistencia.curso_docente.curso.nombre }}</div>
+                        <div class="course-sub">{{ asistencia.curso_docente.curso.grado.nombre|default:'-' }}</div>
+                      </td>
+                      <td class="col-accion"><a class="btn btn-outline-secondary btn-sm btn-ver" href="{% url 'empleados:docente_asistencia_detail' asistencia.id %}">Ver</a></td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="text-center text-muted">Aún no hay asistencias registradas</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener("load", function () {
+  const alumnosCursoLabels = {{ chart_alumnos_curso_labels|safe }};
+  const alumnosCursoSeries = {{ chart_alumnos_curso_series|safe }};
+  const asistenciasFechaLabels = {{ chart_asistencias_fecha_labels|safe }};
+  const asistenciasFechaSeries = {{ chart_asistencias_fecha_series|safe }};
+
+  function renderEmpty(containerId, text) {
+    const el = document.querySelector(containerId);
+    if (el) { el.innerHTML = `<div class="text-muted text-center py-5">${text}</div>`; }
+  }
+
+  if (typeof ApexCharts === 'undefined') {
+    ['#chart-alumnos-curso', '#chart-asistencias-fecha'].forEach(id => renderEmpty(id, 'Sin datos disponibles'));
+    return;
+  }
+
+  if (alumnosCursoLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-alumnos-curso'), {
+      chart: { type: 'bar', height: 310, toolbar: { show: false } },
+      series: [{ name: 'Alumnos', data: alumnosCursoSeries }],
+      xaxis: { categories: alumnosCursoLabels, labels: { rotate: -25 } },
+      colors: ['#7366ff'],
+      grid: { borderColor: '#eef2f7' },
+      plotOptions: { bar: { borderRadius: 4, columnWidth: '52%' } }
+    }).render();
+  } else {
+    renderEmpty('#chart-alumnos-curso', 'No se encontraron alumnos en sus cursos');
+  }
+
+  if (asistenciasFechaLabels.length > 0) {
+    new ApexCharts(document.querySelector('#chart-asistencias-fecha'), {
+      chart: { type: 'line', height: 310, toolbar: { show: false } },
+      stroke: { curve: 'smooth', width: 3 },
+      markers: { size: 4 },
+      series: [{ name: 'Asistencias', data: asistenciasFechaSeries }],
+      xaxis: { categories: asistenciasFechaLabels },
+      colors: ['#16c7f9'],
+      grid: { borderColor: '#eef2f7' }
+    }).render();
+  } else {
+    renderEmpty('#chart-asistencias-fecha', 'Aún no hay asistencias registradas');
+  }
+});
+</script>
+{% endblock %}
