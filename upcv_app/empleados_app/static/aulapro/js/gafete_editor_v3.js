@@ -143,7 +143,7 @@
     el.style.fontSize = `${itemCfg.font_size || 24}px`;
     el.style.fontWeight = `${itemCfg.font_weight || '400'}`;
     el.style.color = itemCfg.color || '#111111';
-    el.style.textAlign = itemCfg.align || 'left';
+    el.style.textAlign = itemCfg.align || (key === 'grado' ? 'center' : 'left');
     if (isCustomTextKey(key) && textContentInput && el.textContent !== itemCfg.text) {
       el.textContent = itemCfg.text || '';
     }
@@ -301,7 +301,7 @@
     colorText.value = itemCfg.color || '#111111';
     sizeInput.value = itemCfg.font_size || 24;
     weightInput.value = String(itemCfg.font_weight || '400');
-    propAlign.value = itemCfg.align || 'left';
+    propAlign.value = itemCfg.align || (key === 'grado' ? 'center' : 'left');
     textContentInput.value = isCustomTextKey(key) ? (itemCfg.text || '') : '';
     textContentInput.disabled = !isCustomTextKey(key);
   }
@@ -445,7 +445,7 @@
     itemCfg.color = colorInput.value;
     itemCfg.font_size = Number.isFinite(parseInt(sizeInput.value, 10)) ? parseInt(sizeInput.value, 10) : (itemCfg.font_size || 24);
     itemCfg.font_weight = weightInput.value;
-    itemCfg.align = propAlign.value || 'left';
+    itemCfg.align = propAlign.value || (activeKey === 'grado' ? 'center' : 'left');
     if (isCustomTextKey(activeKey)) itemCfg.text = textContentInput.value || '';
     refreshItems();
     setActive(activeKey);

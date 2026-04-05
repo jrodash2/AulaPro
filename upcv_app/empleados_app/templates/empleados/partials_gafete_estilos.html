@@ -18,7 +18,6 @@
 
   .gafete-canvas .grado-gafete,
   .gafete-canvas-real .grado-gafete {
-    max-width: none;
     text-align: center;
     line-height: 1.15;
     white-space: normal;
@@ -37,6 +36,13 @@
     display: block;
     width: 100%;
     text-align: center;
+  }
+
+  .gafete-canvas,
+  .gafete-canvas-real,
+  .gafete-canvas *,
+  .gafete-canvas-real * {
+    box-sizing: border-box;
   }
 
   .logotipos { display: flex; justify-content: space-between; gap: 5px; position: absolute; top: 40px; left: 12px; }

@@ -23,108 +23,13 @@
     <a id="manual-download" class="btn btn-primary btn-sm d-none" href="#" download>Descargar ahora</a>
   </div>
   <script>
-    function balancedLineBreaks(text, maxLines) {
-      const words = (text || '').trim().split(/\s+/).filter(Boolean);
-      if (!words.length) return '';
-      if (words.length <= 2) return words.join(' ');
-
-      const n = words.length;
-      let best = null;
-
-      function score(parts) {
-        const lengths = parts.map((p) => p.length);
-        const maxLen = Math.max(...lengths);
-        const minLen = Math.min(...lengths);
-        return maxLen * 100 + (maxLen - minLen);
-      }
-
-      function buildParts(cuts) {
-        const parts = [];
-        let start = 0;
-        for (const cut of cuts) {
-          parts.push(words.slice(start, cut).join(' '));
-          start = cut;
-        }
-        parts.push(words.slice(start).join(' '));
-        return parts;
-      }
-
-      if (maxLines >= 2) {
-        for (let i = 1; i < n; i++) {
-          const parts = buildParts([i]);
-          const candidate = { parts, s: score(parts) };
-          if (!best || candidate.s < best.s) best = candidate;
-        }
-      }
-
-      if (maxLines >= 3 && n >= 3) {
-        for (let i = 1; i < n - 1; i++) {
-          for (let j = i + 1; j < n; j++) {
-            const parts = buildParts([i, j]);
-            const candidate = { parts, s: score(parts) };
-            if (!best || candidate.s < best.s) best = candidate;
-          }
-        }
-      }
-
-      return (best ? best.parts : [text]).join('<br>');
-    }
-
-    const lado = '{{ lado|default:"frente" }}'.toLowerCase() === 'reverso' ? 'reverso' : 'frente';
-    document.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
-      const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
-      if (!raw) return;
-      gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
-    });
-
-    const filename = '{{ download_filename|default:"gafete.jpg" }}';
-    const statusEl = document.getElementById('download-status');
-    const manualBtn = document.getElementById('manual-download');
-    const element = document.getElementById(lado === 'reverso' ? 'download-canvas-back' : 'download-canvas-front');
-    manualBtn.addEventListener('click', (e) => {
-      if (!manualBtn.href || manualBtn.getAttribute('href') === '#') {
-        e.preventDefault();
-        window.location.reload();
-      }
-    });
-
-    function offerManualDownload(url) {
-      manualBtn.href = url;
-      manualBtn.download = filename;
-      manualBtn.classList.remove('d-none');
-      statusEl.textContent = 'Si la descarga no inició automáticamente, use "Descargar ahora".';
-    }
-
-    async function startCapture() {
-      if (document.fonts && document.fonts.ready) {
-        try { await document.fonts.ready; } catch (_) {}
-      }
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return html2canvas(element, {useCORS:true, scale:2, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null});
-    }
-
-    startCapture().then((canvas)=>{
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-          const link = document.createElement('a');
-          link.href = dataUrl;
-          link.download = filename;
-          link.click();
-          offerManualDownload(dataUrl);
-          return;
-        }
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename;
-        link.click();
-        offerManualDownload(blobUrl);
-      }, 'image/jpeg', 0.95);
-    }).catch((err) => {
-      console.error('Error generando descarga de gafete:', err);
-      statusEl.textContent = 'No se pudo generar la descarga automática. Presione "Descargar ahora" para reintentar.';
-      manualBtn.classList.remove('d-none');
+    const element = document.getElementById('download-canvas');
+    html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.download = 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg';
+      link.click();
+      window.close();
     });
   </script>
 </body>

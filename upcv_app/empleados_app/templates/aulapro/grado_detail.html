@@ -235,9 +235,9 @@
               <td>
                 <div class="gafete-actions" role="group" aria-label="Acciones gafete">
                   <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#gafeteModal{{ m.id }}"><i class="fa fa-id-card me-1"></i>Ver gafete</button>
-                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener"><i class="fa fa-download me-1"></i>Frente</a>
+                  <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Frente</a>
                   {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener"><i class="fa fa-download me-1"></i>Posterior</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Posterior</a>
                   {% else %}
                     <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
                   {% endif %}
@@ -308,9 +308,9 @@
         </div>
       </div>
       <div class="modal-footer">
-        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener"><i class="fa fa-download me-1"></i>Descargar frente</a>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:descargar_gafete_frente_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar frente</a>
         {% if establecimiento.background_gafete_posterior or layout.back.background_image or layout.back.enabled_fields %}
-          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener"><i class="fa fa-download me-1"></i>Descargar posterior</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:descargar_gafete_reverso_jpg' m.id %}" target="_blank" rel="noopener noreferrer"><i class="fa fa-download me-1"></i>Descargar posterior</a>
         {% else %}
           <button class="btn btn-outline-secondary btn-sm" type="button" disabled>Posterior no disponible</button>
         {% endif %}
@@ -420,193 +420,7 @@ window.matriculaModalConfig = {
 };
 </script>
 {% if not is_gestor %}
-<script>
-(function () {
-  const modalEl = document.getElementById('fotoAlumnoModal');
-  if (!modalEl) return;
 
-  const alumnoNombreEl = document.getElementById('foto-modal-alumno-nombre');
-  const alumnoCodigoEl = document.getElementById('foto-modal-alumno-codigo');
-  const alertEl = document.getElementById('foto-modal-alert');
-  const fileInput = document.getElementById('foto-modal-file');
-  const startCameraBtn = document.getElementById('foto-modal-start-camera');
-  const captureBtn = document.getElementById('foto-modal-capture');
-  const stopCameraBtn = document.getElementById('foto-modal-stop-camera');
-  const retakeBtn = document.getElementById('foto-modal-retake');
-  const saveBtn = document.getElementById('foto-modal-save');
-  const previewImg = document.getElementById('foto-modal-preview-img');
-  const previewVideo = document.getElementById('foto-modal-video');
-  const previewWrap = document.querySelector('.foto-modal-preview-wrap');
-  const placeholder = document.getElementById('foto-modal-placeholder');
-  const cameraGuide = document.getElementById('foto-modal-camera-guide');
-  const cameraFrame = document.getElementById('foto-modal-camera-frame');
-  const canvas = document.getElementById('foto-modal-canvas');
-  const csrfToken = "{{ csrf_token }}";
-  const MAX_SIZE = 5 * 1024 * 1024;
-  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-  const photoRatio = Math.max(0.2, parseFloat(modalEl.dataset.photoRatio || '0.7143'));
-  const photoShape = (modalEl.dataset.photoShape || 'rounded').toLowerCase();
-
-  let cameraStream = null;
-  let saveUrl = '';
-  let selectedFile = null;
-  let capturedDataUrl = '';
-  let activeTrigger = null;
-
-  function showAlert(type, msg) {
-    alertEl.innerHTML = `<div class="alert alert-${type} py-2 mb-3">${msg}</div>`;
-  }
-
-  function clearAlert() {
-    alertEl.innerHTML = '';
-  }
-
-  function resetPreview() {
-    previewImg.classList.add('d-none');
-    previewVideo.classList.add('d-none');
-    placeholder.classList.remove('d-none');
-    cameraGuide.classList.remove('active');
-    previewWrap.classList.remove('is-camera-on');
-  }
-
-  function useImagePreview(src) {
-    previewImg.src = src;
-    previewImg.classList.remove('d-none');
-    previewVideo.classList.add('d-none');
-    placeholder.classList.add('d-none');
-    previewWrap.classList.remove('is-camera-on');
-  }
-
-  function stopCamera() {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      cameraStream = null;
-    }
-    previewVideo.srcObject = null;
-    captureBtn.classList.add('d-none');
-    stopCameraBtn.classList.add('d-none');
-    cameraGuide.classList.remove('active');
-    previewWrap.classList.remove('is-camera-on');
-  }
-
-  function setLoading(isLoading) {
-    saveBtn.disabled = isLoading;
-    saveBtn.innerHTML = isLoading
-      ? '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...'
-      : '<i class="fa fa-save me-1"></i>Guardar';
-  }
-
-  document.addEventListener('click', function (event) {
-    const btn = event.target.closest('.foto-alumno-btn');
-    if (!btn) return;
-    activeTrigger = btn;
-    saveUrl = btn.dataset.saveUrl || '';
-    selectedFile = null;
-    capturedDataUrl = '';
-    fileInput.value = '';
-    clearAlert();
-    stopCamera();
-    retakeBtn.classList.add('d-none');
-
-    alumnoNombreEl.textContent = btn.dataset.alumnoNombre || '-';
-    alumnoCodigoEl.textContent = `Código: ${btn.dataset.alumnoCodigo || '-'}`;
-
-    const currentPhoto = btn.dataset.fotoUrl || '';
-    if (currentPhoto) {
-      useImagePreview(currentPhoto);
-    } else {
-      resetPreview();
-    }
-  });
-
-  fileInput.addEventListener('change', function () {
-    clearAlert();
-    capturedDataUrl = '';
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) {
-      selectedFile = null;
-      return;
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      showAlert('warning', 'Formato no permitido. Usa JPG, PNG o WEBP.');
-      fileInput.value = '';
-      selectedFile = null;
-      return;
-    }
-    if (file.size > MAX_SIZE) {
-      showAlert('warning', 'La imagen excede el tamaño máximo permitido (5 MB).');
-      fileInput.value = '';
-      selectedFile = null;
-      return;
-    }
-    selectedFile = file;
-    useImagePreview(URL.createObjectURL(file));
-    stopCamera();
-    retakeBtn.classList.add('d-none');
-  });
-
-  async function openCamera() {
-    clearAlert();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showAlert('warning', 'Tu navegador no soporta acceso a cámara. Puedes subir un archivo.');
-      return false;
-    }
-    try {
-      stopCamera();
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-      previewVideo.srcObject = cameraStream;
-      previewVideo.classList.remove('d-none');
-      previewImg.classList.add('d-none');
-      placeholder.classList.add('d-none');
-      captureBtn.classList.remove('d-none');
-      stopCameraBtn.classList.remove('d-none');
-      cameraGuide.classList.add('active');
-      previewWrap.classList.add('is-camera-on');
-      cameraFrame.style.aspectRatio = `${photoRatio}`;
-      cameraFrame.style.borderRadius = photoShape === 'circle' ? '50%' : (photoShape === 'square' ? '8px' : '16px');
-      selectedFile = null;
-      capturedDataUrl = '';
-      retakeBtn.classList.add('d-none');
-      return true;
-    } catch (err) {
-      showAlert('warning', 'No fue posible abrir la cámara. Verifica permisos del dispositivo.');
-      return false;
-    }
-  }
-
-  startCameraBtn.addEventListener('click', openCamera);
-
-  function cropFromGuide(videoW, videoH) {
-    const wrapRect = previewWrap.getBoundingClientRect();
-    const frameRect = cameraFrame.getBoundingClientRect();
-    const frameStyle = window.getComputedStyle(cameraFrame);
-    const borderL = parseFloat(frameStyle.borderLeftWidth || '0');
-    const borderR = parseFloat(frameStyle.borderRightWidth || '0');
-    const borderT = parseFloat(frameStyle.borderTopWidth || '0');
-    const borderB = parseFloat(frameStyle.borderBottomWidth || '0');
-    const frameX = (frameRect.left - wrapRect.left) + borderL;
-    const frameY = (frameRect.top - wrapRect.top) + borderT;
-    const frameW = Math.max(20, frameRect.width - borderL - borderR);
-    const frameH = Math.max(20, frameRect.height - borderT - borderB);
-
-    const scale = Math.max(wrapRect.width / videoW, wrapRect.height / videoH);
-    const renderedW = videoW * scale;
-    const renderedH = videoH * scale;
-    const offsetX = (wrapRect.width - renderedW) / 2;
-    const offsetY = (wrapRect.height - renderedH) / 2;
-
-    let sx = (frameX - offsetX) / scale;
-    let sy = (frameY - offsetY) / scale;
-    let sw = frameW / scale;
-    let sh = frameH / scale;
-
-    sx = Math.max(0, Math.min(videoW - 1, sx));
-    sy = Math.max(0, Math.min(videoH - 1, sy));
-    sw = Math.max(20, Math.min(videoW - sx, sw));
-    sh = Math.max(20, Math.min(videoH - sy, sh));
-
-    return { sx, sy, sw, sh };
-  }
 
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script>

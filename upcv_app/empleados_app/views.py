@@ -1843,9 +1843,19 @@ def descargar_gafete_frente_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    request.GET = request.GET.copy()
-    request.GET["lado"] = "frente"
-    return gafete_jpg(request, matricula_id)
+    matricula = get_object_or_404(
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
+        pk=matricula_id,
+    )
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if establecimiento:
+        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
+        if denied:
+            return denied
+    ctx = _build_gafete_download_context(matricula, "frente")
+    if not ctx:
+        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
+    return render(request, "aulapro/gafete_download_face.html", ctx)
 
 
 @login_required
@@ -1854,9 +1864,19 @@ def descargar_gafete_reverso_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
-    request.GET = request.GET.copy()
-    request.GET["lado"] = "reverso"
-    return gafete_jpg(request, matricula_id)
+    matricula = get_object_or_404(
+        Matricula.objects.select_related("alumno", "grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento"),
+        pk=matricula_id,
+    )
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if establecimiento:
+        denied = _deny_if_not_allowed_establecimiento(request, establecimiento.id)
+        if denied:
+            return denied
+    ctx = _build_gafete_download_context(matricula, "reverso")
+    if not ctx:
+        return HttpResponse("No se encontró establecimiento para la matrícula.", status=404)
+    return render(request, "aulapro/gafete_download_face.html", ctx)
 
 
 @login_required
