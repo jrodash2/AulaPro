@@ -6,10 +6,22 @@
   <title>Descargar gafete</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   {% include 'empleados/partials_gafete_estilos.html' %}
-  <style>body{margin:0;padding:8px}</style>
+  <style>body{margin:0;padding:8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif} .download-status{margin:8px 0 0;color:#334155;font-size:.9rem} .download-actions{margin-top:10px} </style>
 </head>
 <body>
-  {% include 'aulapro/partials/_gafete_render.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height %}
+  <div id="download-wrapper">
+    {% if lado|lower == 'reverso' %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+    {% else %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+    {% endif %}
+  </div>
+  <p id="download-status" class="download-status">Preparando descarga...</p>
+  <div class="download-actions">
+    <a id="manual-download" class="btn btn-primary btn-sm d-none" href="#" download>Descargar ahora</a>
+  </div>
   <script>
     function balancedLineBreaks(text, maxLines) {
       const words = (text || '').trim().split(/\s+/).filter(Boolean);
@@ -58,19 +70,61 @@
       return (best ? best.parts : [text]).join('<br>');
     }
 
+    const lado = '{{ lado|default:"frente" }}'.toLowerCase() === 'reverso' ? 'reverso' : 'frente';
     document.querySelectorAll('.gafete-item[data-key="grado"] .grado-texto').forEach((gradoTextEl) => {
       const raw = (gradoTextEl.textContent || '').replace(/\s+/g, ' ').trim();
       if (!raw) return;
       gradoTextEl.innerHTML = balancedLineBreaks(raw, 3);
     });
 
-    const element = document.getElementById('download-canvas');
-    html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/jpeg', 0.95);
-      link.download = 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg';
-      link.click();
-      window.close();
+    const filename = '{{ download_filename|default:"gafete.jpg" }}';
+    const statusEl = document.getElementById('download-status');
+    const manualBtn = document.getElementById('manual-download');
+    const element = document.getElementById(lado === 'reverso' ? 'download-canvas-back' : 'download-canvas-front');
+    manualBtn.addEventListener('click', (e) => {
+      if (!manualBtn.href || manualBtn.getAttribute('href') === '#') {
+        e.preventDefault();
+        window.location.reload();
+      }
+    });
+
+    function offerManualDownload(url) {
+      manualBtn.href = url;
+      manualBtn.download = filename;
+      manualBtn.classList.remove('d-none');
+      statusEl.textContent = 'Si la descarga no inició automáticamente, use "Descargar ahora".';
+    }
+
+    async function startCapture() {
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (_) {}
+      }
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return html2canvas(element, {useCORS:true, scale:2, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null});
+    }
+
+    startCapture().then((canvas)=>{
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          link.download = filename;
+          link.click();
+          offerManualDownload(dataUrl);
+          return;
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        link.click();
+        offerManualDownload(blobUrl);
+      }, 'image/jpeg', 0.95);
+    }).catch((err) => {
+      console.error('Error generando descarga de gafete:', err);
+      statusEl.textContent = 'No se pudo generar la descarga automática. Presione "Descargar ahora" para reintentar.';
+      manualBtn.classList.remove('d-none');
     });
   </script>
 </body>
