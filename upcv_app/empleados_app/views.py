@@ -1,27 +1,28 @@
 import json
 import re
 import unicodedata
+from datetime import datetime
 from io import BytesIO
 from uuid import uuid4
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
-
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.db import OperationalError, ProgrammingError
-from django.db.models import Count, Q
+from django.db import OperationalError, ProgrammingError, transaction
+from django.db.models import Case, Count, IntegerField, Q, Sum, When
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import NoReverseMatch
+from django.urls import NoReverseMatch, reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     CarreraForm,
+    CargaMasivaExcelForm,
     ConfiguracionGeneralForm,
     EmpleadoEditForm,
     EmpleadoForm,
@@ -29,18 +30,21 @@ from .forms import (
     GradoForm,
     MatriculaForm,
     MatriculaMasivaForm,
+    ObservacionAlumnoForm,
     UsuarioCreateForm,
     UsuarioUpdateForm,
 )
 from .gafete_utils import (
     canvas_for_orientation,
+    is_item_allowed_in_face,
+    is_item_visible_in_face,
     normalizar_layout_gafete,
     obtener_layout_cara,
     orientation_for_establecimiento,
     resolve_gafete_dimensions,
     serializar_layout_frente_reverso,
 )
-from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, Perfil
+from .models import Asistencia, AsistenciaDetalle, CicloEscolar, Curso, CursoDocente, DEFAULT_GAFETE_LAYOUT, Carrera, ConfiguracionGeneral, Empleado, Establecimiento, Grado, Matricula, ObservacionAlumno, Perfil
 from .permissions import (
     es_admin_total,
     es_docente,
@@ -66,6 +70,10 @@ def _can_access_backoffice(user):
     return puede_acceder_backoffice(user)
 
 
+def _can_access_alumnos(user):
+    return bool(user and user.is_authenticated and (puede_acceder_backoffice(user) or es_docente(user)))
+
+
 def _can_access_admin_config(user):
     return puede_administrar_configuracion(user)
 
@@ -87,17 +95,44 @@ def _forbid_gafetes_for_gestor(request):
     return None
 
 
+def _docente_alumnos_qs(user):
+    grados_asignados = (
+        CursoDocente.objects.filter(
+            docente=user,
+            activo=True,
+            curso__activo=True,
+        )
+        .values_list("curso__grado_id", flat=True)
+        .distinct()
+    )
+    return (
+        Empleado.objects.filter(
+            activo=True,
+            matriculas__estado="activo",
+            matriculas__grado_id__in=grados_asignados,
+        )
+        .select_related("establecimiento", "grado")
+        .distinct()
+        .order_by("-created_at")
+    )
+
+
 def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3"}
+    base_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3", "image"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
     allowed_fit = {"contain", "cover"}
 
     result_items = {}
-    valid_enabled = [field for field in (enabled_fields or []) if field in allowed_keys]
+    valid_enabled = [
+        field for field in (enabled_fields or [])
+        if field in base_keys or str(field).startswith("texto_libre_") or str(field).startswith("image")
+    ]
 
     for key, cfg in (items or {}).items():
-        if key not in allowed_keys or not isinstance(cfg, dict):
+        is_dynamic_text = str(key).startswith("texto_libre_")
+        is_dynamic_image = str(key).startswith("image")
+        if (key not in base_keys and not is_dynamic_text and not is_dynamic_image) or not isinstance(cfg, dict):
             continue
 
         if key == "photo":
@@ -121,7 +156,7 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
             }
             continue
 
-        if key == "image":
+        if key == "image" or is_dynamic_image:
             fit = str(cfg.get("object_fit") or "contain").lower()
             result_items[key] = {
                 "x": int(cfg.get("x") or 0),
@@ -146,13 +181,15 @@ def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, all
         item = {
             "x": int(cfg.get("x") or 0),
             "y": int(cfg.get("y") or 0),
+            "w": max(40, min(canvas_width, int(cfg.get("w") or 280))),
+            "h": max(30, min(canvas_height, int(cfg.get("h") or 70))),
             "font_size": max(10, min(120, int(cfg.get("font_size") or 24))),
             "font_weight": weight,
             "color": color,
             "align": align,
             "visible": bool(cfg.get("visible", True)),
         }
-        if key.startswith("texto_libre_"):
+        if str(key).startswith("texto_libre_"):
             item["text"] = str(cfg.get("text") or "")
         result_items[key] = item
 
@@ -192,7 +229,7 @@ def _validate_layout_payload(payload, forced_orientation=None):
             allow_empty=(face == "back"),
         )
         if face == "back":
-            enabled = [field for field in enabled if field != "photo"]
+            enabled = [field for field in enabled if is_item_allowed_in_face("back", field)]
         out[face] = {
             "background_image": str(face_layout.get("background_image") or ""),
             "enabled_fields": enabled,
@@ -224,7 +261,7 @@ def signin(request):
     auth_login(request, user)
 
     if user.groups.filter(name="Docente").exists():
-        redirect_name = "docente_dashboard"
+        redirect_name = "empleados:dashboard_docente"
     elif user.groups.filter(name="Administrador").exists():
         redirect_name = "dashboard"
     elif user.groups.filter(name="Gestor").exists():
@@ -309,110 +346,160 @@ def usuarios_update(request, pk):
 @login_required
 def dahsboard(request):
     if _is_docente(request.user):
-        return redirect("empleados:docente_dashboard")
+        return redirect("empleados:dashboard_docente")
 
-    ciclos = CicloEscolar.objects.select_related('establecimiento')
-    ciclos = filtrar_por_establecimiento_usuario(ciclos, request.user, 'establecimiento_id')
-    ciclo_activo = ciclos.filter(activo=True).order_by('-anio', '-id').first()
-    if not ciclo_activo:
-        ciclo_activo = ciclos.order_by('-anio', '-id').first()
+    establecimiento_param = (request.GET.get("establecimiento") or "").strip()
+    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.order_by("nombre"), request.user, "id")
 
-    alumnos_por_grado_labels = []
-    alumnos_por_grado_series = []
-    alumnos_por_carrera_labels = []
-    alumnos_por_carrera_series = []
-    cursos_por_docente_labels = []
-    cursos_por_docente_series = []
-    asistencia_resumen_series = [0, 0]
-    asistencia_tendencia_labels = []
-    asistencia_tendencia_presentes = []
-    asistencia_tendencia_ausentes = []
+    selected_establecimiento = None
+    if establecimiento_param and establecimiento_param != "all":
+        selected_establecimiento = establecimientos_qs.filter(pk=establecimiento_param).first()
 
-    ciclo_stats = {
-        'nombre': ciclo_activo.nombre if ciclo_activo else 'Sin ciclo disponible',
-        'establecimiento': ciclo_activo.establecimiento.nombre if ciclo_activo else '-',
-        'cursos_total': 0,
-        'alumnos_total': 0,
-        'docentes_total': 0,
-        'asistencias_total': 0,
+    if es_gestor(request.user):
+        selected_establecimiento = selected_establecimiento or establecimientos_qs.first()
+
+    alumnos_base = Matricula.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
+    cursos_docente_base = CursoDocente.objects.select_related("curso__grado__carrera__ciclo_escolar__establecimiento", "docente")
+    cursos_base = Curso.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
+    asistencia_base = Asistencia.objects.select_related("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento")
+    detalles_base = AsistenciaDetalle.objects.select_related("asistencia__curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento")
+
+    if selected_establecimiento:
+        alumnos_base = alumnos_base.filter(grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        cursos_docente_base = cursos_docente_base.filter(curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        cursos_base = cursos_base.filter(grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        asistencia_base = asistencia_base.filter(curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+        detalles_base = detalles_base.filter(asistencia__curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
+
+    alumnos_por_grado_qs = (
+        alumnos_base.values("grado__nombre")
+        .annotate(total=Count("alumno", distinct=True))
+        .order_by("-total", "grado__nombre")
+    )
+    alumnos_por_grado_labels = [row["grado__nombre"] or "Sin grado" for row in alumnos_por_grado_qs]
+    alumnos_por_grado_series = [row["total"] for row in alumnos_por_grado_qs]
+
+    alumnos_por_carrera_qs = (
+        alumnos_base.values("grado__carrera__nombre")
+        .annotate(total=Count("alumno", distinct=True))
+        .order_by("-total", "grado__carrera__nombre")
+    )
+    alumnos_por_carrera_labels = [row["grado__carrera__nombre"] or "Sin carrera" for row in alumnos_por_carrera_qs]
+    alumnos_por_carrera_series = [row["total"] for row in alumnos_por_carrera_qs]
+
+    cursos_por_docente_qs = (
+        cursos_docente_base.filter(activo=True, curso__activo=True)
+        .values("docente__first_name", "docente__last_name", "docente__username")
+        .annotate(total=Count("curso", distinct=True))
+        .order_by("-total", "docente__username")[:12]
+    )
+    cursos_por_docente_labels, cursos_por_docente_series = [], []
+    for row in cursos_por_docente_qs:
+        nombre = f"{(row['docente__first_name'] or '').strip()} {(row['docente__last_name'] or '').strip()}".strip() or row["docente__username"]
+        cursos_por_docente_labels.append(nombre)
+        cursos_por_docente_series.append(row["total"])
+
+    presentes_total = detalles_base.filter(presente=True).count()
+    ausentes_total = detalles_base.filter(presente=False).count()
+    asistencia_resumen_series = [presentes_total, ausentes_total]
+
+    tendencia_qs = (
+        asistencia_base.values("fecha")
+        .annotate(
+            presentes=Count("detalles", filter=Q(detalles__presente=True)),
+            ausentes=Count("detalles", filter=Q(detalles__presente=False)),
+        )
+        .order_by("-fecha")[:14]
+    )
+    tendencia = list(reversed(list(tendencia_qs)))
+    asistencia_tendencia_labels = [row["fecha"].strftime("%d/%m") for row in tendencia]
+    asistencia_tendencia_presentes = [row["presentes"] for row in tendencia]
+    asistencia_tendencia_ausentes = [row["ausentes"] for row in tendencia]
+
+    establecimientos_ids = list(establecimientos_qs.values_list("id", flat=True))
+
+    cursos_por_establecimiento = {
+        row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Curso.objects.filter(activo=True, grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("id", distinct=True))
+    }
+    alumnos_por_establecimiento = {
+        row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Matricula.objects.filter(grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("alumno_id", distinct=True))
+    }
+    asistencias_por_establecimiento = {
+        row["curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
+        for row in Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        .values("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento_id")
+        .annotate(total=Count("id"))
     }
 
-    if ciclo_activo:
-        matriculas_ciclo = Matricula.objects.filter(ciclo_escolar=ciclo_activo).select_related('grado', 'grado__carrera')
-        alumnos_por_grado_qs = (
-            matriculas_ciclo.values('grado__nombre')
-            .annotate(total=Count('alumno', distinct=True))
-            .order_by('-total', 'grado__nombre')
-        )
-        alumnos_por_grado_labels = [row['grado__nombre'] or 'Sin grado' for row in alumnos_por_grado_qs]
-        alumnos_por_grado_series = [row['total'] for row in alumnos_por_grado_qs]
-
-        alumnos_por_carrera_qs = (
-            matriculas_ciclo.values('grado__carrera__nombre')
-            .annotate(total=Count('alumno', distinct=True))
-            .order_by('-total', 'grado__carrera__nombre')
-        )
-        alumnos_por_carrera_labels = [row['grado__carrera__nombre'] or 'Sin carrera' for row in alumnos_por_carrera_qs]
-        alumnos_por_carrera_series = [row['total'] for row in alumnos_por_carrera_qs]
-
-        cursos_docente_qs = (
-            CursoDocente.objects.filter(
-                activo=True,
-                curso__activo=True,
-                curso__grado__carrera__ciclo_escolar=ciclo_activo,
-            )
-            .values('docente__first_name', 'docente__last_name', 'docente__username')
-            .annotate(total=Count('curso', distinct=True))
-            .order_by('-total', 'docente__username')[:12]
-        )
-        for row in cursos_docente_qs:
-            nombre = f"{(row['docente__first_name'] or '').strip()} {(row['docente__last_name'] or '').strip()}".strip() or row['docente__username']
-            cursos_por_docente_labels.append(nombre)
-            cursos_por_docente_series.append(row['total'])
-
-        asistencia_detalles_qs = AsistenciaDetalle.objects.filter(
-            asistencia__curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo,
-        )
-        presentes_total = asistencia_detalles_qs.filter(presente=True).count()
-        ausentes_total = asistencia_detalles_qs.filter(presente=False).count()
-        asistencia_resumen_series = [presentes_total, ausentes_total]
-
-        tendencia_qs = (
-            Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo)
-            .values('fecha')
-            .annotate(
-                presentes=Count('detalles', filter=Q(detalles__presente=True)),
-                ausentes=Count('detalles', filter=Q(detalles__presente=False)),
-            )
-            .order_by('-fecha')[:14]
-        )
-        tendencia = list(reversed(list(tendencia_qs)))
-        asistencia_tendencia_labels = [row['fecha'].strftime('%d/%m') for row in tendencia]
-        asistencia_tendencia_presentes = [row['presentes'] for row in tendencia]
-        asistencia_tendencia_ausentes = [row['ausentes'] for row in tendencia]
-
-        ciclo_stats.update({
-            'cursos_total': Curso.objects.filter(grado__carrera__ciclo_escolar=ciclo_activo, activo=True).count(),
-            'alumnos_total': matriculas_ciclo.values('alumno_id').distinct().count(),
-            'docentes_total': CursoDocente.objects.filter(curso__grado__carrera__ciclo_escolar=ciclo_activo, activo=True).values('docente_id').distinct().count(),
-            'asistencias_total': Asistencia.objects.filter(curso_docente__curso__grado__carrera__ciclo_escolar=ciclo_activo).count(),
+    establecimientos_resumen = []
+    for est in establecimientos_qs:
+        est_id = est.id
+        establecimientos_resumen.append({
+            "id": est_id,
+            "nombre": est.nombre or "Sin establecimiento",
+            "cursos": cursos_por_establecimiento.get(est_id, 0),
+            "alumnos": alumnos_por_establecimiento.get(est_id, 0),
+            "asistencias": asistencias_por_establecimiento.get(est_id, 0),
         })
 
+    establecimientos_destacados = []
+    if not selected_establecimiento:
+        establecimientos_destacados = sorted(
+            establecimientos_resumen,
+            key=lambda x: (x["alumnos"], x["cursos"], x["asistencias"]),
+            reverse=True,
+        )[:6]
+    titulo_dashboard = (
+        f"Dashboard de {selected_establecimiento.nombre}" if selected_establecimiento else "Dashboard global"
+    )
+    subtitulo_dashboard = (
+        "Resumen del establecimiento seleccionado." if selected_establecimiento else "Resumen general de todos los establecimientos."
+    )
+
+    ciclo_stats = {
+        "nombre": selected_establecimiento.nombre if selected_establecimiento else "Todos los establecimientos",
+        "establecimiento": selected_establecimiento.nombre if selected_establecimiento else "Global",
+        "cursos_total": cursos_base.filter(activo=True).count(),
+        "alumnos_total": alumnos_base.values("alumno_id").distinct().count(),
+        "docentes_total": cursos_docente_base.filter(activo=True).values("docente_id").distinct().count(),
+        "asistencias_total": asistencia_base.count(),
+        "establecimientos_total": establecimientos_qs.count() if es_admin_total(request.user) else 1,
+    }
+
     context = {
-        'ciclo_activo': ciclo_activo,
-        'ciclo_stats': ciclo_stats,
-        'alumnos_por_grado_labels': json.dumps(alumnos_por_grado_labels),
-        'alumnos_por_grado_series': json.dumps(alumnos_por_grado_series),
-        'alumnos_por_carrera_labels': json.dumps(alumnos_por_carrera_labels),
-        'alumnos_por_carrera_series': json.dumps(alumnos_por_carrera_series),
-        'cursos_por_docente_labels': json.dumps(cursos_por_docente_labels),
-        'cursos_por_docente_series': json.dumps(cursos_por_docente_series),
-        'asistencia_resumen_series': json.dumps(asistencia_resumen_series),
-        'asistencia_tendencia_labels': json.dumps(asistencia_tendencia_labels),
-        'asistencia_tendencia_presentes': json.dumps(asistencia_tendencia_presentes),
-        'asistencia_tendencia_ausentes': json.dumps(asistencia_tendencia_ausentes),
+        "titulo_dashboard": titulo_dashboard,
+        "subtitulo_dashboard": subtitulo_dashboard,
+        "selected_establecimiento": selected_establecimiento,
+        "establecimientos": establecimientos_qs,
+        "ciclo_activo": True,
+        "ciclo_stats": ciclo_stats,
+        "establecimientos_resumen": establecimientos_resumen,
+        "establecimientos_destacados": establecimientos_destacados,
+        "alumnos_por_grado_labels": json.dumps(alumnos_por_grado_labels),
+        "alumnos_por_grado_series": json.dumps(alumnos_por_grado_series),
+        "alumnos_por_carrera_labels": json.dumps(alumnos_por_carrera_labels),
+        "alumnos_por_carrera_series": json.dumps(alumnos_por_carrera_series),
+        "cursos_por_docente_labels": json.dumps(cursos_por_docente_labels),
+        "cursos_por_docente_series": json.dumps(cursos_por_docente_series),
+        "asistencia_resumen_series": json.dumps(asistencia_resumen_series),
+        "asistencia_tendencia_labels": json.dumps(asistencia_tendencia_labels),
+        "asistencia_tendencia_presentes": json.dumps(asistencia_tendencia_presentes),
+        "asistencia_tendencia_ausentes": json.dumps(asistencia_tendencia_ausentes),
     }
     return render(request, "empleados/dahsboard.html", context)
+
+
+@login_required
+def dashboard_establecimiento(request, establecimiento_id):
+    if _is_docente(request.user):
+        return redirect("empleados:dashboard_docente")
+    return redirect(f"{reverse('empleados:dahsboard')}?establecimiento={establecimiento_id}")
 
 
 @login_required
@@ -449,7 +536,7 @@ def crear_empleado(request):
 @user_passes_test(_can_access_backoffice)
 def editar_empleado(request, e_id):
     empleado = get_object_or_404(Empleado, pk=e_id)
-    if empleado.establecimiento_id:
+    if empleado.establecimiento_id and not _is_docente(request.user):
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
         if denied:
             return denied
@@ -462,10 +549,13 @@ def editar_empleado(request, e_id):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_alumnos)
 def lista_empleados(request):
-    empleados = Empleado.objects.all().order_by("-created_at")
-    empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
+    if _is_docente(request.user):
+        empleados = _docente_alumnos_qs(request.user)
+    else:
+        empleados = Empleado.objects.all().order_by("-created_at")
+        empleados = filtrar_por_establecimiento_usuario(empleados, request.user, "establecimiento_id")
     return render(request, "empleados/lista_empleados.html", {"empleados": empleados})
 
 
@@ -481,18 +571,44 @@ def credencial_empleados(request):
 
 
 @login_required
-@user_passes_test(_can_access_backoffice)
+@user_passes_test(_can_access_alumnos)
 def empleado_detalle(request, id):
-    forbidden = _forbid_gafetes_for_gestor(request)
-    if forbidden:
-        return forbidden
+    if not _is_docente(request.user):
+        forbidden = _forbid_gafetes_for_gestor(request)
+        if forbidden:
+            return forbidden
     empleado = get_object_or_404(Empleado, id=id)
-    if empleado.establecimiento_id:
+    if _is_docente(request.user) and not _docente_alumnos_qs(request.user).filter(id=empleado.id).exists():
+        messages.error(request, "No tiene permisos para ver este alumno.")
+        return redirect("empleados:empleado_lista")
+    if empleado.establecimiento_id and not _is_docente(request.user):
         denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
         if denied:
             return denied
     configuracion = ConfiguracionGeneral.objects.first()
     matricula_activa = empleado.matriculas.filter(estado="activo").select_related("grado", "grado__carrera", "grado__carrera__ciclo_escolar__establecimiento").first()
+    observacion_form = ObservacionAlumnoForm(request.POST or None)
+    if request.method == "POST" and request.POST.get("action") == "crear_observacion":
+        if observacion_form.is_valid():
+            observacion = observacion_form.save(commit=False)
+            observacion.alumno = empleado
+            observacion.creado_por = request.user
+            observacion.save()
+            messages.success(request, "Observación registrada correctamente.")
+            return redirect("empleados:empleado_detalle", id=empleado.id)
+        messages.error(request, "No fue posible guardar la observación. Verifique los datos.")
+    observaciones = empleado.observaciones.select_related("creado_por").all()[:30]
+
+    asistencia_resumen = AsistenciaDetalle.objects.filter(alumno=empleado).aggregate(
+        total=Count("id"),
+        asistencias=Sum(Case(When(presente=True, then=1), default=0, output_field=IntegerField())),
+        inasistencias=Sum(Case(When(presente=False, then=1), default=0, output_field=IntegerField())),
+    )
+    total_registros = asistencia_resumen["total"] or 0
+    presentes = asistencia_resumen["asistencias"] or 0
+    ausentes = asistencia_resumen["inasistencias"] or 0
+    porcentaje_asistencia = round((presentes / total_registros * 100), 2) if total_registros else 0
+
     establecimiento = None
     grado_gafete = None
     if matricula_activa and matricula_activa.grado:
@@ -514,11 +630,109 @@ def empleado_detalle(request, id):
             "establecimiento": establecimiento,
             "layout": layout,
             "grado_gafete": grado_gafete,
+            "matricula_activa": matricula_activa,
             "canvas_width": canvas_width,
             "canvas_height": canvas_height,
             "gafete_w": canvas_width,
             "gafete_h": canvas_height,
             "orientacion": orientation,
+            "observacion_form": observacion_form,
+            "observaciones": observaciones,
+            "asistencia_resumen": {
+                "total": total_registros,
+                "presentes": presentes,
+                "ausentes": ausentes,
+                "porcentaje": porcentaje_asistencia,
+            },
+        },
+    )
+
+
+@login_required
+@user_passes_test(_can_access_alumnos)
+def empleado_boleta_asistencia(request, id):
+    empleado = get_object_or_404(Empleado, id=id)
+    if _is_docente(request.user) and not _docente_alumnos_qs(request.user).filter(id=empleado.id).exists():
+        messages.error(request, "No tiene permisos para ver este alumno.")
+        return redirect("empleados:empleado_lista")
+    if empleado.establecimiento_id and not _is_docente(request.user):
+        denied = _deny_if_not_allowed_establecimiento(request, empleado.establecimiento_id)
+        if denied:
+            return denied
+
+    fecha_inicio = request.GET.get("fecha_inicio")
+    fecha_fin = request.GET.get("fecha_fin")
+    detalles_qs = (
+        AsistenciaDetalle.objects.filter(alumno=empleado)
+        .select_related("asistencia__curso_docente__curso", "asistencia__curso_docente__curso__grado")
+        .order_by("-asistencia__fecha", "-id")
+    )
+    if fecha_inicio:
+        detalles_qs = detalles_qs.filter(asistencia__fecha__gte=fecha_inicio)
+    if fecha_fin:
+        detalles_qs = detalles_qs.filter(asistencia__fecha__lte=fecha_fin)
+
+    resumen = detalles_qs.aggregate(
+        total=Count("id"),
+        asistencias=Sum(Case(When(presente=True, then=1), default=0, output_field=IntegerField())),
+        inasistencias=Sum(Case(When(presente=False, then=1), default=0, output_field=IntegerField())),
+    )
+    total_registros = resumen["total"] or 0
+    asistencias = resumen["asistencias"] or 0
+    inasistencias = resumen["inasistencias"] or 0
+    porcentaje = round((asistencias / total_registros * 100), 2) if total_registros else 0
+
+    if request.GET.get("formato") == "xlsx":
+        try:
+            from openpyxl import Workbook
+            from .aulapro.excel import autosize_columns, style_table_header, style_table_row, style_title, workbook_to_response
+        except ImportError:
+            messages.warning(request, "No fue posible generar Excel en este entorno. Se muestra la boleta en pantalla.")
+        else:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Boleta Asistencia"
+
+            style_title(ws, 1, f"Boleta de asistencia · {empleado}", max_col=6)
+            style_table_row(ws, 3, ("Desde", fecha_inicio or "Inicio", "Hasta", fecha_fin or "Hoy", "", ""))
+            style_table_row(ws, 4, ("Total registros", total_registros, "Asistencias", asistencias, "Inasistencias", inasistencias))
+            style_table_row(ws, 5, ("Porcentaje", f"{porcentaje:.2f}%", "", "", "", ""))
+
+            style_table_header(ws, 7, ("Fecha", "Curso", "Grado", "Estado", "Periodo", "Docente"))
+            current_row = 8
+            for detalle in detalles_qs:
+                asistencia = detalle.asistencia
+                curso_docente = asistencia.curso_docente
+                style_table_row(
+                    ws,
+                    current_row,
+                    (
+                        asistencia.fecha.strftime("%d/%m/%Y"),
+                        curso_docente.curso.nombre,
+                        curso_docente.curso.grado.nombre,
+                        "Presente" if detalle.presente else "Ausente",
+                        asistencia.periodo.nombre if asistencia.periodo_id else "-",
+                        curso_docente.docente.get_full_name() or curso_docente.docente.username,
+                    ),
+                )
+                current_row += 1
+            autosize_columns(ws)
+            return workbook_to_response(wb, f"boleta_asistencia_{empleado.id}")
+
+    return render(
+        request,
+        "empleados/boleta_asistencia.html",
+        {
+            "empleado": empleado,
+            "detalles": detalles_qs[:300],
+            "resumen": {
+                "total": total_registros,
+                "asistencias": asistencias,
+                "inasistencias": inasistencias,
+                "porcentaje": porcentaje,
+            },
+            "fecha_inicio": fecha_inicio or "",
+            "fecha_fin": fecha_fin or "",
         },
     )
 
@@ -775,6 +989,392 @@ def matricula_masiva(request):
     return render(request, "empleados/matricula_masiva.html", {"form": form})
 
 
+def _load_excel_records(uploaded_file):
+    filename = (uploaded_file.name or "").lower()
+    if not filename.endswith((".xlsx", ".xlsm")):
+        raise ValidationError("El archivo debe ser Excel (.xlsx o .xlsm).")
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:
+        raise ValidationError("No está disponible la librería para leer Excel en este entorno.") from exc
+
+    wb = load_workbook(uploaded_file, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return [], []
+    headers = [str(v).strip().lower() if v is not None else "" for v in rows[0]]
+    data_rows = [list(r) for r in rows[1:] if any(c not in (None, "") for c in r)]
+    return headers, data_rows
+
+
+def _parse_date_cell(value):
+    if value in (None, ""):
+        return None
+    if hasattr(value, "date"):
+        try:
+            return value.date()
+        except Exception:
+            pass
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        raw = value.strip()
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+    raise ValidationError("Fecha inválida. Use YYYY-MM-DD o DD/MM/YYYY.")
+
+
+def _bool_cell(value, default=True):
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool):
+        return value
+    raw = str(value).strip().lower()
+    return raw in {"1", "true", "si", "sí", "activo", "yes"}
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_home(request):
+    return render(request, "empleados/carga_masiva/index.html")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_plantilla(request, tipo):
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        messages.error(request, "No fue posible generar la plantilla en este entorno.")
+        return redirect("empleados:carga_masiva_home")
+
+    columnas_por_tipo = {
+        "alumnos": ["codigo_personal", "nombres", "apellidos", "cui", "fecha_nacimiento", "telefono", "grado_id", "establecimiento_id", "activo"],
+        "docentes": ["username", "first_name", "last_name", "email", "password", "activo"],
+        "cursos": ["grado_id", "nombre", "descripcion", "activo"],
+        "asignaciones": ["curso_id", "docente_username", "activo"],
+    }
+    columnas = columnas_por_tipo.get(tipo)
+    if not columnas:
+        messages.error(request, "Tipo de plantilla no válido.")
+        return redirect("empleados:carga_masiva_home")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Plantilla"
+    ws.append(columnas)
+    ws.append([""] * len(columnas))
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f'attachment; filename="plantilla_{tipo}.xlsx"'
+    wb.save(response)
+    return response
+
+
+def _import_alumnos_excel(request, headers, rows, confirmar=False):
+    requeridas = {"nombres", "apellidos"}
+    faltantes = [c for c in requeridas if c not in headers]
+    if faltantes:
+        raise ValidationError(f"Columnas requeridas faltantes: {', '.join(faltantes)}")
+
+    idx = {h: i for i, h in enumerate(headers)}
+    grados_qs = filtrar_por_establecimiento_usuario(Grado.objects.select_related("carrera__ciclo_escolar__establecimiento"), request.user, "carrera__ciclo_escolar__establecimiento_id")
+    grados_map = {g.id: g for g in grados_qs}
+    establecimientos_qs = filtrar_por_establecimiento_usuario(Establecimiento.objects.all(), request.user, "id")
+    establecimientos_map = {e.id: e for e in establecimientos_qs}
+
+    operaciones = []
+    errores = []
+    for num, row in enumerate(rows, start=2):
+        try:
+            nombres = str(row[idx["nombres"]]).strip() if row[idx["nombres"]] else ""
+            apellidos = str(row[idx["apellidos"]]).strip() if row[idx["apellidos"]] else ""
+            if not nombres or not apellidos:
+                raise ValidationError("Nombres y apellidos son obligatorios.")
+            codigo = str(row[idx["codigo_personal"]]).strip() if "codigo_personal" in idx and row[idx["codigo_personal"]] else None
+            cui = str(row[idx["cui"]]).strip() if "cui" in idx and row[idx["cui"]] else None
+            fecha_nacimiento = _parse_date_cell(row[idx["fecha_nacimiento"]]) if "fecha_nacimiento" in idx else None
+            tel = str(row[idx["telefono"]]).strip() if "telefono" in idx and row[idx["telefono"]] else None
+            grado = None
+            if "grado_id" in idx and row[idx["grado_id"]] not in (None, ""):
+                grado_id = int(row[idx["grado_id"]])
+                grado = grados_map.get(grado_id)
+                if not grado:
+                    raise ValidationError("grado_id no válido o sin permiso.")
+            establecimiento = None
+            if "establecimiento_id" in idx and row[idx["establecimiento_id"]] not in (None, ""):
+                est_id = int(row[idx["establecimiento_id"]])
+                establecimiento = establecimientos_map.get(est_id)
+                if not establecimiento:
+                    raise ValidationError("establecimiento_id no válido o sin permiso.")
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+
+            existing = None
+            if codigo:
+                existing = Empleado.objects.filter(codigo_personal=codigo).first()
+            if not existing and cui:
+                existing = Empleado.objects.filter(cui=cui).first()
+            operaciones.append({
+                "existing": existing,
+                "payload": {
+                    "codigo_personal": codigo,
+                    "nombres": nombres,
+                    "apellidos": apellidos,
+                    "cui": cui,
+                    "fecha_nacimiento": fecha_nacimiento,
+                    "tel": tel,
+                    "grado": grado,
+                    "establecimiento": establecimiento,
+                    "activo": activo,
+                    "user": request.user,
+                },
+            })
+        except Exception as exc:  # validación por fila
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    empleado = op["existing"]
+                    for key, value in op["payload"].items():
+                        setattr(empleado, key, value)
+                    empleado.save()
+                    actualizados += 1
+                else:
+                    Empleado.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_docentes_excel(headers, rows, confirmar=False):
+    if "username" not in headers:
+        raise ValidationError("La columna username es obligatoria.")
+    idx = {h: i for i, h in enumerate(headers)}
+    docentes_group, _ = Group.objects.get_or_create(name="Docente")
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            username = str(row[idx["username"]]).strip() if row[idx["username"]] else ""
+            if not username:
+                raise ValidationError("username obligatorio.")
+            first_name = str(row[idx["first_name"]]).strip() if "first_name" in idx and row[idx["first_name"]] else ""
+            last_name = str(row[idx["last_name"]]).strip() if "last_name" in idx and row[idx["last_name"]] else ""
+            email = str(row[idx["email"]]).strip() if "email" in idx and row[idx["email"]] else ""
+            password = str(row[idx["password"]]).strip() if "password" in idx and row[idx["password"]] else None
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            user = User.objects.filter(username=username).first()
+            operaciones.append({"existing": user, "payload": {"username": username, "first_name": first_name, "last_name": last_name, "email": email, "password": password, "is_active": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                payload = op["payload"]
+                if op["existing"]:
+                    user = op["existing"]
+                    user.first_name = payload["first_name"]
+                    user.last_name = payload["last_name"]
+                    user.email = payload["email"]
+                    user.is_active = payload["is_active"]
+                    if payload["password"]:
+                        user.set_password(payload["password"])
+                    user.save()
+                    actualizados += 1
+                else:
+                    user = User.objects.create_user(
+                        username=payload["username"],
+                        password=payload["password"] or "Docente123*",
+                        first_name=payload["first_name"],
+                        last_name=payload["last_name"],
+                        email=payload["email"],
+                        is_active=payload["is_active"],
+                    )
+                    creados += 1
+                user.groups.add(docentes_group)
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_cursos_excel(request, headers, rows, confirmar=False):
+    if "grado_id" not in headers or "nombre" not in headers:
+        raise ValidationError("Las columnas grado_id y nombre son obligatorias.")
+    idx = {h: i for i, h in enumerate(headers)}
+    grados_qs = filtrar_por_establecimiento_usuario(Grado.objects.all(), request.user, "carrera__ciclo_escolar__establecimiento_id")
+    grados_map = {g.id: g for g in grados_qs}
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            grado_id = int(row[idx["grado_id"]])
+            grado = grados_map.get(grado_id)
+            if not grado:
+                raise ValidationError("grado_id no válido o sin permiso.")
+            nombre = str(row[idx["nombre"]]).strip() if row[idx["nombre"]] else ""
+            if not nombre:
+                raise ValidationError("nombre obligatorio.")
+            descripcion = str(row[idx["descripcion"]]).strip() if "descripcion" in idx and row[idx["descripcion"]] else ""
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            existing = Curso.objects.filter(grado=grado, nombre=nombre).first()
+            operaciones.append({"existing": existing, "payload": {"grado": grado, "nombre": nombre, "descripcion": descripcion, "activo": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    curso = op["existing"]
+                    curso.descripcion = op["payload"]["descripcion"]
+                    curso.activo = op["payload"]["activo"]
+                    curso.save()
+                    actualizados += 1
+                else:
+                    Curso.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _import_asignaciones_excel(request, headers, rows, confirmar=False):
+    if "curso_id" not in headers or "docente_username" not in headers:
+        raise ValidationError("Las columnas curso_id y docente_username son obligatorias.")
+    idx = {h: i for i, h in enumerate(headers)}
+    cursos_qs = filtrar_por_establecimiento_usuario(Curso.objects.all(), request.user, "grado__carrera__ciclo_escolar__establecimiento_id")
+    cursos_map = {c.id: c for c in cursos_qs}
+    docentes = User.objects.filter(groups__name="Docente").distinct()
+    docentes_map = {u.username: u for u in docentes}
+
+    operaciones, errores = [], []
+    for num, row in enumerate(rows, start=2):
+        try:
+            curso = cursos_map.get(int(row[idx["curso_id"]]))
+            if not curso:
+                raise ValidationError("curso_id no válido o sin permiso.")
+            username = str(row[idx["docente_username"]]).strip() if row[idx["docente_username"]] else ""
+            docente = docentes_map.get(username)
+            if not docente:
+                raise ValidationError("docente_username no existe o no pertenece al grupo Docente.")
+            activo = _bool_cell(row[idx["activo"]], default=True) if "activo" in idx else True
+            existing = CursoDocente.objects.filter(curso=curso, docente=docente).first()
+            operaciones.append({"existing": existing, "payload": {"curso": curso, "docente": docente, "activo": activo}})
+        except Exception as exc:
+            errores.append(f"Fila {num}: {exc}")
+
+    creados = actualizados = omitidos = 0
+    if confirmar and not errores:
+        with transaction.atomic():
+            for op in operaciones:
+                if op["existing"]:
+                    op["existing"].activo = op["payload"]["activo"]
+                    op["existing"].save(update_fields=["activo"])
+                    actualizados += 1
+                else:
+                    CursoDocente.objects.create(**op["payload"])
+                    creados += 1
+    else:
+        for op in operaciones:
+            if op["existing"]:
+                actualizados += 1
+            else:
+                creados += 1
+    return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores, "preview": operaciones[:20]}
+
+
+def _carga_masiva_import_view(request, tipo, titulo, descripcion):
+    form = CargaMasivaExcelForm(request.POST or None, request.FILES or None)
+    resultado = None
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            headers, rows = _load_excel_records(form.cleaned_data["archivo"])
+            confirmar = bool(form.cleaned_data.get("confirmar"))
+            if tipo == "alumnos":
+                resultado = _import_alumnos_excel(request, headers, rows, confirmar=confirmar)
+            elif tipo == "docentes":
+                resultado = _import_docentes_excel(headers, rows, confirmar=confirmar)
+            elif tipo == "cursos":
+                resultado = _import_cursos_excel(request, headers, rows, confirmar=confirmar)
+            elif tipo == "asignaciones":
+                resultado = _import_asignaciones_excel(request, headers, rows, confirmar=confirmar)
+            else:
+                raise ValidationError("Tipo de importación no soportado.")
+
+            if confirmar and not resultado["errores"]:
+                messages.success(
+                    request,
+                    f"Importación completada. Creados: {resultado['creados']}, actualizados: {resultado['actualizados']}, omitidos: {resultado['omitidos']}.",
+                )
+            elif resultado["errores"]:
+                messages.warning(request, f"Se detectaron {len(resultado['errores'])} errores. Corrija y vuelva a intentar.")
+            else:
+                messages.info(request, "Previsualización generada. Marque confirmar para aplicar cambios.")
+        except ValidationError as exc:
+            messages.error(request, str(exc))
+        except Exception as exc:
+            messages.error(request, f"No fue posible procesar el archivo: {exc}")
+
+    return render(
+        request,
+        "empleados/carga_masiva/importar.html",
+        {
+            "form": form,
+            "titulo": titulo,
+            "descripcion": descripcion,
+            "tipo": tipo,
+            "resultado": resultado,
+        },
+    )
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_alumnos(request):
+    return _carga_masiva_import_view(request, "alumnos", "Importar alumnos", "Carga de alumnos desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_docentes(request):
+    return _carga_masiva_import_view(request, "docentes", "Importar docentes", "Carga de usuarios docentes desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_cursos(request):
+    return _carga_masiva_import_view(request, "cursos", "Importar cursos", "Carga de cursos vinculados a grado desde Excel.")
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def carga_masiva_import_asignaciones(request):
+    return _carga_masiva_import_view(request, "asignaciones", "Importar asignaciones", "Carga de asignaciones docente-curso desde Excel.")
+
+
 @login_required
 @user_passes_test(_can_access_backoffice)
 def editor_gafete(request, establecimiento_id):
@@ -843,11 +1443,25 @@ def editor_gafete(request, establecimiento_id):
 @user_passes_test(_can_access_backoffice)
 @require_POST
 def subir_imagen_gafete(request, establecimiento_id):
-    """
-    Vista legacy conservada para compatibilidad con rutas antiguas.
-    El flujo actual no permite subir imágenes desde el editor del reverso.
-    """
-    return JsonResponse({"ok": False, "error": "Función deshabilitada en el editor actual."}, status=410)
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    denied = _deny_if_not_allowed_establecimiento(request, establecimiento_id)
+    if denied:
+        return denied
+    _ = get_object_or_404(Establecimiento, pk=establecimiento_id)
+    image = request.FILES.get("image")
+    if not image:
+        return JsonResponse({"ok": False, "error": "Debe seleccionar una imagen."}, status=400)
+    if image.size > 4 * 1024 * 1024:
+        return JsonResponse({"ok": False, "error": "La imagen supera 4MB."}, status=400)
+    if image.content_type not in {"image/jpeg", "image/png", "image/webp", "image/svg+xml"}:
+        return JsonResponse({"ok": False, "error": "Formato no permitido."}, status=400)
+    try:
+        stored_path = default_storage.save(f"gafetes/overlays/{uuid4().hex}_{image.name}", image)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "No se pudo almacenar la imagen."}, status=500)
+    return JsonResponse({"ok": True, "url": default_storage.url(stored_path)})
 
 
 @login_required
@@ -894,11 +1508,12 @@ def _sanitize_filename_token(value):
     return text or "NA"
 
 
-def _build_gafete_filename(alumno):
+def _build_gafete_filename(alumno, lado="frente"):
     apellidos = _sanitize_filename_token(getattr(alumno, "apellidos", ""))
     nombres = _sanitize_filename_token(getattr(alumno, "nombres", ""))
     codigo = _sanitize_filename_token(getattr(alumno, "codigo_personal", ""))
-    return f"GAFETE_{apellidos}_{nombres}_{codigo}.jpg"
+    lado_token = _sanitize_filename_token(lado)
+    return f"GAFETE_{lado_token}_{apellidos}_{nombres}_{codigo}.jpg"
 
 
 def _parse_color(value, default="#111111"):
@@ -965,12 +1580,46 @@ def _apply_contain_image(src_image, target_w, target_h):
     return layer
 
 
-def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout):
+def _open_normalized_image(file_obj):
+    image = Image.open(file_obj)
+    image = ImageOps.exif_transpose(image)
+    return image
+
+
+def _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, fill, align="left"):
+    words = str(text or "").split()
+    if not words:
+        return
+    lines = []
+    line = words[0]
+    for word in words[1:]:
+        candidate = f"{line} {word}".strip()
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        if bbox[2] - bbox[0] <= max_w:
+            line = candidate
+        else:
+            lines.append(line)
+            line = word
+    lines.append(line)
+
+    line_h = draw.textbbox((0, 0), "Ag", font=font)[3] + 2
+    max_lines = max(1, int(max_h // line_h))
+    lines = lines[:max_lines]
+    for idx, ln in enumerate(lines):
+        tw = draw.textbbox((0, 0), ln, font=font)[2]
+        tx = x
+        if align == "center":
+            tx = x + max((max_w - tw) // 2, 0)
+        elif align == "right":
+            tx = x + max(max_w - tw, 0)
+        draw.text((tx, y + idx * line_h), ln, fill=fill, font=font)
+
+
+def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout, face="front"):
     items = face_layout.get("items", {}) if isinstance(face_layout, dict) else {}
-    enabled_fields = set(face_layout.get("enabled_fields", [])) if isinstance(face_layout, dict) else set()
 
     photo_cfg = items.get("photo", {}) if isinstance(items.get("photo", {}), dict) else {}
-    if "photo" in enabled_fields and photo_cfg.get("visible", True) and getattr(matricula.alumno, "imagen", None):
+    if is_item_visible_in_face(face_layout, face, "photo") and getattr(matricula.alumno, "imagen", None):
         x = int(photo_cfg.get("x", 20))
         y = int(photo_cfg.get("y", 40))
         w = max(20, int(photo_cfg.get("w", 250)))
@@ -981,7 +1630,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
         radius = max(0, int(photo_cfg.get("radius", 20)))
         try:
             with matricula.alumno.imagen.open("rb") as photo_file:
-                photo = Image.open(photo_file).convert("RGB")
+                photo = _open_normalized_image(photo_file).convert("RGB")
                 photo = _apply_cover_image(photo, w, h)
                 alpha_mask = Image.new("L", (w, h), 0)
                 alpha_draw = ImageDraw.Draw(alpha_mask)
@@ -1006,8 +1655,11 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
         except Exception:
             pass
 
-    image_cfg = items.get("image", {}) if isinstance(items.get("image", {}), dict) else {}
-    if "image" in enabled_fields and image_cfg.get("visible", False) and image_cfg.get("src"):
+    image_keys = [key for key in items.keys() if str(key).startswith("image")]
+    for image_key in image_keys:
+        image_cfg = items.get(image_key, {}) if isinstance(items.get(image_key, {}), dict) else {}
+        if not is_item_visible_in_face(face_layout, face, image_key) or not image_cfg.get("src"):
+            continue
         try:
             from urllib.request import urlopen
             img_src = str(image_cfg.get("src"))
@@ -1027,7 +1679,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
 
     draw = ImageDraw.Draw(canvas)
     for key, cfg in items.items():
-        if key in {"photo"} or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
+        if str(key).startswith("image") or key == "photo" or not isinstance(cfg, dict) or not is_item_visible_in_face(face_layout, face, key):
             continue
         text = cfg.get("text") if key.startswith("texto_libre_") else _field_text_for_key(key, matricula, establecimiento)
         if not text:
@@ -1039,10 +1691,9 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
         color = _parse_color(cfg.get("color", "#111111"), default="#111111")
         align = str(cfg.get("align", "left")).lower()
         font = _load_font(font_size=font_size, bold=(weight == "700"))
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_w = text_bbox[2] - text_bbox[0]
-        tx = x - text_w // 2 if align == "center" else x - text_w if align == "right" else x
-        draw.text((tx, y), text, fill=color, font=font)
+        max_w = max(20, int(cfg.get("w", 280)))
+        max_h = max(20, int(cfg.get("h", 70)))
+        _draw_wrapped_text(draw, text, x, y, max_w, max_h, font, color, align=align)
 
 
 def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, canvas_height):
@@ -1069,7 +1720,7 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
         except Exception:
             pass
 
-    renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
+    renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout, face=face)
 
     if face == "front":
         config = ConfiguracionGeneral.objects.first()
@@ -1084,14 +1735,17 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
     return canvas
 
 
-def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height):
+def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado="frente"):
     front = _render_face_gafete(matricula, establecimiento, layout, "front", canvas_width, canvas_height)
     back = _render_face_gafete(matricula, establecimiento, layout, "back", canvas_width, canvas_height)
-    combined = Image.new("RGB", (canvas_width * 2, canvas_height), "white")
-    combined.paste(front, (0, 0))
-    combined.paste(back, (canvas_width, 0))
+
+    if lado == "frente":
+        output = front
+    else:
+        output = back
+
     buffer = BytesIO()
-    combined.save(buffer, format="JPEG", quality=95, optimize=True)
+    output.save(buffer, format="JPEG", quality=95, optimize=True)
     return buffer.getvalue()
 
 
@@ -1116,9 +1770,12 @@ def gafete_jpg(request, matricula_id):
     layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation_for_establecimiento(establecimiento))
     orientation = orientation_for_establecimiento(establecimiento)
     canvas_width, canvas_height = canvas_for_orientation(orientation)
-    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height)
+    lado = (request.GET.get("lado") or "frente").strip().lower()
+    if lado not in {"frente", "reverso"}:
+        lado = "frente"
+    image_bytes = generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_width, canvas_height, lado=lado)
 
-    filename = _build_gafete_filename(matricula.alumno)
+    filename = _build_gafete_filename(matricula.alumno, lado=lado)
     response = HttpResponse(image_bytes, content_type="image/jpeg")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
@@ -1130,6 +1787,28 @@ def descargar_gafete_jpg(request, matricula_id):
     forbidden = _forbid_gafetes_for_gestor(request)
     if forbidden:
         return forbidden
+    return gafete_jpg(request, matricula_id)
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def descargar_gafete_frente_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "frente"
+    return gafete_jpg(request, matricula_id)
+
+
+@login_required
+@user_passes_test(_can_access_backoffice)
+def descargar_gafete_reverso_jpg(request, matricula_id):
+    forbidden = _forbid_gafetes_for_gestor(request)
+    if forbidden:
+        return forbidden
+    request.GET = request.GET.copy()
+    request.GET["lado"] = "reverso"
     return gafete_jpg(request, matricula_id)
 
 
