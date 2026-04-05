@@ -95,10 +95,13 @@ def _merge_face(face, default_face):
 
     incoming_items = face.get("items") if isinstance(face.get("items"), dict) else {}
     for key, cfg in incoming_items.items():
-        if key not in out["items"]:
+        if not isinstance(cfg, dict):
             continue
-        if isinstance(cfg, dict):
+        is_dynamic = str(key).startswith("texto_libre_") or str(key).startswith("image")
+        if key in out["items"]:
             out["items"][key].update(cfg)
+        elif is_dynamic:
+            out["items"][key] = copy.deepcopy(cfg)
 
     enabled = face.get("enabled_fields")
     if isinstance(enabled, list):
