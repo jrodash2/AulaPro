@@ -36,6 +36,8 @@ from .forms import (
 )
 from .gafete_utils import (
     canvas_for_orientation,
+    is_item_allowed_in_face,
+    is_item_visible_in_face,
     normalizar_layout_gafete,
     obtener_layout_cara,
     orientation_for_establecimiento,
@@ -116,7 +118,7 @@ def _docente_alumnos_qs(user):
 
 
 def _sanitize_face_items(items, enabled_fields, canvas_width, canvas_height, allow_empty=False):
-    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3"}
+    allowed_keys = {"photo", "nombres", "apellidos", "codigo_alumno", "grado", "grado_descripcion", "sitio_web", "telefono", "cui", "establecimiento", "texto_libre_1", "texto_libre_2", "texto_libre_3", "image"}
     allowed_align = {"left", "center", "right"}
     allowed_weight = {"400", "700"}
     allowed_fit = {"contain", "cover"}
@@ -220,7 +222,7 @@ def _validate_layout_payload(payload, forced_orientation=None):
             allow_empty=(face == "back"),
         )
         if face == "back":
-            enabled = [field for field in enabled if field != "photo"]
+            enabled = [field for field in enabled if is_item_allowed_in_face("back", field)]
         out[face] = {
             "background_image": str(face_layout.get("background_image") or ""),
             "enabled_fields": enabled,
@@ -1557,12 +1559,11 @@ def _apply_contain_image(src_image, target_w, target_h):
     return layer
 
 
-def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout):
+def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout, face="front"):
     items = face_layout.get("items", {}) if isinstance(face_layout, dict) else {}
-    enabled_fields = set(face_layout.get("enabled_fields", [])) if isinstance(face_layout, dict) else set()
 
     photo_cfg = items.get("photo", {}) if isinstance(items.get("photo", {}), dict) else {}
-    if "photo" in enabled_fields and photo_cfg.get("visible", True) and getattr(matricula.alumno, "imagen", None):
+    if is_item_visible_in_face(face_layout, face, "photo") and getattr(matricula.alumno, "imagen", None):
         x = int(photo_cfg.get("x", 20))
         y = int(photo_cfg.get("y", 40))
         w = max(20, int(photo_cfg.get("w", 250)))
@@ -1599,7 +1600,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
             pass
 
     image_cfg = items.get("image", {}) if isinstance(items.get("image", {}), dict) else {}
-    if "image" in enabled_fields and image_cfg.get("visible", False) and image_cfg.get("src"):
+    if is_item_visible_in_face(face_layout, face, "image") and image_cfg.get("src"):
         try:
             from urllib.request import urlopen
             img_src = str(image_cfg.get("src"))
@@ -1619,7 +1620,7 @@ def renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
 
     draw = ImageDraw.Draw(canvas)
     for key, cfg in items.items():
-        if key in {"photo"} or key not in enabled_fields or not isinstance(cfg, dict) or not cfg.get("visible", True):
+        if key in {"photo", "image"} or not isinstance(cfg, dict) or not is_item_visible_in_face(face_layout, face, key):
             continue
         text = cfg.get("text") if key.startswith("texto_libre_") else _field_text_for_key(key, matricula, establecimiento)
         if not text:
@@ -1661,7 +1662,7 @@ def _render_face_gafete(matricula, establecimiento, layout, face, canvas_width, 
         except Exception:
             pass
 
-    renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout)
+    renderizar_elementos_gafete(canvas, matricula, establecimiento, face_layout, face=face)
 
     if face == "front":
         config = ConfiguracionGeneral.objects.first()
