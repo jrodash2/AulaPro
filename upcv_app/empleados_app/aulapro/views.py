@@ -1,14 +1,22 @@
+import base64
+import binascii
+import io
+import json
+import os
+import uuid
 from django import forms
 import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, IntegerField, Q, Sum, When
+from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from PIL import Image, UnidentifiedImageError
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -32,6 +40,13 @@ from .forms import MatriculaFiltroForm
 ALLOW_MULTI_GRADE_PER_CYCLE = False
 
 logger = logging.getLogger(__name__)
+
+MAX_ALUMNO_IMAGE_SIZE = 5 * 1024 * 1024
+ALUMNO_IMAGE_MIME_EXT = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
 
 
 
@@ -803,6 +818,15 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
+    photo_item = (((layout or {}).get("front") or {}).get("items") or {}).get("photo") if isinstance(layout, dict) else {}
+    photo_w = int(photo_item.get("w", 250)) if isinstance(photo_item, dict) else 250
+    photo_h = int(photo_item.get("h", 350)) if isinstance(photo_item, dict) else 350
+    photo_w = photo_w if photo_w > 0 else 250
+    photo_h = photo_h if photo_h > 0 else 350
+    photo_ratio = photo_w / photo_h
+    photo_shape = str(photo_item.get("shape") or "rounded").lower() if isinstance(photo_item, dict) else "rounded"
+    if photo_shape not in {"rounded", "square", "circle"}:
+        photo_shape = "rounded"
     orientation, canvas_width, canvas_height = resolve_gafete_dimensions(establecimiento, layout)
     layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
     return render(request, 'aulapro/grado_detail.html', {
@@ -820,6 +844,86 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'gafete_w': canvas_width,
         'gafete_h': canvas_height,
         'orientacion': orientation,
+        'foto_guia_ratio': photo_ratio,
+        'foto_guia_shape': photo_shape,
+        'foto_guia_w': photo_w,
+        'foto_guia_h': photo_h,
+    })
+
+
+def _validate_image_payload(image_bytes):
+    if len(image_bytes) > MAX_ALUMNO_IMAGE_SIZE:
+        return "La imagen excede el tamaño máximo permitido (5 MB)."
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.verify()
+    except (UnidentifiedImageError, OSError):
+        return "La imagen no es válida o está dañada."
+    return None
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_POST
+def guardar_foto_alumno_grado(request, est_id, ciclo_id, car_id, grado_id, matricula_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return JsonResponse({"ok": False, "message": "No tiene permisos para ese establecimiento."}, status=403)
+
+    _get_establecimiento(est_id)
+    _get_ciclo(est_id, ciclo_id)
+    _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+    matricula = get_object_or_404(Matricula.objects.select_related("alumno"), pk=matricula_id, grado=grado)
+    alumno = matricula.alumno
+
+    uploaded = request.FILES.get("imagen")
+    captured_data = (request.POST.get("captured_image") or "").strip()
+    content_file = None
+
+    if uploaded:
+        ext = os.path.splitext(uploaded.name or "")[1].lower().lstrip(".")
+        mime = (uploaded.content_type or "").split(";")[0].lower()
+        if mime not in ALUMNO_IMAGE_MIME_EXT and ext not in {"jpg", "jpeg", "png", "webp"}:
+            return JsonResponse({"ok": False, "message": "Formato no permitido. Use JPG, PNG o WEBP."}, status=400)
+        if uploaded.size > MAX_ALUMNO_IMAGE_SIZE:
+            return JsonResponse({"ok": False, "message": "La imagen excede el tamaño máximo permitido (5 MB)."}, status=400)
+        image_bytes = uploaded.read()
+        payload_error = _validate_image_payload(image_bytes)
+        if payload_error:
+            return JsonResponse({"ok": False, "message": payload_error}, status=400)
+        safe_ext = ALUMNO_IMAGE_MIME_EXT.get(mime, "jpg" if ext == "jpeg" else (ext or "jpg"))
+        content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{safe_ext}")
+    elif captured_data:
+        if not captured_data.startswith("data:image/"):
+            return JsonResponse({"ok": False, "message": "Formato de captura inválido."}, status=400)
+        try:
+            header, encoded = captured_data.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "").lower()
+            if mime not in ALUMNO_IMAGE_MIME_EXT:
+                return JsonResponse({"ok": False, "message": "Formato de captura no permitido."}, status=400)
+            image_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error):
+            return JsonResponse({"ok": False, "message": "No se pudo procesar la captura de cámara."}, status=400)
+        payload_error = _validate_image_payload(image_bytes)
+        if payload_error:
+            return JsonResponse({"ok": False, "message": payload_error}, status=400)
+        ext = ALUMNO_IMAGE_MIME_EXT[mime]
+        content_file = ContentFile(image_bytes, name=f"alumno_{alumno.id}_{uuid.uuid4().hex[:8]}.{ext}")
+    else:
+        return JsonResponse({"ok": False, "message": "Debe seleccionar un archivo o tomar una foto."}, status=400)
+
+    if alumno.imagen:
+        alumno.imagen.delete(save=False)
+    alumno.imagen = content_file
+    alumno.save(update_fields=["imagen", "updated_at"])
+
+    return JsonResponse({
+        "ok": True,
+        "message": "Foto del alumno actualizada correctamente.",
+        "foto_url": alumno.imagen.url if alumno.imagen else "",
+        "alumno_id": alumno.id,
+        "matricula_id": matricula.id,
     })
 
 
@@ -929,63 +1033,162 @@ def curso_asignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id)
     })
 
 
+def _get_docente_cursos_qs(user):
+    cursos_qs = (
+        CursoDocente.objects.select_related(
+            'curso',
+            'curso__grado',
+            'curso__grado__carrera',
+            'curso__grado__carrera__ciclo_escolar',
+            'curso__grado__carrera__ciclo_escolar__establecimiento',
+            'docente',
+        )
+        .filter(
+            activo=True,
+            curso__activo=True,
+            curso__grado__carrera__ciclo_escolar__activo=True,
+        )
+    )
+
+    if _is_docente(user):
+        cursos_qs = cursos_qs.filter(docente=user)
+    elif es_gestor(user):
+        establecimiento = obtener_establecimiento_usuario(user)
+        if establecimiento:
+            cursos_qs = cursos_qs.filter(curso__grado__carrera__ciclo_escolar__establecimiento=establecimiento)
+        else:
+            cursos_qs = cursos_qs.none()
+
+    return (
+        cursos_qs
+        .annotate(
+            alumnos_total=Count(
+                'curso__grado__matriculas__alumno',
+                filter=Q(curso__grado__matriculas__ciclo_escolar=F('curso__grado__carrera__ciclo_escolar')),
+                distinct=True,
+            ),
+            asistencias_total=Count('asistencias', distinct=True),
+            detalles_total=Count('asistencias__detalles', distinct=True),
+            presentes_total=Count('asistencias__detalles', filter=Q(asistencias__detalles__presente=True), distinct=True),
+        )
+        .order_by('curso__nombre', 'curso__grado__nombre')
+        .distinct()
+    )
+
+
+@login_required
+@user_passes_test(_can_manage)
+@require_POST
+def curso_desasignar_docente(request, est_id, ciclo_id, car_id, grado_id, curso_id, asignacion_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
+
+    curso = get_object_or_404(Curso, pk=curso_id, grado_id=grado_id)
+    asignacion = get_object_or_404(CursoDocente.objects.select_related('docente'), pk=asignacion_id, curso=curso)
+
+    if not asignacion.activo:
+        messages.info(request, 'La asignación ya se encuentra desasignada.')
+    else:
+        asignacion.activo = False
+        asignacion.save(update_fields=['activo'])
+        messages.success(request, 'Docente desasignado correctamente.')
+
+    return redirect('empleados:curso_asignar_docente', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id, curso_id=curso_id)
+
+
+@login_required
+@user_passes_test(_is_docente)
+def dashboard_docente(request):
+    cursos_docente_qs = _get_docente_cursos_qs(request.user)
+
+    cursos_docente = list(cursos_docente_qs)
+    curso_docente_ids = [cd.id for cd in cursos_docente]
+    grado_ids = {cd.curso.grado_id for cd in cursos_docente if cd.curso_id and cd.curso.grado_id}
+    ciclo_ids = {cd.curso.grado.carrera.ciclo_escolar_id for cd in cursos_docente if cd.curso_id and cd.curso.grado_id and cd.curso.grado.carrera_id}
+
+    matriculas_qs = Matricula.objects.filter(grado_id__in=grado_ids, ciclo_escolar_id__in=ciclo_ids)
+    total_alumnos_unicos = matriculas_qs.values('alumno_id').distinct().count() if grado_ids else 0
+
+    asistencias_qs = Asistencia.objects.filter(curso_docente_id__in=curso_docente_ids)
+    total_asistencias = asistencias_qs.count() if curso_docente_ids else 0
+    asistencia_hoy = asistencias_qs.filter(fecha=timezone.localdate()).count() if curso_docente_ids else 0
+
+    detalles_qs = AsistenciaDetalle.objects.filter(asistencia__curso_docente_id__in=curso_docente_ids)
+    detalles_totales = detalles_qs.count() if curso_docente_ids else 0
+    presentes_totales = detalles_qs.filter(presente=True).count() if curso_docente_ids else 0
+    porcentaje_general = round((presentes_totales / detalles_totales) * 100, 2) if detalles_totales else 0
+
+    resumen_cursos = []
+    for cd in cursos_docente:
+        detalles_curso = getattr(cd, 'detalles_total', 0) or 0
+        presentes_curso = getattr(cd, 'presentes_total', 0) or 0
+        porcentaje_curso = round((presentes_curso / detalles_curso) * 100, 2) if detalles_curso else 0
+        resumen_cursos.append(
+            {
+                'curso_docente': cd,
+                'curso': cd.curso,
+                'grado': cd.curso.grado,
+                'alumnos_total': getattr(cd, 'alumnos_total', 0) or 0,
+                'asistencias_total': getattr(cd, 'asistencias_total', 0) or 0,
+                'porcentaje_asistencia': porcentaje_curso,
+            }
+        )
+
+    ultimas_asistencias = (
+        Asistencia.objects.select_related('curso_docente', 'curso_docente__curso', 'curso_docente__curso__grado')
+        .filter(curso_docente_id__in=curso_docente_ids)
+        .order_by('-fecha', '-id')[:10]
+    )
+
+    chart_alumnos_curso_labels = [f"{r['curso'].nombre} ({r['grado'].nombre})" for r in resumen_cursos]
+    chart_alumnos_curso_series = [r['alumnos_total'] for r in resumen_cursos]
+
+    asistencias_fecha_rows = (
+        asistencias_qs.values('fecha')
+        .annotate(total=Count('id'))
+        .order_by('-fecha')[:14]
+    )
+    asistencias_fecha_rows = list(reversed(list(asistencias_fecha_rows)))
+    chart_asistencias_fecha_labels = [row['fecha'].strftime('%d/%m') for row in asistencias_fecha_rows]
+    chart_asistencias_fecha_series = [row['total'] for row in asistencias_fecha_rows]
+
+    context = {
+        'resumen': {
+            'cursos_total': len(cursos_docente),
+            'alumnos_unicos_total': total_alumnos_unicos,
+            'asistencias_total': total_asistencias,
+            'asistencia_hoy': asistencia_hoy,
+            'porcentaje_general': porcentaje_general,
+        },
+        'cursos_docente': cursos_docente,
+        'resumen_cursos': resumen_cursos,
+        'ultimas_asistencias': ultimas_asistencias,
+        'chart_alumnos_curso_labels': json.dumps(chart_alumnos_curso_labels),
+        'chart_alumnos_curso_series': json.dumps(chart_alumnos_curso_series),
+        'chart_asistencias_fecha_labels': json.dumps(chart_asistencias_fecha_labels),
+        'chart_asistencias_fecha_series': json.dumps(chart_asistencias_fecha_series),
+    }
+    return render(request, 'aulapro/dashboard_docente.html', context)
+
+
+@login_required
+@user_passes_test(_can_view_attendance)
+def mis_cursos_docente(request):
+    cursos_docente = list(_get_docente_cursos_qs(request.user))
+    titulo = 'Mis cursos' if _is_docente(request.user) else 'Todos los cursos'
+    return render(request, 'aulapro/mis_cursos_docente.html', {
+        'cursos_docente': cursos_docente,
+        'titulo_cursos': titulo,
+    })
+
+
 @login_required
 @user_passes_test(_can_view_attendance)
 def docente_dashboard(request):
-    cursos_docente = CursoDocente.objects.select_related(
-        'curso', 'curso__grado', 'curso__grado__carrera', 'curso__grado__carrera__ciclo_escolar', 'curso__grado__carrera__ciclo_escolar__establecimiento', 'docente'
-    ).filter(activo=True, curso__activo=True)
-
-    show_docente_empty_message = False
-    selected_ciclo = None
-    ciclos_disponibles = CicloEscolar.objects.none()
-
-    is_docente_user = _is_docente(request.user)
-
-    if is_docente_user:
-        cursos_docente = cursos_docente.filter(
-            docente=request.user,
-            curso__grado__carrera__ciclo_escolar__activo=True,
-        )
-
-        asignaciones_establecimientos = CursoDocente.objects.filter(
-            docente=request.user,
-            activo=True,
-            curso__activo=True,
-        ).values_list('curso__grado__carrera__ciclo_escolar__establecimiento_id', flat=True).distinct()
-
-        if asignaciones_establecimientos and not CicloEscolar.objects.filter(
-            establecimiento_id__in=asignaciones_establecimientos,
-            activo=True,
-        ).exists():
-            messages.info(request, 'No existe un ciclo escolar activo.')
-        elif not cursos_docente.exists():
-            show_docente_empty_message = True
-    else:
-        ciclos_disponibles = CicloEscolar.objects.select_related('establecimiento').order_by('-activo', '-anio', '-id')
-        ciclo_id = (request.GET.get('ciclo') or '').strip()
-        if ciclo_id:
-            selected_ciclo = ciclos_disponibles.filter(pk=ciclo_id).first()
-        if selected_ciclo is None:
-            selected_ciclo = ciclos_disponibles.filter(activo=True).first() or ciclos_disponibles.first()
-
-        if selected_ciclo:
-            cursos_docente = cursos_docente.filter(curso__grado__carrera__ciclo_escolar=selected_ciclo)
-        else:
-            cursos_docente = cursos_docente.none()
-            messages.info(request, 'No existen ciclos escolares disponibles para filtrar.')
-
-        if selected_ciclo and not cursos_docente.exists():
-            messages.info(request, f'No hay cursos ni asistencias registradas para el ciclo "{selected_ciclo.nombre}".')
-
-    cursos_docente = cursos_docente.order_by('curso__nombre')
-    return render(request, 'docentes/dashboard.html', {
-        'cursos_docente': cursos_docente,
-        'show_docente_empty_message': show_docente_empty_message,
-        'ciclos_disponibles': ciclos_disponibles,
-        'selected_ciclo': selected_ciclo,
-        'is_docente_user': is_docente_user,
-    })
+    if _is_docente(request.user):
+        return mis_cursos_docente(request)
+    return redirect('empleados:dahsboard')
 
 
 @login_required
