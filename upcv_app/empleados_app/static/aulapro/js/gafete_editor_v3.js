@@ -135,9 +135,9 @@
       el.style.whiteSpace = 'normal';
       el.style.overflow = 'hidden';
     } else {
-      el.style.width = '';
-      el.style.whiteSpace = 'nowrap';
-      el.style.overflow = '';
+      el.style.width = key === 'grado' ? '470px' : '';
+      el.style.whiteSpace = key === 'grado' ? 'normal' : 'nowrap';
+      el.style.overflow = key === 'grado' ? 'hidden' : '';
     }
     if (itemCfg.h != null) el.style.height = `${itemCfg.h}px`; else el.style.height = '';
     el.style.fontSize = `${itemCfg.font_size || 24}px`;

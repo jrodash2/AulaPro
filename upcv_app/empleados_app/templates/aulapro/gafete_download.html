@@ -95,7 +95,15 @@
       statusEl.textContent = 'Si la descarga no inició automáticamente, use "Descargar ahora".';
     }
 
-    html2canvas(element, {useCORS:true, scale:2, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
+    async function startCapture() {
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (_) {}
+      }
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return html2canvas(element, {useCORS:true, scale:2, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null});
+    }
+
+    startCapture().then((canvas)=>{
       canvas.toBlob((blob) => {
         if (!blob) {
           const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
