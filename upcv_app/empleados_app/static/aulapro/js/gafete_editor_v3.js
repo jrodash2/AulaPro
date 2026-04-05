@@ -14,12 +14,10 @@
 
   const activeKeyLabel = document.getElementById('active-key');
   const hint = document.getElementById('coords-hint');
-  const checklist = document.getElementById('enabled-fields-checklist');
   const layersList = document.getElementById('layers-list');
   const textContentInput = document.getElementById('prop-text-content');
   const propX = document.getElementById('prop-x');
   const propY = document.getElementById('prop-y');
-  const propVisible = document.getElementById('prop-visible');
   const propAlign = document.getElementById('prop-align');
   const propEmptyState = document.getElementById('prop-empty-state');
   const propInputs = Array.from(document.querySelectorAll('.prop-input'));
@@ -42,11 +40,21 @@
   const layout = JSON.parse(document.getElementById('layout-data').textContent || '{}');
   const defaultLayout = JSON.parse(document.getElementById('default-layout-data').textContent || '{}');
 
-  const labelsMap = {};
-  checklist?.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
-    const lbl = input.closest('.form-check')?.querySelector('label');
-    labelsMap[input.dataset.field] = lbl ? lbl.textContent.trim() : input.dataset.field;
-  });
+  const labelsMap = {
+    photo: 'Foto',
+    nombres: 'Nombres',
+    apellidos: 'Apellidos',
+    codigo_alumno: 'Código alumno',
+    grado: 'Grado',
+    grado_descripcion: 'Descripción grado',
+    cui: 'CUI',
+    telefono: 'Teléfono',
+    establecimiento: 'Establecimiento',
+    sitio_web: 'Sitio web',
+    texto_libre_1: 'Texto libre 1',
+    texto_libre_2: 'Texto libre 2',
+    texto_libre_3: 'Texto libre 3',
+  };
 
   const faceData = () => layout[currentFace] || { enabled_fields: [], items: {} };
   const items = () => Array.from(canvases[currentFace].querySelectorAll('.gafete-item[data-key]'));
@@ -76,7 +84,6 @@
     backCanvas.style.display = currentFace === 'back' ? '' : 'none';
     document.querySelectorAll('.face-switch').forEach((b) => b.classList.toggle('active', b.dataset.face === currentFace));
     activeKey = null;
-    refreshChecklist();
     setActive(null);
     refreshItems();
   }
@@ -104,12 +111,28 @@
     }
   }
 
-  function refreshChecklist() {
-    checklist?.querySelectorAll('.field-toggle[data-field]').forEach((input) => {
-      const key = input.dataset.field;
-      const itemCfg = getCfg(key);
-      input.checked = !!itemCfg && isEnabled(key) && itemCfg.visible !== false;
-      input.closest('.form-check').style.display = allowedInCurrentFace(key) ? '' : 'none';
+  function renderLayers() {
+    if (!layersList) return;
+    const face = faceData();
+    const enabled = face.enabled_fields || [];
+    layersList.innerHTML = '';
+    enabled.forEach((key, idx) => {
+      const itemCfg = (face.items || {})[key];
+      if (!itemCfg || !allowedInCurrentFace(key)) return;
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = `layer-item ${activeKey === key ? 'is-active' : ''}`;
+      row.dataset.key = key;
+      row.innerHTML = `
+        <span class="layer-name"><i class="fa ${key === 'photo' ? 'fa-image' : 'fa-font'}"></i>${labelsMap[key] || key}</span>
+        <span class="d-flex align-items-center gap-2">
+          <small class="layer-meta">#${idx + 1}</small>
+          <span class="form-check form-switch m-0">
+            <input class="form-check-input layer-visible-toggle" type="checkbox" data-key="${key}" ${itemCfg.visible !== false ? 'checked' : ''}>
+          </span>
+        </span>
+      `;
+      layersList.appendChild(row);
     });
   }
 
@@ -162,8 +185,6 @@
     activeKeyLabel.textContent = `Elemento activo (${currentFace}): ${labelsMap[key] || key}`;
     propX.value = itemCfg.x || 0;
     propY.value = itemCfg.y || 0;
-    propVisible.checked = itemCfg.visible !== false;
-
     if (key === 'photo' && currentFace === 'front') {
       textProps.classList.add('d-none');
       photoProps.classList.remove('d-none');
@@ -189,21 +210,26 @@
     textContentInput.disabled = !key.startsWith('texto_libre_');
   }
 
-  checklist?.querySelectorAll('.field-toggle[data-field]').forEach((input) => input.addEventListener('change', () => {
-    const key = input.dataset.field;
-    if (!allowedInCurrentFace(key)) return;
-    const face = faceData();
-    if (!face.items[key]) return;
-    if (input.checked) {
-      if (!face.enabled_fields.includes(key)) face.enabled_fields.push(key);
-      face.items[key].visible = true;
-    } else {
-      face.enabled_fields = face.enabled_fields.filter((f) => f !== key);
-      face.items[key].visible = false;
+  layersList?.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.layer-visible-toggle');
+    if (toggle) {
+      const key = toggle.dataset.key;
+      const itemCfg = getCfg(key);
+      if (!itemCfg) return;
+      itemCfg.visible = !!toggle.checked;
+      if (itemCfg.visible && !faceData().enabled_fields.includes(key)) faceData().enabled_fields.push(key);
+      if (!itemCfg.visible) faceData().enabled_fields = faceData().enabled_fields.filter((f) => f !== key);
+      refreshItems();
+      syncLayoutInput();
+      e.stopPropagation();
+      return;
     }
-    refreshItems();
-    syncLayoutInput();
-  }));
+    const row = e.target.closest('.layer-item[data-key]');
+    if (!row) return;
+    setActive(row.dataset.key);
+    activateTab('props');
+    renderLayers();
+  });
 
   layersList?.addEventListener('click', (e) => {
     const toggle = e.target.closest('.layer-visible-toggle');
@@ -277,12 +303,11 @@
     if (!itemCfg) return;
     itemCfg.x = Number.isFinite(parseInt(propX.value, 10)) ? parseInt(propX.value, 10) : (itemCfg.x || 0);
     itemCfg.y = Number.isFinite(parseInt(propY.value, 10)) ? parseInt(propY.value, 10) : (itemCfg.y || 0);
-    itemCfg.visible = !!propVisible.checked;
     refreshItems();
     setActive(activeKey);
     syncLayoutInput();
   }
-  [propX, propY, propVisible].forEach((el) => {
+  [propX, propY].forEach((el) => {
     el?.addEventListener('input', applyCommonPositionProps);
     el?.addEventListener('change', applyCommonPositionProps);
   });
@@ -295,7 +320,6 @@
     itemCfg.font_size = Number.isFinite(parseInt(sizeInput.value, 10)) ? parseInt(sizeInput.value, 10) : (itemCfg.font_size || 24);
     itemCfg.font_weight = weightInput.value;
     itemCfg.align = propAlign.value || 'left';
-    itemCfg.visible = !!propVisible.checked;
     if (activeKey.startsWith('texto_libre_')) itemCfg.text = textContentInput.value || '';
     refreshItems();
     setActive(activeKey);
@@ -319,7 +343,6 @@
     itemCfg.w = Number.isFinite(parseInt(photoW.value, 10)) ? parseInt(photoW.value, 10) : (itemCfg.w || 250);
     itemCfg.h = Number.isFinite(parseInt(photoH.value, 10)) ? parseInt(photoH.value, 10) : (itemCfg.h || 350);
     itemCfg.radius = Number.isFinite(parseInt(photoRadius.value, 10)) ? parseInt(photoRadius.value, 10) : (itemCfg.radius || 20);
-    itemCfg.visible = !!propVisible.checked;
     refreshItems();
     setActive(activeKey);
     syncLayoutInput();

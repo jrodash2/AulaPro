@@ -67,16 +67,7 @@
               <section id="tab-layers" class="editor-tab-panel">
                 <label class="form-label fw-semibold d-block mb-2">Capas del lado activo</label>
                 <div id="layers-list" class="layers-list"></div>
-                <hr>
-                <label class="form-label d-block">Campos visibles</label>
-                <div id="enabled-fields-checklist" class="d-flex flex-column gap-1 small">
-                  {% for f in available_fields %}
-                    <div class="form-check my-1">
-                      <input class="form-check-input field-toggle" type="checkbox" id="field_{{ f.key }}" data-field="{{ f.key }}" {% if f.key in enabled_fields_front %}checked{% endif %}>
-                      <label class="form-check-label" for="field_{{ f.key }}">{{ f.label }}</label>
-                    </div>
-                  {% endfor %}
-                </div>
+                <small class="text-muted d-block mt-2">Usa el switch de cada fila para mostrar/ocultar capas.</small>
               </section>
 
               <section id="tab-props" class="editor-tab-panel d-none">
@@ -84,10 +75,6 @@
                 <div class="row g-2 mb-3">
                   <div class="col-6"><label class="form-label mb-1">X</label><input id="prop-x" type="number" class="form-control form-control-sm prop-input"></div>
                   <div class="col-6"><label class="form-label mb-1">Y</label><input id="prop-y" type="number" class="form-control form-control-sm prop-input"></div>
-                </div>
-                <div class="mb-3 form-check">
-                  <input id="prop-visible" type="checkbox" class="form-check-input prop-input">
-                  <label for="prop-visible" class="form-check-label">Visible</label>
                 </div>
 
                 <div id="text-props">
