@@ -1749,6 +1749,32 @@ def generar_descarga_gafete_alumno(matricula, establecimiento, layout, canvas_wi
     return buffer.getvalue()
 
 
+def _build_gafete_download_context(matricula, lado):
+    establecimiento = matricula.grado.carrera.ciclo_escolar.establecimiento if matricula.grado and matricula.grado.carrera else None
+    if not establecimiento:
+        return None
+    orientation = orientation_for_establecimiento(establecimiento)
+    layout = normalizar_layout_gafete(establecimiento.get_layout() if establecimiento else DEFAULT_GAFETE_LAYOUT, orientation=orientation)
+    canvas_width, canvas_height = canvas_for_orientation(orientation)
+    face = "back" if lado == "reverso" else "front"
+    return {
+        "matricula": matricula,
+        "alumno": matricula.alumno,
+        "grado": matricula.grado,
+        "establecimiento": establecimiento,
+        "configuracion": ConfiguracionGeneral.objects.first(),
+        "layout": layout,
+        "face": face,
+        "face_layout": obtener_layout_cara(layout, face),
+        "canvas_width": canvas_width,
+        "canvas_height": canvas_height,
+        "gafete_w": canvas_width,
+        "gafete_h": canvas_height,
+        "filename": _build_gafete_filename(matricula.alumno, lado=lado),
+        "lado": lado,
+    }
+
+
 @login_required
 @user_passes_test(_can_access_backoffice)
 def gafete_jpg(request, matricula_id):
