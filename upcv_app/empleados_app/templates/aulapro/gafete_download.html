@@ -24,9 +24,10 @@
   </div>
   <script>
     const element = document.getElementById('download-canvas');
-    html2canvas(element, {useCORS:true, scale:1, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
+    const exportScale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
+    html2canvas(element, {useCORS:true, scale: exportScale, width: {{ canvas_width }}, height: {{ canvas_height }}, backgroundColor: null}).then((canvas)=>{
       const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.href = canvas.toDataURL('image/jpeg', 0.98);
       link.download = 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg';
       link.click();
       window.close();

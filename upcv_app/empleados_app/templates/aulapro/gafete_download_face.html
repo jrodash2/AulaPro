@@ -38,7 +38,7 @@
           const canvas = await html2canvas(element, {
             useCORS: true,
             backgroundColor: null,
-            scale: 1,
+            scale: Math.min(3, Math.max(2, window.devicePixelRatio || 1)),
             width: {{ canvas_width }},
             height: {{ canvas_height }},
             onclone: (clonedDoc) => {
@@ -63,7 +63,7 @@
             },
           });
           const link = document.createElement('a');
-          link.href = canvas.toDataURL('image/jpeg', 0.95);
+          link.href = canvas.toDataURL('image/jpeg', 0.98);
           link.download = '{{ filename }}';
           document.body.appendChild(link);
           link.click();
