@@ -41,8 +41,8 @@
 
       function computeExportScale(width, height) {
         const deviceScale = Math.max(1, window.devicePixelRatio || 1);
-        const targetScale = Math.max(4, deviceScale);
-        const maxTexture = 16384;
+        const targetScale = Math.min(3, Math.max(2, deviceScale));
+        const maxTexture = 8192;
         const maxByDimension = Math.max(1, Math.floor(maxTexture / Math.max(width, height)));
         return Math.max(1, Math.min(targetScale, maxByDimension));
       }
@@ -81,12 +81,13 @@
             allowTaint: false,
             imageTimeout: 0,
             removeContainer: true,
-            backgroundColor: null,
+            backgroundColor: '#ffffff',
             scale: exportScale,
             width,
             height,
             windowWidth: width,
             windowHeight: height,
+            foreignObjectRendering: false,
             onclone: (clonedDoc) => {
               const clonedCanvas = clonedDoc.getElementById('download-canvas');
               if (!clonedCanvas) return;
@@ -108,14 +109,7 @@
               });
             },
           };
-
-          let canvas;
-          try {
-            canvas = await html2canvas(element, { ...baseOptions, foreignObjectRendering: true });
-          } catch (foreignObjectError) {
-            console.warn('foreignObjectRendering falló, usando render estándar.', foreignObjectError);
-            canvas = await html2canvas(element, { ...baseOptions, foreignObjectRendering: false });
-          }
+          const canvas = await html2canvas(element, baseOptions);
 
           await exportCanvasAsJpeg(canvas, '{{ filename }}');
           status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
