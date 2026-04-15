@@ -25,6 +25,43 @@
 
   <script>
     (function () {
+      function waitForImage(img) {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          const done = () => resolve();
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        });
+      }
+
+      async function waitForImages(root) {
+        const imgs = Array.from(root.querySelectorAll('img'));
+        await Promise.all(imgs.map(waitForImage));
+      }
+
+      function computeExportScale(width, height) {
+        const deviceScale = Math.max(1, window.devicePixelRatio || 1);
+        const targetScale = Math.min(3, Math.max(2, deviceScale));
+        const maxTexture = 8192;
+        const maxByDimension = Math.max(1, Math.floor(maxTexture / Math.max(width, height)));
+        return Math.max(1, Math.min(targetScale, maxByDimension));
+      }
+
+      async function exportCanvasAsJpeg(canvas, filename) {
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+        if (!blob) {
+          throw new Error('No se pudo generar el archivo de descarga.');
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      }
+
       async function runExport() {
         const status = document.getElementById('download-status');
         const element = document.getElementById('download-canvas');
@@ -35,12 +72,22 @@
 
         try {
           await document.fonts.ready;
-          const canvas = await html2canvas(element, {
+          await waitForImages(element);
+          const width = {{ canvas_width }};
+          const height = {{ canvas_height }};
+          const exportScale = computeExportScale(width, height);
+          const baseOptions = {
             useCORS: true,
-            backgroundColor: null,
-            scale: 1,
-            width: {{ canvas_width }},
-            height: {{ canvas_height }},
+            allowTaint: false,
+            imageTimeout: 0,
+            removeContainer: true,
+            backgroundColor: '#ffffff',
+            scale: exportScale,
+            width,
+            height,
+            windowWidth: width,
+            windowHeight: height,
+            foreignObjectRendering: false,
             onclone: (clonedDoc) => {
               const clonedCanvas = clonedDoc.getElementById('download-canvas');
               if (!clonedCanvas) return;
@@ -61,13 +108,10 @@
                 photoImg.replaceWith(photoBox);
               });
             },
-          });
-          const link = document.createElement('a');
-          link.href = canvas.toDataURL('image/jpeg', 0.95);
-          link.download = '{{ filename }}';
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
+          };
+          const canvas = await html2canvas(element, baseOptions);
+
+          await exportCanvasAsJpeg(canvas, '{{ filename }}');
           status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
         } catch (error) {
           console.error('Error exportando gafete', error);
