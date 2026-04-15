@@ -62,13 +62,23 @@
         throw lastError || new Error('No se pudo capturar el gafete.');
       }
 
-      async function exportCanvasAsJpeg(canvas, filename) {
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+      function normalizeFilename(filename, extension) {
+        const base = String(filename || 'gafete').replace(/\.(jpg|jpeg|png)$/i, '');
+        return `${base}.${extension}`;
+      }
+
+      async function exportCanvasAsImage(canvas, filename) {
+        let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        let outputName = normalizeFilename(filename, 'png');
+        if (!blob) {
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+          outputName = normalizeFilename(filename, 'jpg');
+        }
         if (!blob) throw new Error('No se pudo generar el archivo de descarga.');
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = filename;
+        link.download = outputName;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -104,7 +114,7 @@
           };
           const canvas = await captureWithScaleRetry(element, baseOptions, exportScale);
 
-          await exportCanvasAsJpeg(canvas, 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg');
+          await exportCanvasAsImage(canvas, 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg');
           status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
           window.close();
         } catch (error) {
