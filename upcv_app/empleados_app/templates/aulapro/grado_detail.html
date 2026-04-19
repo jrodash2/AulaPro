@@ -345,6 +345,7 @@
             <label class="form-label fw-semibold">Cámara</label>
             <div class="foto-modal-camera-actions">
               <button id="foto-modal-start-camera" class="btn btn-outline-primary btn-sm" type="button"><i class="fa fa-video-camera me-1"></i>Tomar foto</button>
+              <button id="foto-modal-switch-camera" class="btn btn-outline-info btn-sm d-none" type="button"><i class="fa fa-exchange me-1"></i>Cambiar cámara</button>
               <button id="foto-modal-capture" class="btn btn-outline-success btn-sm d-none" type="button"><i class="fa fa-camera me-1"></i>Capturar</button>
               <button id="foto-modal-retake" class="btn btn-outline-warning btn-sm d-none" type="button"><i class="fa fa-refresh me-1"></i>Repetir</button>
               <button id="foto-modal-stop-camera" class="btn btn-outline-secondary btn-sm d-none" type="button">Detener</button>
@@ -446,6 +447,7 @@ document.addEventListener('click', function(e){
   const alertEl = document.getElementById('foto-modal-alert');
   const fileInput = document.getElementById('foto-modal-file');
   const startCameraBtn = document.getElementById('foto-modal-start-camera');
+  const switchCameraBtn = document.getElementById('foto-modal-switch-camera');
   const captureBtn = document.getElementById('foto-modal-capture');
   const stopCameraBtn = document.getElementById('foto-modal-stop-camera');
   const retakeBtn = document.getElementById('foto-modal-retake');
@@ -468,6 +470,8 @@ document.addEventListener('click', function(e){
   let selectedFile = null;
   let capturedDataUrl = '';
   let activeTrigger = null;
+  let currentFacingMode = 'user';
+  let lastFacingModeUsed = 'user';
 
   function showAlert(type, msg) {
     alertEl.innerHTML = `<div class="alert alert-${type} py-2 mb-3">${msg}</div>`;
@@ -501,6 +505,7 @@ document.addEventListener('click', function(e){
     previewVideo.srcObject = null;
     captureBtn.classList.add('d-none');
     stopCameraBtn.classList.add('d-none');
+    switchCameraBtn.classList.add('d-none');
     cameraGuide.classList.remove('active');
     previewWrap.classList.remove('is-camera-on');
   }
@@ -519,6 +524,8 @@ document.addEventListener('click', function(e){
     saveUrl = btn.dataset.saveUrl || '';
     selectedFile = null;
     capturedDataUrl = '';
+    currentFacingMode = 'user';
+    lastFacingModeUsed = 'user';
     fileInput.value = '';
     clearAlert();
     stopCamera();
@@ -561,7 +568,7 @@ document.addEventListener('click', function(e){
     retakeBtn.classList.add('d-none');
   });
 
-  async function openCamera() {
+  async function openCamera(preferredFacingMode = currentFacingMode) {
     clearAlert();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showAlert('warning', 'Tu navegador no soporta acceso a cámara. Puedes subir un archivo.');
@@ -569,13 +576,20 @@ document.addEventListener('click', function(e){
     }
     try {
       stopCamera();
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: preferredFacingMode } }, audio: false });
+        lastFacingModeUsed = preferredFacingMode;
+      } catch (innerErr) {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode }, audio: false });
+        lastFacingModeUsed = preferredFacingMode;
+      }
       previewVideo.srcObject = cameraStream;
       previewVideo.classList.remove('d-none');
       previewImg.classList.add('d-none');
       placeholder.classList.add('d-none');
       captureBtn.classList.remove('d-none');
       stopCameraBtn.classList.remove('d-none');
+      switchCameraBtn.classList.remove('d-none');
       cameraGuide.classList.add('active');
       previewWrap.classList.add('is-camera-on');
       cameraFrame.style.aspectRatio = `${photoRatio}`;
@@ -591,6 +605,17 @@ document.addEventListener('click', function(e){
   }
 
   startCameraBtn.addEventListener('click', openCamera);
+
+  switchCameraBtn.addEventListener('click', async function () {
+    const previousFacingMode = lastFacingModeUsed || 'user';
+    const nextFacingMode = lastFacingModeUsed === 'environment' ? 'user' : 'environment';
+    currentFacingMode = nextFacingMode;
+    const opened = await openCamera(nextFacingMode);
+    if (!opened) {
+      currentFacingMode = previousFacingMode;
+      await openCamera(previousFacingMode);
+    }
+  });
 
   function cropFromGuide(videoW, videoH) {
     const wrapRect = previewWrap.getBoundingClientRect();
@@ -707,6 +732,8 @@ document.addEventListener('click', function(e){
     clearAlert();
     selectedFile = null;
     capturedDataUrl = '';
+    currentFacingMode = 'user';
+    lastFacingModeUsed = 'user';
     fileInput.value = '';
     retakeBtn.classList.add('d-none');
   });
