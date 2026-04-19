@@ -46,6 +46,7 @@
                   </div>
 
                   <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <button type="button" id="btn-cambiar-camara" class="btn btn-outline-info btn-sm d-none">Cambiar cámara</button>
                     <button type="button" id="btn-capturar-foto" class="btn btn-primary btn-sm">Capturar foto</button>
                     <button type="button" id="btn-cerrar-camara" class="btn btn-outline-danger btn-sm">Cerrar cámara</button>
                   </div>
@@ -122,6 +123,7 @@
   const inputImagen = document.getElementById('id_imagen');
   const previewFoto = document.getElementById('preview-foto');
   const btnAbrirCamara = document.getElementById('btn-abrir-camara');
+  const btnCambiarCamara = document.getElementById('btn-cambiar-camara');
   const btnCapturarFoto = document.getElementById('btn-capturar-foto');
   const btnCerrarCamara = document.getElementById('btn-cerrar-camara');
   const camaraBox = document.getElementById('camara-box');
@@ -130,6 +132,8 @@
   const feedback = document.getElementById('camera-feedback');
 
   let mediaStream = null;
+  let currentFacingMode = 'user';
+  let lastFacingModeUsed = 'user';
 
   function setMessage(message, isError) {
     feedback.textContent = message || '';
@@ -144,6 +148,7 @@
     }
     video.srcObject = null;
     camaraBox.style.display = 'none';
+    btnCambiarCamara.classList.add('d-none');
   }
 
   function updatePreviewFromFile(file) {
@@ -162,24 +167,51 @@
     setMessage('Foto seleccionada desde archivo.', false);
   });
 
-  btnAbrirCamara.addEventListener('click', async function () {
+  async function openCamera(preferredFacingMode = currentFacingMode) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
-      return;
+      return false;
     }
 
     setMessage('', false);
 
     try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: false,
-      });
+      stopCamera();
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: preferredFacingMode } },
+          audio: false,
+        });
+        lastFacingModeUsed = preferredFacingMode;
+      } catch (innerError) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: preferredFacingMode },
+          audio: false,
+        });
+        lastFacingModeUsed = preferredFacingMode;
+      }
       video.srcObject = mediaStream;
       camaraBox.style.display = 'block';
+      btnCambiarCamara.classList.remove('d-none');
+      currentFacingMode = preferredFacingMode;
+      return true;
     } catch (error) {
       setMessage('No se pudo acceder a la cámara. Puede cargar una imagen manualmente.', true);
       console.error('Error accediendo a cámara:', error);
+      return false;
+    }
+  }
+
+  btnAbrirCamara.addEventListener('click', function () {
+    openCamera();
+  });
+
+  btnCambiarCamara.addEventListener('click', async function () {
+    const previousFacingMode = lastFacingModeUsed || 'user';
+    const nextFacingMode = previousFacingMode === 'environment' ? 'user' : 'environment';
+    const opened = await openCamera(nextFacingMode);
+    if (!opened) {
+      await openCamera(previousFacingMode);
     }
   });
 
