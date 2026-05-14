@@ -183,6 +183,23 @@
     flex-wrap: wrap;
     gap: .5rem;
   }
+  .grado-summary-card {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+    overflow: hidden;
+  }
+  .grado-summary-card .card-body { padding: 1rem 1.1rem; }
+  .grado-summary-icon {
+    align-items: center;
+    border-radius: 14px;
+    display: inline-flex;
+    font-size: 1.25rem;
+    height: 44px;
+    justify-content: center;
+    width: 44px;
+  }
+  .foto-alumno-btn .badge { font-size: .65rem; }
   @media (min-width: 1200px) {
     .gafete-modal .modal-xl { max-width: min(85vw, 1040px); }
   }
@@ -219,6 +236,43 @@
       <div class="alert alert-light-danger">No hay ciclo escolar activo en este establecimiento.</div>
       {% endif %}
 
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card grado-summary-card bg-light-success h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+              <span class="grado-summary-icon bg-success text-white"><i class="fa fa-users"></i></span>
+              <div>
+                <span class="d-block text-muted">Matriculados activos</span>
+                <h3 class="mb-0">{{ total_matriculados }}</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card grado-summary-card bg-light-danger h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+              <span class="grado-summary-icon bg-danger text-white"><i class="fa fa-user-times"></i></span>
+              <div>
+                <span class="d-block text-muted">Desmatriculados</span>
+                <h3 class="mb-0">{{ total_desmatriculados }}</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card grado-summary-card bg-light-warning h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+              <span class="grado-summary-icon bg-warning text-white"><i class="fa fa-camera"></i></span>
+              <div>
+                <span class="d-block text-muted">Sin fotografía</span>
+                <h3 class="mb-0">{{ total_sin_fotografia }}</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h6 class="mb-3">Alumnos matriculados activos</h6>
       <div class="table-responsive">
         <table class="table table-striped">
           <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th></th></tr></thead>
@@ -242,7 +296,7 @@
                     <button class="btn btn-outline-secondary btn-sm" type="button" disabled title="Sin reverso configurado">Posterior</button>
                   {% endif %}
                   <button
-                    class="btn btn-outline-success btn-sm foto-alumno-btn"
+                    class="btn btn-outline-success btn-sm foto-alumno-btn position-relative"
                     type="button"
                     data-bs-toggle="modal"
                     data-bs-target="#fotoAlumnoModal"
@@ -252,6 +306,11 @@
                     data-alumno-codigo="{{ m.alumno.codigo_personal|default:'-' }}"
                     data-foto-url="{% if m.alumno.imagen %}{{ m.alumno.imagen.url }}{% endif %}">
                     <i class="fa fa-camera me-1"></i>Foto
+                    {% if not m.alumno.imagen %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" title="Alumno sin fotografía" aria-label="Alumno sin fotografía">
+                      !<span class="visually-hidden">Alumno sin fotografía</span>
+                    </span>
+                    {% endif %}
                   </button>
                 </div>
               </td>
@@ -266,6 +325,28 @@
             {% endwith %}
             {% empty %}
             <tr><td colspan="7">Sin matrículas para los filtros seleccionados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <hr class="my-4">
+      <h6 class="mb-3">Alumnos desmatriculados</h6>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th><th>Fecha de registro</th></tr></thead>
+          <tbody>
+            {% for m in alumnos_desmatriculados %}
+            <tr>
+              <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
+              <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
+              <td>{{ m.alumno.cui|default:'-' }}</td>
+              <td>{{ m.ciclo_escolar.nombre|default:'-' }}</td>
+              <td><span class="badge badge-light-danger">{{ m.get_estado_display|default:'Inactivo' }}</span></td>
+              <td>{{ m.created_at|date:'d/m/Y' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">Sin alumnos desmatriculados para los filtros seleccionados.</td></tr>
             {% endfor %}
           </tbody>
         </table>

@@ -802,19 +802,36 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     ciclo_activo = establecimiento.get_ciclo_activo()
     filtro_form = MatriculaFiltroForm(request.GET or None, establecimiento=establecimiento)
-    matriculas = Matricula.objects.select_related('alumno', 'ciclo_escolar').filter(grado=grado)
+    matriculas_base = Matricula.objects.select_related('alumno', 'ciclo_escolar').filter(grado=grado)
 
+    estado_filtrado = None
     ciclo_filtrado = None
     if filtro_form.is_valid():
-        estado = filtro_form.cleaned_data.get('estado')
+        estado_filtrado = filtro_form.cleaned_data.get('estado')
         ciclo_filtrado = filtro_form.cleaned_data.get('ciclo_escolar')
-        if estado:
-            matriculas = matriculas.filter(estado=estado)
 
     if ciclo_filtrado:
-        matriculas = matriculas.filter(ciclo_escolar=ciclo_filtrado)
+        matriculas_base = matriculas_base.filter(ciclo_escolar=ciclo_filtrado)
     elif ciclo_activo:
-        matriculas = matriculas.filter(ciclo_escolar=ciclo_activo)
+        matriculas_base = matriculas_base.filter(ciclo_escolar=ciclo_activo)
+
+    orden_matriculas = ('-created_at', 'alumno__apellidos', 'alumno__nombres')
+    alumnos_matriculados_qs = matriculas_base.filter(estado='activo').order_by(*orden_matriculas)
+    alumnos_desmatriculados_qs = matriculas_base.filter(estado='inactivo').order_by(*orden_matriculas)
+
+    total_matriculados = alumnos_matriculados_qs.count()
+    total_desmatriculados = alumnos_desmatriculados_qs.count()
+    total_sin_fotografia = alumnos_matriculados_qs.filter(Q(alumno__imagen__isnull=True) | Q(alumno__imagen='')).count()
+
+    if estado_filtrado == 'activo':
+        alumnos_desmatriculados = Matricula.objects.none()
+        alumnos_matriculados = alumnos_matriculados_qs
+    elif estado_filtrado == 'inactivo':
+        alumnos_matriculados = Matricula.objects.none()
+        alumnos_desmatriculados = alumnos_desmatriculados_qs
+    else:
+        alumnos_matriculados = alumnos_matriculados_qs
+        alumnos_desmatriculados = alumnos_desmatriculados_qs
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
@@ -834,7 +851,12 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'ciclo': ciclo,
         'carrera': carrera,
         'grado': grado,
-        'matriculas': matriculas.order_by('-created_at', 'alumno__apellidos'),
+        'matriculas': alumnos_matriculados,
+        'alumnos_matriculados': alumnos_matriculados,
+        'alumnos_desmatriculados': alumnos_desmatriculados,
+        'total_matriculados': total_matriculados,
+        'total_desmatriculados': total_desmatriculados,
+        'total_sin_fotografia': total_sin_fotografia,
         'filtro_form': filtro_form,
         'ciclo_activo': ciclo_activo,
         'configuracion': configuracion,
