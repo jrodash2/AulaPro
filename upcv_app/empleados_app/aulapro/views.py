@@ -303,7 +303,15 @@ def establecimientos_list(request):
             'ciclos_escolares__matriculas__alumno',
             filter=Q(ciclos_escolares__matriculas__estado='activo'),
             distinct=True,
-        )
+        ),
+        total_alumnos_sin_fotografia=Count(
+            'ciclos_escolares__matriculas__alumno',
+            filter=Q(ciclos_escolares__matriculas__estado='activo') & (
+                Q(ciclos_escolares__matriculas__alumno__imagen__isnull=True)
+                | Q(ciclos_escolares__matriculas__alumno__imagen='')
+            ),
+            distinct=True,
+        ),
     )
     establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, 'id')
     return render(request, 'aulapro/establecimientos_list.html', {'establecimientos': establecimientos})
@@ -327,7 +335,15 @@ def establecimiento_detail(request, est_id):
             'matriculas__alumno',
             filter=Q(matriculas__estado='activo'),
             distinct=True,
-        )
+        ),
+        total_alumnos_sin_fotografia=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo') & (
+                Q(matriculas__alumno__imagen__isnull=True)
+                | Q(matriculas__alumno__imagen='')
+            ),
+            distinct=True,
+        ),
     ).order_by('-anio', '-id')
     gestores_asignados = _gestores_qs_para_establecimiento(establecimiento)
 
@@ -373,7 +389,15 @@ def ciclos_list(request, est_id):
             'matriculas__alumno',
             filter=Q(matriculas__estado='activo'),
             distinct=True,
-        )
+        ),
+        total_alumnos_sin_fotografia=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo') & (
+                Q(matriculas__alumno__imagen__isnull=True)
+                | Q(matriculas__alumno__imagen='')
+            ),
+            distinct=True,
+        ),
     ).order_by('-anio', '-id')
     return render(request, 'aulapro/ciclos_list.html', {
         'establecimiento': establecimiento,
@@ -509,7 +533,15 @@ def ciclo_detail(request, est_id, ciclo_id):
             'grados__matriculas__alumno',
             filter=Q(grados__matriculas__estado='activo', grados__matriculas__ciclo_escolar_id=ciclo.id),
             distinct=True,
-        )
+        ),
+        total_alumnos_sin_fotografia=Count(
+            'grados__matriculas__alumno',
+            filter=Q(grados__matriculas__estado='activo', grados__matriculas__ciclo_escolar_id=ciclo.id) & (
+                Q(grados__matriculas__alumno__imagen__isnull=True)
+                | Q(grados__matriculas__alumno__imagen='')
+            ),
+            distinct=True,
+        ),
     ).order_by('nombre')
     form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
     return render(request, 'aulapro/ciclo_detail.html', {
@@ -558,7 +590,15 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
             'matriculas__alumno',
             filter=Q(matriculas__estado='activo', matriculas__ciclo_escolar_id=ciclo.id),
             distinct=True,
-        )
+        ),
+        total_alumnos_sin_fotografia=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo', matriculas__ciclo_escolar_id=ciclo.id) & (
+                Q(matriculas__alumno__imagen__isnull=True)
+                | Q(matriculas__alumno__imagen='')
+            ),
+            distinct=True,
+        ),
     ).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,

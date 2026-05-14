@@ -30,7 +30,7 @@
             <tr>
               <td>{{ e.nombre }}</td>
               <td>{{ e.direccion|default:'-' }}</td>
-              <td><span class="badge badge-light-primary">{{ e.total_alumnos_matriculados }} alumnos</span></td>
+              <td><div class="d-flex gap-2 flex-wrap"><span class="badge badge-light-primary">{{ e.total_alumnos_matriculados }} alumnos</span>{% if e.total_alumnos_sin_fotografia %}<span class="badge badge-light-danger">{{ e.total_alumnos_sin_fotografia }} sin fotografía</span>{% else %}<span class="badge badge-light-success">Fotos completas</span>{% endif %}</div></td>
               <td>{% if e.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
               <td><a class="btn btn-primary btn-sm" href="{% url 'empleados:establecimiento_detail' e.id %}">Entrar</a></td>
             </tr>
