@@ -332,14 +332,12 @@ def establecimientos_list(request):
     )
     establecimientos = Establecimiento.objects.annotate(
         total_alumnos_matriculados=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_ciclo_activo & _matriculas_activas_filter(matriculas_prefix),
-            distinct=True,
         ),
         total_alumnos_sin_fotografia=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_ciclo_activo & _matriculas_sin_fotografia_filter(matriculas_prefix),
-            distinct=True,
         ),
     )
     establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, 'id')
@@ -363,14 +361,12 @@ def establecimiento_detail(request, est_id):
     alcance_mismo_ciclo = Q(**{f'{matriculas_prefix}__ciclo_escolar_id': F('id')})
     ciclos = establecimiento.ciclos_escolares.annotate(
         total_alumnos_matriculados=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_activas_filter(matriculas_prefix),
-            distinct=True,
         ),
         total_alumnos_sin_fotografia=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_sin_fotografia_filter(matriculas_prefix),
-            distinct=True,
         ),
     ).order_by('-anio', '-id')
     gestores_asignados = _gestores_qs_para_establecimiento(establecimiento)
@@ -416,14 +412,12 @@ def ciclos_list(request, est_id):
     alcance_mismo_ciclo = Q(**{f'{matriculas_prefix}__ciclo_escolar_id': F('id')})
     ciclos = establecimiento.ciclos_escolares.annotate(
         total_alumnos_matriculados=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_activas_filter(matriculas_prefix),
-            distinct=True,
         ),
         total_alumnos_sin_fotografia=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_sin_fotografia_filter(matriculas_prefix),
-            distinct=True,
         ),
     ).order_by('-anio', '-id')
     return render(request, 'aulapro/ciclos_list.html', {
@@ -559,14 +553,12 @@ def ciclo_detail(request, est_id, ciclo_id):
     alcance_mismo_ciclo = Q(**{f'{matriculas_prefix}__ciclo_escolar_id': ciclo.id})
     carreras = ciclo.carreras.annotate(
         total_alumnos_matriculados=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_activas_filter(matriculas_prefix),
-            distinct=True,
         ),
         total_alumnos_sin_fotografia=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_sin_fotografia_filter(matriculas_prefix),
-            distinct=True,
         ),
     ).order_by('nombre')
     form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
@@ -615,14 +607,12 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
     alcance_mismo_ciclo = Q(**{f'{matriculas_prefix}__ciclo_escolar_id': ciclo.id})
     grados = Grado.objects.filter(carrera=carrera).annotate(
         total_alumnos_matriculados=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_activas_filter(matriculas_prefix),
-            distinct=True,
         ),
         total_alumnos_sin_fotografia=Count(
-            f'{matriculas_prefix}__alumno',
+            matriculas_prefix,
             filter=alcance_mismo_ciclo & _matriculas_sin_fotografia_filter(matriculas_prefix),
-            distinct=True,
         ),
     ).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
@@ -915,14 +905,11 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     alumnos_matriculados_qs = alumnos_matriculados_base_qs.order_by(*orden_matriculas)
     alumnos_desmatriculados_qs = matriculas_base.filter(estado='inactivo').order_by(*orden_matriculas)
 
-    total_matriculados = alumnos_matriculados_base_qs.values('alumno_id').distinct().count()
+    total_matriculados = alumnos_matriculados_base_qs.count()
     total_desmatriculados = alumnos_desmatriculados_qs.count()
-    total_sin_fotografia = (
-        alumnos_matriculados_base_qs.filter(_alumno_sin_fotografia_filter())
-        .values('alumno_id')
-        .distinct()
-        .count()
-    )
+    total_sin_fotografia = alumnos_matriculados_base_qs.filter(
+        _alumno_sin_fotografia_filter()
+    ).count()
 
     if estado_filtrado == 'activo':
         alumnos_desmatriculados = Matricula.objects.none()
