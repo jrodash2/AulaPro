@@ -123,7 +123,7 @@
         <div class="card metric-card h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><div class="metric-label">Cursos activos</div><div class="metric-value">{{ ciclo_stats.cursos_total }}</div></div><span class="metric-icon bg-success-soft"><i class="fa fa-book"></i></span></div></div>
       </div>
       <div class="col-xl-3 col-sm-6">
-        <div class="card metric-card h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><div class="metric-label">Alumnos</div><div class="metric-value">{{ ciclo_stats.alumnos_total }}</div></div><span class="metric-icon bg-warning-soft"><i class="fa fa-users"></i></span></div></div>
+        <div class="card metric-card h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><div class="metric-label">Alumnos activos</div><div class="metric-value">{{ ciclo_stats.alumnos_total }}</div></div><span class="metric-icon bg-warning-soft"><i class="fa fa-users"></i></span></div></div>
       </div>
       <div class="col-xl-3 col-sm-6">
         <div class="card metric-card h-100"><div class="card-body d-flex justify-content-between align-items-center"><div><div class="metric-label">Asistencias</div><div class="metric-value">{{ ciclo_stats.asistencias_total }}</div><small class="text-muted">Docentes: {{ ciclo_stats.docentes_total }}</small></div><span class="metric-icon bg-info-soft"><i class="fa fa-check-square-o"></i></span></div></div>
@@ -143,7 +143,7 @@
                   <div class="est-name">{{ est.nombre }}</div>
                   <div class="est-meta">
                     <span><i class="fa fa-book me-1"></i>{{ est.cursos }} cursos</span>
-                    <span><i class="fa fa-users me-1"></i>{{ est.alumnos }} alumnos</span>
+                    <span><i class="fa fa-users me-1"></i>{{ est.alumnos }} alumnos activos</span>
                     <span><i class="fa fa-check-square-o me-1"></i>{{ est.asistencias }} asistencias</span>
                   </div>
                   <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:dashboard_establecimiento' est.id %}">Ver dashboard</a>
