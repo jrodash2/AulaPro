@@ -362,7 +362,7 @@ def dahsboard(request):
     if es_gestor(request.user):
         selected_establecimiento = selected_establecimiento or establecimientos_qs.first()
 
-    alumnos_base = Matricula.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
+    alumnos_base = Matricula.objects.select_related("alumno", "grado__carrera__ciclo_escolar__establecimiento")
     cursos_docente_base = CursoDocente.objects.select_related("curso__grado__carrera__ciclo_escolar__establecimiento", "docente")
     cursos_base = Curso.objects.select_related("grado__carrera__ciclo_escolar__establecimiento")
     asistencia_base = Asistencia.objects.select_related("curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento")
@@ -375,8 +375,10 @@ def dahsboard(request):
         asistencia_base = asistencia_base.filter(curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
         detalles_base = detalles_base.filter(asistencia__curso_docente__curso__grado__carrera__ciclo_escolar__establecimiento=selected_establecimiento)
 
+    alumnos_activos_base = alumnos_base.filter(estado="activo", alumno__activo=True)
+
     alumnos_por_grado_qs = (
-        alumnos_base.values("grado__nombre")
+        alumnos_activos_base.values("grado__nombre")
         .annotate(total=Count("alumno", distinct=True))
         .order_by("-total", "grado__nombre")
     )
@@ -384,7 +386,7 @@ def dahsboard(request):
     alumnos_por_grado_series = [row["total"] for row in alumnos_por_grado_qs]
 
     alumnos_por_carrera_qs = (
-        alumnos_base.values("grado__carrera__nombre")
+        alumnos_activos_base.values("grado__carrera__nombre")
         .annotate(total=Count("alumno", distinct=True))
         .order_by("-total", "grado__carrera__nombre")
     )
@@ -430,7 +432,11 @@ def dahsboard(request):
     }
     alumnos_por_establecimiento = {
         row["grado__carrera__ciclo_escolar__establecimiento_id"]: row["total"]
-        for row in Matricula.objects.filter(grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids)
+        for row in Matricula.objects.filter(
+            estado="activo",
+            alumno__activo=True,
+            grado__carrera__ciclo_escolar__establecimiento_id__in=establecimientos_ids,
+        )
         .values("grado__carrera__ciclo_escolar__establecimiento_id")
         .annotate(total=Count("alumno_id", distinct=True))
     }
@@ -470,7 +476,7 @@ def dahsboard(request):
         "nombre": selected_establecimiento.nombre if selected_establecimiento else "Todos los establecimientos",
         "establecimiento": selected_establecimiento.nombre if selected_establecimiento else "Global",
         "cursos_total": cursos_base.filter(activo=True).count(),
-        "alumnos_total": alumnos_base.values("alumno_id").distinct().count(),
+        "alumnos_total": alumnos_activos_base.values("alumno_id").distinct().count(),
         "docentes_total": cursos_docente_base.filter(activo=True).values("docente_id").distinct().count(),
         "asistencias_total": asistencia_base.count(),
         "establecimientos_total": establecimientos_qs.count() if es_admin_total(request.user) else 1,
