@@ -298,7 +298,13 @@ def _get_grado(est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def establecimientos_list(request):
-    establecimientos = Establecimiento.objects.all()
+    establecimientos = Establecimiento.objects.annotate(
+        total_alumnos_matriculados=Count(
+            'ciclos_escolares__matriculas__alumno',
+            filter=Q(ciclos_escolares__matriculas__estado='activo'),
+            distinct=True,
+        )
+    )
     establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, 'id')
     return render(request, 'aulapro/establecimientos_list.html', {'establecimientos': establecimientos})
 
@@ -316,7 +322,13 @@ def establecimiento_detail(request, est_id):
         _asignar_gestor_a_establecimiento(request, establecimiento)
         return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
 
-    ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
+    ciclos = establecimiento.ciclos_escolares.annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo'),
+            distinct=True,
+        )
+    ).order_by('-anio', '-id')
     gestores_asignados = _gestores_qs_para_establecimiento(establecimiento)
 
     return render(request, 'aulapro/establecimiento_detail.html', {
@@ -356,7 +368,13 @@ def ciclos_list(request, est_id):
     if denied:
         return denied
     establecimiento = _get_establecimiento(est_id)
-    ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
+    ciclos = establecimiento.ciclos_escolares.annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo'),
+            distinct=True,
+        )
+    ).order_by('-anio', '-id')
     return render(request, 'aulapro/ciclos_list.html', {
         'establecimiento': establecimiento,
         'ciclos': ciclos,
@@ -486,7 +504,13 @@ def ciclo_detail(request, est_id, ciclo_id):
         return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
-    carreras = ciclo.carreras.all().order_by('nombre')
+    carreras = ciclo.carreras.annotate(
+        total_alumnos_matriculados=Count(
+            'grados__matriculas__alumno',
+            filter=Q(grados__matriculas__estado='activo', grados__matriculas__ciclo_escolar_id=ciclo.id),
+            distinct=True,
+        )
+    ).order_by('nombre')
     form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
     return render(request, 'aulapro/ciclo_detail.html', {
         'establecimiento': establecimiento,
@@ -529,7 +553,13 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
-    grados = Grado.objects.filter(carrera=carrera).order_by('nombre')
+    grados = Grado.objects.filter(carrera=carrera).annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo', matriculas__ciclo_escolar_id=ciclo.id),
+            distinct=True,
+        )
+    ).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
         'ciclo': ciclo,

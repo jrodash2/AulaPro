@@ -24,17 +24,18 @@
       </div>
       <div class="card-body table-responsive">
         <table class="table table-striped">
-          <thead><tr><th>Nombre</th><th>Dirección</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Dirección</th><th>Alumnos</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
             {% for e in establecimientos %}
             <tr>
               <td>{{ e.nombre }}</td>
               <td>{{ e.direccion|default:'-' }}</td>
+              <td><span class="badge badge-light-primary">{{ e.total_alumnos_matriculados }} alumnos</span></td>
               <td>{% if e.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
               <td><a class="btn btn-primary btn-sm" href="{% url 'empleados:establecimiento_detail' e.id %}">Entrar</a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="4">Sin establecimientos.</td></tr>
+            <tr><td colspan="5">Sin establecimientos.</td></tr>
             {% endfor %}
           </tbody>
         </table>
