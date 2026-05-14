@@ -306,9 +306,15 @@ def establecimientos_list(request):
         ),
         total_alumnos_sin_fotografia=Count(
             'ciclos_escolares__matriculas__alumno',
-            filter=Q(ciclos_escolares__matriculas__estado='activo') & (
-                Q(ciclos_escolares__matriculas__alumno__imagen__isnull=True)
-                | Q(ciclos_escolares__matriculas__alumno__imagen='')
+            filter=(
+                Q(ciclos_escolares__activo=True)
+                & Q(ciclos_escolares__matriculas__estado='activo')
+                & Q(ciclos_escolares__matriculas__alumno__activo=True)
+                & Q(ciclos_escolares__matriculas__grado__carrera__ciclo_escolar__establecimiento_id=F('id'))
+                & (
+                    Q(ciclos_escolares__matriculas__alumno__imagen__isnull=True)
+                    | Q(ciclos_escolares__matriculas__alumno__imagen='')
+                )
             ),
             distinct=True,
         ),
