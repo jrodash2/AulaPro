@@ -298,7 +298,13 @@ def _get_grado(est_id, ciclo_id, car_id, grado_id):
 @login_required
 @user_passes_test(_can_manage)
 def establecimientos_list(request):
-    establecimientos = Establecimiento.objects.all()
+    establecimientos = Establecimiento.objects.annotate(
+        total_alumnos_matriculados=Count(
+            'ciclos_escolares__matriculas__alumno',
+            filter=Q(ciclos_escolares__matriculas__estado='activo'),
+            distinct=True,
+        )
+    )
     establecimientos = filtrar_por_establecimiento_usuario(establecimientos, request.user, 'id')
     return render(request, 'aulapro/establecimientos_list.html', {'establecimientos': establecimientos})
 
@@ -316,7 +322,13 @@ def establecimiento_detail(request, est_id):
         _asignar_gestor_a_establecimiento(request, establecimiento)
         return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
 
-    ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
+    ciclos = establecimiento.ciclos_escolares.annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo'),
+            distinct=True,
+        )
+    ).order_by('-anio', '-id')
     gestores_asignados = _gestores_qs_para_establecimiento(establecimiento)
 
     return render(request, 'aulapro/establecimiento_detail.html', {
@@ -356,7 +368,13 @@ def ciclos_list(request, est_id):
     if denied:
         return denied
     establecimiento = _get_establecimiento(est_id)
-    ciclos = establecimiento.ciclos_escolares.all().order_by('-anio', '-id')
+    ciclos = establecimiento.ciclos_escolares.annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo'),
+            distinct=True,
+        )
+    ).order_by('-anio', '-id')
     return render(request, 'aulapro/ciclos_list.html', {
         'establecimiento': establecimiento,
         'ciclos': ciclos,
@@ -486,7 +504,13 @@ def ciclo_detail(request, est_id, ciclo_id):
         return denied
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
-    carreras = ciclo.carreras.all().order_by('nombre')
+    carreras = ciclo.carreras.annotate(
+        total_alumnos_matriculados=Count(
+            'grados__matriculas__alumno',
+            filter=Q(grados__matriculas__estado='activo', grados__matriculas__ciclo_escolar_id=ciclo.id),
+            distinct=True,
+        )
+    ).order_by('nombre')
     form = CarreraForm(initial={'ciclo_escolar': ciclo, 'activo': True})
     return render(request, 'aulapro/ciclo_detail.html', {
         'establecimiento': establecimiento,
@@ -529,7 +553,13 @@ def carrera_detail(request, est_id, ciclo_id, car_id):
     establecimiento = _get_establecimiento(est_id)
     ciclo = _get_ciclo(est_id, ciclo_id)
     carrera = _get_carrera(est_id, ciclo_id, car_id)
-    grados = Grado.objects.filter(carrera=carrera).order_by('nombre')
+    grados = Grado.objects.filter(carrera=carrera).annotate(
+        total_alumnos_matriculados=Count(
+            'matriculas__alumno',
+            filter=Q(matriculas__estado='activo', matriculas__ciclo_escolar_id=ciclo.id),
+            distinct=True,
+        )
+    ).order_by('nombre')
     return render(request, 'aulapro/carrera_detail.html', {
         'establecimiento': establecimiento,
         'ciclo': ciclo,
@@ -802,19 +832,36 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
 
     ciclo_activo = establecimiento.get_ciclo_activo()
     filtro_form = MatriculaFiltroForm(request.GET or None, establecimiento=establecimiento)
-    matriculas = Matricula.objects.select_related('alumno', 'ciclo_escolar').filter(grado=grado)
+    matriculas_base = Matricula.objects.select_related('alumno', 'ciclo_escolar').filter(grado=grado)
 
+    estado_filtrado = None
     ciclo_filtrado = None
     if filtro_form.is_valid():
-        estado = filtro_form.cleaned_data.get('estado')
+        estado_filtrado = filtro_form.cleaned_data.get('estado')
         ciclo_filtrado = filtro_form.cleaned_data.get('ciclo_escolar')
-        if estado:
-            matriculas = matriculas.filter(estado=estado)
 
     if ciclo_filtrado:
-        matriculas = matriculas.filter(ciclo_escolar=ciclo_filtrado)
+        matriculas_base = matriculas_base.filter(ciclo_escolar=ciclo_filtrado)
     elif ciclo_activo:
-        matriculas = matriculas.filter(ciclo_escolar=ciclo_activo)
+        matriculas_base = matriculas_base.filter(ciclo_escolar=ciclo_activo)
+
+    orden_matriculas = ('-created_at', 'alumno__apellidos', 'alumno__nombres')
+    alumnos_matriculados_qs = matriculas_base.filter(estado='activo').order_by(*orden_matriculas)
+    alumnos_desmatriculados_qs = matriculas_base.filter(estado='inactivo').order_by(*orden_matriculas)
+
+    total_matriculados = alumnos_matriculados_qs.count()
+    total_desmatriculados = alumnos_desmatriculados_qs.count()
+    total_sin_fotografia = alumnos_matriculados_qs.filter(Q(alumno__imagen__isnull=True) | Q(alumno__imagen='')).count()
+
+    if estado_filtrado == 'activo':
+        alumnos_desmatriculados = Matricula.objects.none()
+        alumnos_matriculados = alumnos_matriculados_qs
+    elif estado_filtrado == 'inactivo':
+        alumnos_matriculados = Matricula.objects.none()
+        alumnos_desmatriculados = alumnos_desmatriculados_qs
+    else:
+        alumnos_matriculados = alumnos_matriculados_qs
+        alumnos_desmatriculados = alumnos_desmatriculados_qs
 
     configuracion = ConfiguracionGeneral.objects.first()
     layout = establecimiento.get_layout()
@@ -834,7 +881,12 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'ciclo': ciclo,
         'carrera': carrera,
         'grado': grado,
-        'matriculas': matriculas.order_by('-created_at', 'alumno__apellidos'),
+        'matriculas': alumnos_matriculados,
+        'alumnos_matriculados': alumnos_matriculados,
+        'alumnos_desmatriculados': alumnos_desmatriculados,
+        'total_matriculados': total_matriculados,
+        'total_desmatriculados': total_desmatriculados,
+        'total_sin_fotografia': total_sin_fotografia,
         'filtro_form': filtro_form,
         'ciclo_activo': ciclo_activo,
         'configuracion': configuracion,
