@@ -30,15 +30,66 @@
     (async function() {
       const status = document.getElementById('status');
       const zip = new JSZip();
-      const scale = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
+      const scale = 3;
+      const IMAGE_TIMEOUT_MS = 5000;
+      const CARD_TIMEOUT_MS = 25000;
+      const errors = [];
+      let warningsCount = 0;
+      let generatedFiles = 0;
 
-      function waitImages(root) {
+      function withTimeout(promise, timeoutMs, timeoutMessage) {
+        let timeoutId = null;
+        return Promise.race([
+          promise.finally(() => clearTimeout(timeoutId)),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(timeoutMessage || 'Timeout excedido')), timeoutMs);
+          })
+        ]);
+      }
+
+      function hideMissingImage(img, reasonMessage) {
+        console.warn(reasonMessage, img.src);
+        warningsCount += 1;
+        img.style.display = 'none';
+        img.dataset.bulkImageMissing = '1';
+      }
+
+      async function waitForImages(root, timeoutMs = IMAGE_TIMEOUT_MS) {
         const images = Array.from(root.querySelectorAll('img'));
-        return Promise.all(images.map((img) => {
-          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+
+        await Promise.all(images.map((img) => {
           return new Promise((resolve) => {
-            img.addEventListener('load', resolve, { once: true });
-            img.addEventListener('error', resolve, { once: true });
+            let finished = false;
+            let timer = null;
+
+            const done = () => {
+              if (finished) return;
+              finished = true;
+              if (timer) clearTimeout(timer);
+              resolve();
+            };
+
+            timer = setTimeout(() => {
+              hideMissingImage(img, 'Timeout cargando imagen, se omitirá:');
+              done();
+            }, timeoutMs);
+
+            if (img.complete) {
+              if (img.naturalWidth === 0) {
+                hideMissingImage(img, 'Imagen inválida o no encontrada, se omitirá:');
+              }
+              done();
+              return;
+            }
+
+            img.onload = () => {
+              done();
+            };
+
+            img.onerror = () => {
+              hideMissingImage(img, 'Imagen no encontrada, se omitirá:');
+              done();
+            };
           });
         }));
       }
@@ -62,21 +113,56 @@
         for (let i = 0; i < cards.length; i++) {
           const card = cards[i];
           status.textContent = `Generando gafetes... ${i + 1}/${cards.length}`;
-          const front = document.getElementById(`bulk-canvas-${card.id}-front`);
-          if (!front) continue;
-          await waitImages(front);
-          const frontCanvas = await html2canvas(front, { backgroundColor: '#ffffff', scale, useCORS: true, allowTaint: true, imageTimeout: 10000 });
           const base = `${safeSlug(card.codigo || String(i + 1).padStart(3, '0'))}_${safeSlug(card.alumno)}`;
-          zip.file(`${base}_frente.jpg`, frontCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+
+          try {
+            await withTimeout((async () => {
+              const front = document.getElementById(`bulk-canvas-${card.id}-front`);
+              if (!front) {
+                throw new Error('No se encontró el lienzo de frente.');
+              }
+              await waitForImages(front, IMAGE_TIMEOUT_MS);
+              const frontCanvas = await html2canvas(front, {
+                scale,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: null,
+                imageTimeout: IMAGE_TIMEOUT_MS,
+              });
+              zip.file(`${base}_frente.jpg`, frontCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+              generatedFiles += 1;
+            })(), CARD_TIMEOUT_MS, 'Timeout generando frente del gafete');
+          } catch (error) {
+            console.error('Error generando frente del alumno:', card, error);
+            errors.push({ alumno: card, lado: 'frente', error: error?.message || String(error) });
+          }
 
           if (card.hasBack) {
-            const back = document.getElementById(`bulk-canvas-${card.id}-back`);
-            if (back) {
-              await waitImages(back);
-              const backCanvas = await html2canvas(back, { backgroundColor: '#ffffff', scale, useCORS: true, allowTaint: true, imageTimeout: 10000 });
-              zip.file(`${base}_reverso.jpg`, backCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+            try {
+              await withTimeout((async () => {
+                const back = document.getElementById(`bulk-canvas-${card.id}-back`);
+                if (!back) return;
+                await waitForImages(back, IMAGE_TIMEOUT_MS);
+                const backCanvas = await html2canvas(back, {
+                  scale,
+                  useCORS: true,
+                  allowTaint: true,
+                  backgroundColor: null,
+                  imageTimeout: IMAGE_TIMEOUT_MS,
+                });
+                zip.file(`${base}_reverso.jpg`, backCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+                generatedFiles += 1;
+              })(), CARD_TIMEOUT_MS, 'Timeout generando reverso del gafete');
+            } catch (error) {
+              console.error('Error generando reverso del alumno:', card, error);
+              errors.push({ alumno: card, lado: 'reverso', error: error?.message || String(error) });
             }
           }
+        }
+
+        if (generatedFiles === 0) {
+          status.textContent = 'No se pudo generar ningún gafete. Revise la consola para más detalles.';
+          return;
         }
 
         status.textContent = 'Comprimiendo ZIP...';
@@ -88,7 +174,9 @@
         link.click();
         URL.revokeObjectURL(link.href);
         link.remove();
-        status.textContent = 'Descarga completada.';
+        const resumenErrores = errors.length ? ` Errores: ${errors.length}.` : '';
+        const resumenWarn = warningsCount ? ` Imágenes omitidas: ${warningsCount}.` : '';
+        status.textContent = `Descarga completada. Archivos generados: ${generatedFiles}.${resumenWarn}${resumenErrores}`;
         setTimeout(() => window.close(), 700);
       } catch (error) {
         console.error(error);
