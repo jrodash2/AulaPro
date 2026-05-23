@@ -1,0 +1,100 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generando gafetes masivos</title>
+  {% include 'empleados/partials_gafete_estilos.html' %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="{% static 'assets/js/datatable/datatable-extension/jszip.min.js' %}"></script>
+</head>
+<body>
+  <div style="padding:16px;font-family:system-ui,Segoe UI,Roboto,sans-serif;">
+    <h5>Generando gafetes...</h5>
+    <p id="status">Preparando {{ matriculas|length }} alumno(s).</p>
+  </div>
+
+  <div id="canvas-root" style="position:absolute; left:-99999px; top:-99999px; opacity:0; pointer-events:none;">
+    {% for m in matriculas %}
+      {% with mid=m.id|stringformat:'s' %}
+        {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='bulk-canvas-'|add:mid|add:'-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+        {% if has_back %}
+          {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='bulk-canvas-'|add:mid|add:'-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+        {% endif %}
+      {% endwith %}
+    {% endfor %}
+  </div>
+
+  <script>
+    (async function() {
+      const status = document.getElementById('status');
+      const zip = new JSZip();
+      const scale = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
+
+      function waitImages(root) {
+        const images = Array.from(root.querySelectorAll('img'));
+        return Promise.all(images.map((img) => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+          });
+        }));
+      }
+
+      function safeSlug(value) {
+        return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'alumno';
+      }
+
+      try {
+        const cards = [
+          {% for m in matriculas %}
+          {
+            id: '{{ m.id }}',
+            codigo: '{{ m.alumno.codigo_personal|default:""|escapejs }}',
+            alumno: '{{ m.alumno.nombres }} {{ m.alumno.apellidos }}',
+            hasBack: {{ has_back|yesno:'true,false' }}
+          },
+          {% endfor %}
+        ];
+
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          status.textContent = `Generando gafetes... ${i + 1}/${cards.length}`;
+          const front = document.getElementById(`bulk-canvas-${card.id}-front`);
+          if (!front) continue;
+          await waitImages(front);
+          const frontCanvas = await html2canvas(front, { backgroundColor: '#ffffff', scale, useCORS: true, allowTaint: true, imageTimeout: 10000 });
+          const base = `${safeSlug(card.codigo || String(i + 1).padStart(3, '0'))}_${safeSlug(card.alumno)}`;
+          zip.file(`${base}_frente.jpg`, frontCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+
+          if (card.hasBack) {
+            const back = document.getElementById(`bulk-canvas-${card.id}-back`);
+            if (back) {
+              await waitImages(back);
+              const backCanvas = await html2canvas(back, { backgroundColor: '#ffffff', scale, useCORS: true, allowTaint: true, imageTimeout: 10000 });
+              zip.file(`${base}_reverso.jpg`, backCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+            }
+          }
+        }
+
+        status.textContent = 'Comprimiendo ZIP...';
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '{{ zip_filename|escapejs }}';
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        link.remove();
+        status.textContent = 'Descarga completada.';
+        setTimeout(() => window.close(), 700);
+      } catch (error) {
+        console.error(error);
+        status.textContent = `Error al generar gafetes: ${error?.message || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>
