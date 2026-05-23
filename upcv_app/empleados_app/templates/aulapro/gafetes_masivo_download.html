@@ -6,8 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Generando gafetes masivos</title>
   {% include 'empleados/partials_gafete_estilos.html' %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="{% static 'assets/js/datatable/datatable-extension/jszip.min.js' %}"></script>
 </head>
 <body>
   <div style="padding:16px;font-family:system-ui,Segoe UI,Roboto,sans-serif;">
@@ -29,7 +30,20 @@
   <script>
     (async function() {
       const status = document.getElementById('status');
+      console.log('JSZip:', window.JSZip);
+      if (typeof JSZip === 'undefined') {
+        throw new Error('JSZip no está cargado correctamente.');
+      }
+      if (typeof saveAs === 'undefined') {
+        throw new Error('FileSaver.js no está cargado correctamente.');
+      }
       const zip = new JSZip();
+      console.log('JSZip disponible:', JSZip);
+      console.log('Instancia ZIP:', zip);
+      console.log('generateAsync:', zip.generateAsync);
+      if (typeof zip.generateAsync !== 'function') {
+        throw new Error('La instancia ZIP no es válida. Verifique que se use new JSZip().');
+      }
       const scale = 3;
       const IMAGE_TIMEOUT_MS = 5000;
       const CARD_TIMEOUT_MS = 25000;
@@ -166,14 +180,12 @@
         }
 
         status.textContent = 'Comprimiendo ZIP...';
-        const blob = await zip.generateAsync({ type: 'blob' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = '{{ zip_filename|escapejs }}';
-        document.body.appendChild(link);
-        link.click();
-        URL.revokeObjectURL(link.href);
-        link.remove();
+        const blob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        });
+        saveAs(blob, '{{ zip_filename|escapejs }}');
         const resumenErrores = errors.length ? ` Errores: ${errors.length}.` : '';
         const resumenWarn = warningsCount ? ` Imágenes omitidas: ${warningsCount}.` : '';
         status.textContent = `Descarga completada. Archivos generados: ${generatedFiles}.${resumenWarn}${resumenErrores}`;
