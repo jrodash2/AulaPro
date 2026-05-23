@@ -6,6 +6,7 @@ import os
 import uuid
 from django import forms
 import logging
+from django.utils.text import slugify
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
@@ -958,6 +959,55 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'foto_guia_shape': photo_shape,
         'foto_guia_w': photo_w,
         'foto_guia_h': photo_h,
+    })
+
+
+@login_required
+@user_passes_test(_can_manage)
+def descargar_gafetes_grado_masivo(request, est_id, ciclo_id, car_id, grado_id):
+    denied = _ensure_establecimiento_access(request, est_id)
+    if denied:
+        return denied
+
+    establecimiento = _get_establecimiento(est_id)
+    ciclo = _get_ciclo(est_id, ciclo_id)
+    carrera = _get_carrera(est_id, ciclo_id, car_id)
+    grado = _get_grado(est_id, ciclo_id, car_id, grado_id)
+
+    ciclo_activo = establecimiento.get_ciclo_activo()
+    matriculas_base = Matricula.objects.select_related('alumno', 'grado', 'ciclo_escolar').filter(grado=grado)
+    if ciclo_activo:
+        matriculas_base = matriculas_base.filter(ciclo_escolar=ciclo_activo)
+    matriculas_activas = _matriculas_activas_qs(matriculas_base).order_by('alumno__codigo_personal', 'alumno__apellidos', 'alumno__nombres')
+
+    if not matriculas_activas.exists():
+        messages.info(request, 'Este grado no tiene alumnos matriculados/activos para descargar gafetes.')
+        return redirect('empleados:grado_detail', est_id=est_id, ciclo_id=ciclo_id, car_id=car_id, grado_id=grado_id)
+
+    layout = establecimiento.get_layout()
+    orientation, canvas_width, canvas_height = resolve_gafete_dimensions(establecimiento, layout)
+    layout['canvas'] = {'width': canvas_width, 'height': canvas_height, 'orientation': orientation}
+    has_back = bool(
+        establecimiento.background_gafete_posterior
+        or ((layout.get('back') or {}).get('background_image'))
+        or ((layout.get('back') or {}).get('enabled_fields'))
+    )
+    fecha = timezone.localdate().strftime('%Y%m%d')
+    zip_filename = f"gafetes_grado_{slugify(grado.nombre or f'grado-{grado.id}')}_{fecha}.zip"
+
+    return render(request, 'aulapro/gafetes_masivo_download.html', {
+        'establecimiento': establecimiento,
+        'ciclo': ciclo,
+        'carrera': carrera,
+        'grado': grado,
+        'matriculas': matriculas_activas,
+        'layout': layout,
+        'canvas_width': canvas_width,
+        'canvas_height': canvas_height,
+        'gafete_w': canvas_width,
+        'gafete_h': canvas_height,
+        'zip_filename': zip_filename,
+        'has_back': has_back,
     })
 
 
