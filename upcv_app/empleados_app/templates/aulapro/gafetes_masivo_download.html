@@ -1,0 +1,200 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generando gafetes masivos</title>
+  {% include 'empleados/partials_gafete_estilos.html' %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <div style="padding:16px;font-family:system-ui,Segoe UI,Roboto,sans-serif;">
+    <h5>Generando gafetes...</h5>
+    <p id="status">Preparando {{ matriculas|length }} alumno(s).</p>
+  </div>
+
+  <div id="canvas-root" style="position:absolute; left:-99999px; top:-99999px; opacity:0; pointer-events:none;">
+    {% for m in matriculas %}
+      {% with mid=m.id|stringformat:'s' %}
+        {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='bulk-canvas-'|add:mid|add:'-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+        {% if has_back %}
+          {% include 'aulapro/partials/_gafete_canvas.html' with alumno=m.alumno grado=m.grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='bulk-canvas-'|add:mid|add:'-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+        {% endif %}
+      {% endwith %}
+    {% endfor %}
+  </div>
+
+  <script>
+    (async function() {
+      const status = document.getElementById('status');
+      console.log('JSZip:', window.JSZip);
+      if (typeof JSZip === 'undefined') {
+        throw new Error('JSZip no está cargado correctamente.');
+      }
+      if (typeof saveAs === 'undefined') {
+        throw new Error('FileSaver.js no está cargado correctamente.');
+      }
+      const zip = new JSZip();
+      console.log('JSZip disponible:', JSZip);
+      console.log('Instancia ZIP:', zip);
+      console.log('generateAsync:', zip.generateAsync);
+      if (typeof zip.generateAsync !== 'function') {
+        throw new Error('La instancia ZIP no es válida. Verifique que se use new JSZip().');
+      }
+      const scale = 3;
+      const IMAGE_TIMEOUT_MS = 5000;
+      const CARD_TIMEOUT_MS = 25000;
+      const errors = [];
+      let warningsCount = 0;
+      let generatedFiles = 0;
+
+      function withTimeout(promise, timeoutMs, timeoutMessage) {
+        let timeoutId = null;
+        return Promise.race([
+          promise.finally(() => clearTimeout(timeoutId)),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(timeoutMessage || 'Timeout excedido')), timeoutMs);
+          })
+        ]);
+      }
+
+      function hideMissingImage(img, reasonMessage) {
+        console.warn(reasonMessage, img.src);
+        warningsCount += 1;
+        img.style.display = 'none';
+        img.dataset.bulkImageMissing = '1';
+      }
+
+      async function waitForImages(root, timeoutMs = IMAGE_TIMEOUT_MS) {
+        const images = Array.from(root.querySelectorAll('img'));
+
+        await Promise.all(images.map((img) => {
+          return new Promise((resolve) => {
+            let finished = false;
+            let timer = null;
+
+            const done = () => {
+              if (finished) return;
+              finished = true;
+              if (timer) clearTimeout(timer);
+              resolve();
+            };
+
+            timer = setTimeout(() => {
+              hideMissingImage(img, 'Timeout cargando imagen, se omitirá:');
+              done();
+            }, timeoutMs);
+
+            if (img.complete) {
+              if (img.naturalWidth === 0) {
+                hideMissingImage(img, 'Imagen inválida o no encontrada, se omitirá:');
+              }
+              done();
+              return;
+            }
+
+            img.onload = () => {
+              done();
+            };
+
+            img.onerror = () => {
+              hideMissingImage(img, 'Imagen no encontrada, se omitirá:');
+              done();
+            };
+          });
+        }));
+      }
+
+      function safeSlug(value) {
+        return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'alumno';
+      }
+
+      try {
+        const cards = [
+          {% for m in matriculas %}
+          {
+            id: '{{ m.id }}',
+            codigo: '{{ m.alumno.codigo_personal|default:""|escapejs }}',
+            alumno: '{{ m.alumno.nombres }} {{ m.alumno.apellidos }}',
+            hasBack: {{ has_back|yesno:'true,false' }}
+          },
+          {% endfor %}
+        ];
+
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          status.textContent = `Generando gafetes... ${i + 1}/${cards.length}`;
+          const base = `${safeSlug(card.codigo || String(i + 1).padStart(3, '0'))}_${safeSlug(card.alumno)}`;
+
+          try {
+            await withTimeout((async () => {
+              const front = document.getElementById(`bulk-canvas-${card.id}-front`);
+              if (!front) {
+                throw new Error('No se encontró el lienzo de frente.');
+              }
+              await waitForImages(front, IMAGE_TIMEOUT_MS);
+              const frontCanvas = await html2canvas(front, {
+                scale,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: null,
+                imageTimeout: IMAGE_TIMEOUT_MS,
+              });
+              zip.file(`${base}_frente.jpg`, frontCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+              generatedFiles += 1;
+            })(), CARD_TIMEOUT_MS, 'Timeout generando frente del gafete');
+          } catch (error) {
+            console.error('Error generando frente del alumno:', card, error);
+            errors.push({ alumno: card, lado: 'frente', error: error?.message || String(error) });
+          }
+
+          if (card.hasBack) {
+            try {
+              await withTimeout((async () => {
+                const back = document.getElementById(`bulk-canvas-${card.id}-back`);
+                if (!back) return;
+                await waitForImages(back, IMAGE_TIMEOUT_MS);
+                const backCanvas = await html2canvas(back, {
+                  scale,
+                  useCORS: true,
+                  allowTaint: true,
+                  backgroundColor: null,
+                  imageTimeout: IMAGE_TIMEOUT_MS,
+                });
+                zip.file(`${base}_reverso.jpg`, backCanvas.toDataURL('image/jpeg', 0.95).split(',')[1], { base64: true });
+                generatedFiles += 1;
+              })(), CARD_TIMEOUT_MS, 'Timeout generando reverso del gafete');
+            } catch (error) {
+              console.error('Error generando reverso del alumno:', card, error);
+              errors.push({ alumno: card, lado: 'reverso', error: error?.message || String(error) });
+            }
+          }
+        }
+
+        if (generatedFiles === 0) {
+          status.textContent = 'No se pudo generar ningún gafete. Revise la consola para más detalles.';
+          return;
+        }
+
+        status.textContent = 'Comprimiendo ZIP...';
+        const blob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        });
+        saveAs(blob, '{{ zip_filename|escapejs }}');
+        const resumenErrores = errors.length ? ` Errores: ${errors.length}.` : '';
+        const resumenWarn = warningsCount ? ` Imágenes omitidas: ${warningsCount}.` : '';
+        status.textContent = `Descarga completada. Archivos generados: ${generatedFiles}.${resumenWarn}${resumenErrores}`;
+        setTimeout(() => window.close(), 700);
+      } catch (error) {
+        console.error(error);
+        status.textContent = `Error al generar gafetes: ${error?.message || error}`;
+      }
+    })();
+  </script>
+</body>
+</html>

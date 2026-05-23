@@ -272,7 +272,13 @@
         </div>
       </div>
 
-      <h6 class="mb-3">Alumnos matriculados activos</h6>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h6 class="mb-0">Alumnos matriculados activos</h6>
+        <a id="bulk-gafete-download-btn" class="btn btn-primary btn-sm" href="{% url 'empleados:descargar_gafetes_grado_masivo' establecimiento.id ciclo.id carrera.id grado.id %}" target="_blank" rel="noopener noreferrer">
+          <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+          <i class="fa fa-id-card me-1"></i><span class="label-text">Descargar gafetes masivamente</span>
+        </a>
+      </div>
       <div class="table-responsive">
         <table class="table table-striped">
           <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th></th></tr></thead>
@@ -506,6 +512,28 @@ window.matriculaModalConfig = {
 
 <script src="{% static 'aulapro/js/gafete_preview_scale_v2.js' %}"></script>
 <script>
+const bulkBtn = document.getElementById('bulk-gafete-download-btn');
+if (bulkBtn) {
+  bulkBtn.addEventListener('click', function () {
+    if (bulkBtn.dataset.loading === '1') return;
+    bulkBtn.dataset.loading = '1';
+    bulkBtn.classList.add('disabled');
+    const spinner = bulkBtn.querySelector('.spinner-border');
+    const icon = bulkBtn.querySelector('.fa-id-card');
+    const label = bulkBtn.querySelector('.label-text');
+    if (spinner) spinner.classList.remove('d-none');
+    if (icon) icon.classList.add('d-none');
+    if (label) label.textContent = 'Generando gafetes...';
+    setTimeout(function () {
+      bulkBtn.dataset.loading = '0';
+      bulkBtn.classList.remove('disabled');
+      if (spinner) spinner.classList.add('d-none');
+      if (icon) icon.classList.remove('d-none');
+      if (label) label.textContent = 'Descargar gafetes masivamente';
+    }, 8000);
+  });
+}
+
 document.addEventListener('click', function(e){
   const btn = e.target.closest('.preview-face-btn');
   if(!btn) return;
