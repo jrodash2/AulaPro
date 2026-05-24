@@ -21,7 +21,6 @@ urlpatterns = [
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/', views.grados_list, name='grados_list'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/nuevo/', views.grado_create, name='grado_create'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/', views.grado_detail, name='grado_detail'),
-    path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/gafetes/descargar-masivo/', views.descargar_gafetes_grado_masivo, name='descargar_gafetes_grado_masivo'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricula-masiva/', views.matricula_masiva_grado, name='matricula_masiva_grado'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/editar/', views.grado_update, name='grado_update'),
 
