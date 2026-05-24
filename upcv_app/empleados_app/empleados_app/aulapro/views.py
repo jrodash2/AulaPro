@@ -24,10 +24,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from django.views.decorators.http import require_GET, require_POST
 
-from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
-from empleados_app.gafete_utils import resolve_gafete_dimensions
-from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionActualizacionAlumno, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil, PeriodoAcademico
-from empleados_app.permissions import (
+from ..forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
+from ..gafete_utils import resolve_gafete_dimensions
+from ..models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionActualizacionAlumno, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil, PeriodoAcademico
+from ..permissions import (
     es_admin_total,
     es_docente,
     es_gestor,
