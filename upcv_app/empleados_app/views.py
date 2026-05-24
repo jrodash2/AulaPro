@@ -19,6 +19,7 @@ from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.views.decorators.http import require_GET, require_POST
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .forms import (
     CarreraForm,

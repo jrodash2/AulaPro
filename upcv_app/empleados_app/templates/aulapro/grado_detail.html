@@ -247,11 +247,12 @@
       <h6 class="mb-3">Alumnos matriculados activos</h6>
       <div class="table-responsive">
         <table id="tabla-alumnos-grado" class="display table table-striped table-hover align-middle tabla-alumnos-grado">
-          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Teléfono</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th>Acciones</th></tr></thead>
+          <thead><tr><th>No.</th><th>Código</th><th>Alumno</th><th>CUI</th><th>Teléfono</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th>Acciones</th></tr></thead>
           <tbody>
             {% for m in matriculas %}
             {% with m.id|stringformat:"s" as mid %}
             <tr>
+              <td>{{ forloop.counter }}</td>
               <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
               <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
               <td>{{ m.alumno.cui|default:'-' }}</td>
@@ -306,7 +307,7 @@
             </tr>
             {% endwith %}
             {% empty %}
-            <tr><td colspan="8">Sin matrículas para los filtros seleccionados.</td></tr>
+            <tr><td colspan="9">Sin matrículas para los filtros seleccionados.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -320,6 +321,7 @@
           <tbody>
             {% for m in alumnos_desmatriculados %}
             <tr>
+              <td>{{ forloop.counter }}</td>
               <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
               <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
               <td>{{ m.alumno.cui|default:'-' }}</td>
@@ -809,12 +811,14 @@ document.addEventListener('click', function(e){
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   if (window.jQuery && $.fn.DataTable && !$.fn.DataTable.isDataTable("#tabla-alumnos-grado")) {
-    $("#tabla-alumnos-grado").DataTable({
+    const table = $("#tabla-alumnos-grado").DataTable({
       pageLength: 10,
       lengthMenu: [10, 25, 50, 100],
       ordering: true,
       searching: true,
       responsive: true,
+      columnDefs: [{ searchable: false, orderable: false, targets: 0 }],
+      order: [[1, "asc"]],
       language: {
         search: "Buscar:",
         lengthMenu: "Mostrar _MENU_ registros",
@@ -825,6 +829,12 @@ document.addEventListener("DOMContentLoaded", function () {
         paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" }
       }
     });
+    table.on("order.dt search.dt draw.dt", function () {
+      let i = 1;
+      table.cells(null, 0, { search: "applied", order: "applied" }).every(function () {
+        this.data(i++);
+      });
+    }).draw();
   }
 });
 </script>
