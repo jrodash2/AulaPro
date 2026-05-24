@@ -16,6 +16,7 @@ from django.db.models import Case, CharField, Count, F, IntegerField, Q, Sum, Va
 from django.db.models.functions import Concat, Lower, Trim
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -391,6 +392,9 @@ def establecimiento_detail(request, est_id):
         'puede_gestionar_gestores': es_admin_total(request.user),
         'config_actualizacion_form': form_cfg,
         'config_actualizacion': config_publica,
+        'link_publico_actualizacion': request.build_absolute_uri(
+            reverse('empleados:actualizacion_publica_alumnos', args=[config_publica.token_publico])
+        ),
     })
 
 
