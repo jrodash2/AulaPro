@@ -50,4 +50,6 @@ urlpatterns = [
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matricular/', views.matricular_alumno, name='matricular_alumno'),
     path('establecimientos/<int:est_id>/ciclos/<int:ciclo_id>/carreras/<int:car_id>/grados/<int:grado_id>/matriculas/<int:matricula_id>/foto/', views.guardar_foto_alumno_grado, name='guardar_foto_alumno_grado'),
     path('matriculas/<int:matricula_id>/desmatricular/', views.desmatricular_alumno, name='desmatricular_alumno'),
+    path('publico/establecimiento/<slug:token>/actualizar-datos/', views.actualizacion_publica_alumnos, name='actualizacion_publica_alumnos'),
+    path('publico/establecimiento/<slug:token>/alumno/<int:pk>/actualizar/', views.actualizacion_publica_alumno_editar, name='actualizacion_publica_alumno_editar'),
 ]

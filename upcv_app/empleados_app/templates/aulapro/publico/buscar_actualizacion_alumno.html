@@ -1,0 +1,7 @@
+{% load static %}
+<!doctype html><html><head><meta charset="utf-8"><title>Actualización de datos</title><link rel="stylesheet" href="{% static 'assets/css/vendors/bootstrap.css' %}"></head><body class="p-4"><div class="container"><h3>{{ establecimiento.nombre }}</h3>
+{% if no_disponible %}<div class="alert alert-danger">Este enlace no está disponible actualmente.</div>{% else %}
+{% if config.fecha_fin %}<div class="alert alert-warning">Este enlace estará habilitado hasta el {{ config.fecha_fin|date:"d/m/Y H:i" }}.</div>{% else %}<div class="alert alert-success">Este enlace está habilitado actualmente.</div>{% endif %}
+<form method="get" class="row g-2 mb-3"><div class="col-md-9"><input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por CUI, código personal o nombre completo"></div><div class="col-md-3"><button class="btn btn-primary w-100">Buscar</button></div></form>
+<table class="table table-striped"><thead><tr><th>Código</th><th>Alumno</th><th>Grado</th><th>Acción</th></tr></thead><tbody>{% for a in alumnos %}<tr><td>{{ a.codigo_personal|default:'-' }}</td><td>{{ a.apellidos }}, {{ a.nombres }}</td><td>{{ a.grado.nombre|default:'-' }}</td><td><a class="btn btn-primary btn-sm" href="{% url 'empleados:actualizacion_publica_alumno_editar' config.token_publico a.pk %}">Actualizar datos</a></td></tr>{% empty %}{% if q %}<tr><td colspan="4" class="text-muted">Sin resultados.</td></tr>{% endif %}{% endfor %}</tbody></table>
+{% endif %}</div></body></html>

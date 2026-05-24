@@ -61,6 +61,25 @@
   </div>
   {% endif %}
 
+  <div class="card">
+    <div class="card-header card-no-border pb-0"><h5>Link público de actualización de datos</h5></div>
+    <div class="card-body">
+      <form method="post" class="row g-3 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_public_link">
+        <div class="col-md-3"><label class="form-label">Habilitado</label><div>{{ config_actualizacion_form.habilitado }}</div></div>
+        <div class="col-md-3"><label class="form-label">Disponible desde</label>{{ config_actualizacion_form.fecha_inicio }}</div>
+        <div class="col-md-3"><label class="form-label">Disponible hasta</label>{{ config_actualizacion_form.fecha_fin }}</div>
+        <div class="col-md-3"><button class="btn btn-primary" type="submit">Guardar configuración</button></div>
+      </form>
+      <hr>
+      <p class="mb-1"><strong>Estado:</strong> {% if config_actualizacion.habilitado %}<span class="badge badge-light-success">Habilitado</span>{% else %}<span class="badge badge-light-danger">Deshabilitado</span>{% endif %}</p>
+      <p class="mb-2"><strong>Link público:</strong>
+        <a target="_blank" href="{% url 'empleados:actualizacion_publica_alumnos' config_actualizacion.token_publico %}">{{ request.scheme }}://{{ request.get_host }}{% url 'empleados:actualizacion_publica_alumnos' config_actualizacion.token_publico %}</a>
+      </p>
+    </div>
+  </div>
+
   <div class="card"><div class="card-header card-no-border pb-0 d-flex justify-content-between align-items-center"><h5>Ciclos escolares</h5><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="{% url 'empleados:ciclo_create' establecimiento.id %}"><i class="fa fa-plus"></i> Nuevo ciclo</a><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:ciclos_list' establecimiento.id %}">Ver todos</a></div></div><div class="card-body table-responsive"><table class="table table-striped"><thead><tr><th>Nombre</th><th>Año</th><th>Fechas</th><th>Alumnos</th><th>Activo</th><th>Acciones</th></tr></thead><tbody>{% for c in ciclos %}<tr><td>{{ c.nombre }}</td><td>{{ c.anio|default:'-' }}</td><td>{% if c.fecha_inicio or c.fecha_fin %}{{ c.fecha_inicio|default:'-' }} al {{ c.fecha_fin|default:'-' }}{% else %}-{% endif %}</td><td><div class="d-flex gap-2 flex-wrap"><span class="badge badge-light-primary">{{ c.total_alumnos_matriculados }} alumnos</span>{% if c.total_alumnos_sin_fotografia %}<span class="badge badge-light-danger">{{ c.total_alumnos_sin_fotografia }} sin fotografía</span>{% else %}<span class="badge badge-light-success">Fotos completas</span>{% endif %}</div></td><td>{% if c.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-secondary">Inactivo</span>{% endif %}</td><td><div class="d-flex gap-2"><a class="btn btn-primary btn-sm" href="{% url 'empleados:ciclo_detail' establecimiento.id c.id %}">Entrar</a><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:ciclo_update' establecimiento.id c.id %}">Editar</a></div></td></tr>{% empty %}<tr><td colspan="6">Sin ciclos escolares.</td></tr>{% endfor %}</tbody></table></div></div>
 </div></div>
 {% endblock %}

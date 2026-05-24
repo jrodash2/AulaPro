@@ -12,8 +12,8 @@ from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
-from django.db.models.functions import Trim
+from django.db.models import Case, CharField, Count, F, IntegerField, Q, Sum, Value, When
+from django.db.models.functions import Concat, Lower, Trim
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -25,7 +25,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from empleados_app.forms import AsignarDocenteForm, CarreraForm, CicloEscolarForm, CursoForm, EstablecimientoForm, GradoForm
 from empleados_app.gafete_utils import resolve_gafete_dimensions
-from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil, PeriodoAcademico
+from empleados_app.models import Asistencia, AsistenciaDetalle, Carrera, CicloEscolar, ConfiguracionActualizacionAlumno, ConfiguracionGeneral, Curso, CursoDocente, Empleado, Establecimiento, Grado, Matricula, Perfil, PeriodoAcademico
 from empleados_app.permissions import (
     es_admin_total,
     es_docente,
@@ -36,7 +36,7 @@ from empleados_app.permissions import (
 )
 
 from .excel import autosize_columns, style_table_header, style_table_row, style_title, workbook_to_response
-from .forms import MatriculaFiltroForm
+from .forms import ActualizacionPublicaAlumnoForm, ConfiguracionActualizacionAlumnoForm, MatriculaFiltroForm
 
 ALLOW_MULTI_GRADE_PER_CYCLE = False
 
@@ -353,10 +353,20 @@ def establecimiento_detail(request, est_id):
         return denied
 
     establecimiento = _get_establecimiento(est_id)
+    config_publica, _ = ConfiguracionActualizacionAlumno.objects.get_or_create(establecimiento=establecimiento)
 
     if request.method == 'POST':
-        _asignar_gestor_a_establecimiento(request, establecimiento)
+        if request.POST.get('action') == 'save_public_link':
+            form_cfg = ConfiguracionActualizacionAlumnoForm(request.POST, instance=config_publica)
+            if form_cfg.is_valid():
+                form_cfg.save()
+                messages.success(request, 'Configuración de enlace público actualizada.')
+            else:
+                messages.error(request, 'No fue posible guardar la configuración del enlace público.')
+        else:
+            _asignar_gestor_a_establecimiento(request, establecimiento)
         return redirect('empleados:establecimiento_detail', est_id=establecimiento.id)
+    form_cfg = ConfiguracionActualizacionAlumnoForm(instance=config_publica)
 
     matriculas_prefix = 'carreras__grados__matriculas'
     alcance_mismo_ciclo = Q(**{f'{matriculas_prefix}__ciclo_escolar_id': F('id')})
@@ -379,6 +389,8 @@ def establecimiento_detail(request, est_id):
         'gestores_asignados': gestores_asignados,
         'gestores_disponibles': _gestores_disponibles_qs(),
         'puede_gestionar_gestores': es_admin_total(request.user),
+        'config_actualizacion_form': form_cfg,
+        'config_actualizacion': config_publica,
     })
 
 
@@ -1862,3 +1874,81 @@ def desmatricular_alumno(request, matricula_id):
     matricula.save(update_fields=['estado'])
     messages.warning(request, 'Matrícula inactivada.')
     return redirect(request.POST.get('next') or 'empleados:establecimientos_list')
+
+
+def _obtener_config_publica_o_404(token):
+    return get_object_or_404(ConfiguracionActualizacionAlumno.objects.select_related('establecimiento'), token_publico=token)
+
+
+def actualizacion_publica_alumnos(request, token):
+    config = _obtener_config_publica_o_404(token)
+    establecimiento = config.establecimiento
+    q = (request.GET.get('q') or '').strip()
+    alumnos = Empleado.objects.none()
+    busqueda_habilitada = bool(q)
+
+    if not config.esta_disponible():
+        return render(request, 'aulapro/publico/buscar_actualizacion_alumno.html', {
+            'config': config,
+            'establecimiento': establecimiento,
+            'no_disponible': True,
+            'q': q,
+            'alumnos': alumnos,
+        })
+
+    if q:
+        exact_like = len(q) >= 3 or q.isdigit() or '-' in q
+        if exact_like:
+            base = Empleado.objects.filter(
+                matriculas__grado__carrera__ciclo_escolar__establecimiento=establecimiento
+            ).distinct()
+            ql = q.lower()
+            alumnos = base.annotate(
+                nombre_completo_1=Lower(Concat('nombres', Value(' '), 'apellidos', output_field=CharField())),
+                nombre_completo_2=Lower(Concat('apellidos', Value(' '), 'nombres', output_field=CharField())),
+            ).filter(
+                Q(cui__iexact=q) |
+                Q(codigo_personal__iexact=q) |
+                Q(nombre_completo_1__icontains=ql) |
+                Q(nombre_completo_2__icontains=ql)
+            ).select_related('grado')[:50]
+        else:
+            messages.warning(request, 'Ingresa al menos 3 caracteres para buscar.')
+
+    return render(request, 'aulapro/publico/buscar_actualizacion_alumno.html', {
+        'config': config,
+        'establecimiento': establecimiento,
+        'q': q,
+        'alumnos': alumnos,
+        'busqueda_habilitada': busqueda_habilitada,
+    })
+
+
+def actualizacion_publica_alumno_editar(request, token, pk):
+    config = _obtener_config_publica_o_404(token)
+    establecimiento = config.establecimiento
+    if not config.esta_disponible():
+        return render(request, 'aulapro/publico/editar_actualizacion_alumno.html', {
+            'config': config,
+            'establecimiento': establecimiento,
+            'no_disponible': True,
+            'alumno': None,
+            'form': None,
+        })
+
+    alumno = get_object_or_404(
+        Empleado.objects.filter(matriculas__grado__carrera__ciclo_escolar__establecimiento=establecimiento).distinct(),
+        pk=pk,
+    )
+    form = ActualizacionPublicaAlumnoForm(request.POST or None, instance=alumno)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Tus datos fueron actualizados correctamente.')
+        return redirect('empleados:actualizacion_publica_alumno_editar', token=token, pk=alumno.pk)
+
+    return render(request, 'aulapro/publico/editar_actualizacion_alumno.html', {
+        'config': config,
+        'establecimiento': establecimiento,
+        'alumno': alumno,
+        'form': form,
+    })
