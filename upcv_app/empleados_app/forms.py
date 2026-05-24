@@ -37,11 +37,17 @@ class EmpleadoForm(BaseRihoForm):
             "activo",
         ]
         widgets = {
-            "fecha_nacimiento": forms.DateInput(attrs={"type": "date"}),
+            "fecha_nacimiento": forms.DateInput(
+                attrs={"type": "date"},
+                format="%Y-%m-%d",
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["fecha_nacimiento"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
+        if self.instance and self.instance.pk and self.instance.fecha_nacimiento:
+            self.initial["fecha_nacimiento"] = self.instance.fecha_nacimiento.strftime("%Y-%m-%d")
         self.fields["imagen"].widget.attrs.update({
             "accept": "image/*",
             "capture": "user",

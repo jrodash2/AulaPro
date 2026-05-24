@@ -25,6 +25,7 @@
       <div class="card-body">
         <form method="POST" enctype="multipart/form-data" id="editar-alumno-form">
           {% csrf_token %}
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
           <div class="row g-3">
             <div class="col-md-4"><label class="form-label">Código personal</label>{{ form.codigo_personal }}</div>
             <div class="col-md-4"><label class="form-label">Nombres</label>{{ form.nombres }}</div>
