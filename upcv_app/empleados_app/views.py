@@ -551,11 +551,18 @@ def editar_empleado(request, e_id):
         if denied:
             return denied
     form = EmpleadoEditForm(request.POST or None, request.FILES or None, instance=empleado)
+    next_url = request.POST.get("next") or request.GET.get("next")
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Alumno actualizado correctamente.")
+        if next_url and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(next_url)
         return redirect("empleados:empleado_lista")
-    return render(request, "empleados/editar_empleado.html", {"form": form, "grados": Grado.objects.all(), "empleado": empleado})
+    return render(request, "empleados/editar_empleado.html", {"form": form, "grados": Grado.objects.all(), "empleado": empleado, "next_url": next_url})
 
 
 @login_required
