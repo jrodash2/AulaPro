@@ -1,7 +1,7 @@
 from django import forms
 
-from empleados_app.forms import BaseRihoForm
-from empleados_app.models import CicloEscolar, ConfiguracionActualizacionAlumno, Empleado, Matricula
+from ..forms import BaseRihoForm
+from ..models import CicloEscolar, ConfiguracionActualizacionAlumno, Empleado, Matricula
 
 
 class MatriculaFiltroForm(forms.Form):

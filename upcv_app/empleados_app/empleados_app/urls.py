@@ -7,7 +7,7 @@ app_name = "empleados"
 urlpatterns = [
 
     # Navegación jerárquica AulaPro
-    path('', include('empleados_app.aulapro.urls')),
+    path('', include('empleados_app.empleados_app.aulapro.urls')),
     path("signin/", views.signin, name="signin"),
     path("logout/", views.signout, name="logout"),
     path("dahsboard/", views.dahsboard, name="dahsboard"),
