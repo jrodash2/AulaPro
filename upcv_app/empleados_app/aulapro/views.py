@@ -13,6 +13,7 @@ from django.core.files.base import ContentFile
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
+from django.db.models.functions import Trim
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -910,11 +911,13 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     total_sin_fotografia = alumnos_matriculados_base_qs.filter(
         _alumno_sin_fotografia_filter()
     ).count()
-    alumnos_sin_telefono = [
-        m for m in alumnos_matriculados_base_qs
-        if not (getattr(m.alumno, 'tel', '') or '').strip()
-    ]
-    total_sin_telefono = len(alumnos_sin_telefono)
+    alumnos_matriculados_con_tel = alumnos_matriculados_base_qs.annotate(
+        telefono_limpio=Trim('alumno__tel')
+    )
+    alumnos_sin_telefono = alumnos_matriculados_con_tel.filter(
+        Q(alumno__tel__isnull=True) | Q(telefono_limpio='')
+    )
+    total_sin_telefono = alumnos_sin_telefono.count()
 
     if estado_filtrado == 'activo':
         alumnos_desmatriculados = Matricula.objects.none()
