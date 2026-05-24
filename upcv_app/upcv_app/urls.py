@@ -3,14 +3,14 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
-from empleados_app import views as empleados_views
+from empleados_app.empleados_app import views as empleados_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('signin/', empleados_views.signin),
     path('logout/', empleados_views.signout),
-    path('aulapro/', include('empleados_app.urls')),
-    path('aulapro/', include(('empleados_app.urls', 'alumnos'), namespace='alumnos')),
+    path('aulapro/', include('empleados_app.empleados_app.urls')),
+    path('aulapro/', include(('empleados_app.empleados_app.urls', 'alumnos'), namespace='alumnos')),
     path('', RedirectView.as_view(url='/aulapro/signin/', permanent=False)),
 ]
 
