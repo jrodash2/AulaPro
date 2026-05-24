@@ -910,6 +910,11 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
     total_sin_fotografia = alumnos_matriculados_base_qs.filter(
         _alumno_sin_fotografia_filter()
     ).count()
+    alumnos_sin_telefono = [
+        m for m in alumnos_matriculados_base_qs
+        if not (getattr(m.alumno, 'tel', '') or '').strip()
+    ]
+    total_sin_telefono = len(alumnos_sin_telefono)
 
     if estado_filtrado == 'activo':
         alumnos_desmatriculados = Matricula.objects.none()
@@ -945,6 +950,8 @@ def grado_detail(request, est_id, ciclo_id, car_id, grado_id):
         'total_matriculados': total_matriculados,
         'total_desmatriculados': total_desmatriculados,
         'total_sin_fotografia': total_sin_fotografia,
+        'total_sin_telefono': total_sin_telefono,
+        'alumnos_sin_telefono': alumnos_sin_telefono,
         'filtro_form': filtro_form,
         'ciclo_activo': ciclo_activo,
         'configuracion': configuracion,
