@@ -327,3 +327,40 @@ class ObservacionAlumno(models.Model):
 
 # Alias de compatibilidad para evitar rupturas en imports antiguos
 Alumno = Empleado
+
+
+class ConfiguracionActualizacionAlumno(models.Model):
+    establecimiento = models.OneToOneField(
+        Establecimiento,
+        on_delete=models.CASCADE,
+        related_name="config_actualizacion_alumnos",
+    )
+    habilitado = models.BooleanField(default=False)
+    fecha_inicio = models.DateTimeField(null=True, blank=True)
+    fecha_fin = models.DateTimeField(null=True, blank=True)
+    token_publico = models.SlugField(max_length=120, unique=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.token_publico:
+            import uuid
+            self.token_publico = uuid.uuid4().hex
+        super().save(*args, **kwargs)
+
+    def esta_disponible(self):
+        from django.utils import timezone
+        ahora = timezone.now()
+        if not self.habilitado:
+            return False
+        if self.fecha_inicio and ahora < self.fecha_inicio:
+            return False
+        if self.fecha_fin and ahora > self.fecha_fin:
+            return False
+        return True
+
+    def __str__(self):
+        return f"Config actualización {self.establecimiento.nombre}"

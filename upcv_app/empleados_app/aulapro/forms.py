@@ -1,7 +1,7 @@
 from django import forms
 
 from empleados_app.forms import BaseRihoForm
-from empleados_app.models import CicloEscolar, Matricula
+from empleados_app.models import CicloEscolar, ConfiguracionActualizacionAlumno, Empleado, Matricula
 
 
 class MatriculaFiltroForm(forms.Form):
@@ -31,3 +31,37 @@ class MatricularPorCodigoForm(BaseRihoForm):
         super().__init__(*args, **kwargs)
         self.fields['codigo_personal'].widget.attrs['class'] = 'form-control'
         self.fields['codigo_personal'].widget.attrs['placeholder'] = 'Ej. A-1001'
+
+
+class ActualizacionPublicaAlumnoForm(forms.ModelForm):
+    class Meta:
+        model = Empleado
+        fields = ["fecha_nacimiento", "cui", "tel"]
+        widgets = {
+            "fecha_nacimiento": forms.DateInput(attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d"),
+            "cui": forms.TextInput(attrs={"class": "form-control"}),
+            "tel": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fecha_nacimiento"].input_formats = ["%Y-%m-%d", "%d/%m/%Y"]
+        if self.instance and self.instance.pk and self.instance.fecha_nacimiento:
+            self.initial["fecha_nacimiento"] = self.instance.fecha_nacimiento.strftime("%Y-%m-%d")
+
+
+class ConfiguracionActualizacionAlumnoForm(BaseRihoForm):
+    fecha_inicio = forms.DateTimeField(
+        required=False,
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}, format="%Y-%m-%dT%H:%M"),
+    )
+    fecha_fin = forms.DateTimeField(
+        required=False,
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}, format="%Y-%m-%dT%H:%M"),
+    )
+
+    class Meta:
+        model = ConfiguracionActualizacionAlumno
+        fields = ["habilitado", "fecha_inicio", "fecha_fin"]
