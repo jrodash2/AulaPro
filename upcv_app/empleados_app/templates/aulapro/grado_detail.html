@@ -200,6 +200,15 @@
     width: 44px;
   }
   .foto-alumno-btn .badge { font-size: .65rem; }
+  .resumen-card { border: 0; border-radius: 16px; box-shadow: 0 10px 24px rgba(15, 23, 42, .08); min-height: 105px; }
+  .resumen-card .card-body { min-height: 105px; padding: .85rem .95rem; }
+  .resumen-icon { width: 46px; height: 46px; min-width: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; }
+  .resumen-icon.success { background: #00c853; }
+  .resumen-icon.danger { background: #ff5b45; }
+  .resumen-icon.warning { background: #ffa726; }
+  .resumen-icon.primary { background: #163f8f; }
+  .tabla-alumnos-grado td, .tabla-alumnos-grado th { vertical-align: middle; }
+  @media (max-width: 1199px) { .resumen-card, .resumen-card .card-body { min-height: 100px; } }
   @media (min-width: 1200px) {
     .gafete-modal .modal-xl { max-width: min(85vw, 1040px); }
   }
@@ -237,36 +246,35 @@
       {% endif %}
 
       <div class="row g-3 mb-4">
-        <div class="col-md-4">
-          <div class="card grado-summary-card bg-light-success h-100">
-            <div class="card-body d-flex align-items-center gap-3">
-              <span class="grado-summary-icon bg-success text-white"><i class="fa fa-users"></i></span>
-              <div>
-                <span class="d-block text-muted">Matriculados activos</span>
-                <h3 class="mb-0">{{ total_matriculados }}</h3>
-              </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="card h-100 resumen-card">
+            <div class="card-body d-flex align-items-center gap-3 py-3 px-3">
+              <div class="resumen-icon success"><i class="fa fa-users"></i></div>
+              <div><div class="text-muted small mb-1">Matriculados activos</div><h4 class="mb-0 fw-bold">{{ total_matriculados }}</h4></div>
             </div>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="card grado-summary-card bg-light-danger h-100">
-            <div class="card-body d-flex align-items-center gap-3">
-              <span class="grado-summary-icon bg-danger text-white"><i class="fa fa-user-times"></i></span>
-              <div>
-                <span class="d-block text-muted">Desmatriculados</span>
-                <h3 class="mb-0">{{ total_desmatriculados }}</h3>
-              </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="card h-100 resumen-card">
+            <div class="card-body d-flex align-items-center gap-3 py-3 px-3">
+              <div class="resumen-icon danger"><i class="fa fa-user-times"></i></div>
+              <div><div class="text-muted small mb-1">Desmatriculados</div><h4 class="mb-0 fw-bold">{{ total_desmatriculados }}</h4></div>
             </div>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="card grado-summary-card bg-light-warning h-100">
-            <div class="card-body d-flex align-items-center gap-3">
-              <span class="grado-summary-icon bg-warning text-white"><i class="fa fa-camera"></i></span>
-              <div>
-                <span class="d-block text-muted">Sin fotografía</span>
-                <h3 class="mb-0">{{ total_sin_fotografia }}</h3>
-              </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="card h-100 resumen-card">
+            <div class="card-body d-flex align-items-center gap-3 py-3 px-3">
+              <div class="resumen-icon warning"><i class="fa fa-camera"></i></div>
+              <div><div class="text-muted small mb-1">Sin fotografía</div><h4 class="mb-0 fw-bold">{{ total_sin_fotografia }}</h4></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+          <div class="card h-100 resumen-card">
+            <div class="card-body d-flex align-items-center gap-3 py-3 px-3">
+              <div class="resumen-icon primary"><i class="fa fa-phone"></i></div>
+              <div><div class="text-muted small mb-1">Sin teléfono</div><h4 class="mb-0 fw-bold">{{ total_sin_telefono }}</h4></div>
             </div>
           </div>
         </div>
@@ -274,8 +282,8 @@
 
       <h6 class="mb-3">Alumnos matriculados activos</h6>
       <div class="table-responsive">
-        <table class="table table-striped">
-          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th></th></tr></thead>
+        <table id="tabla-alumnos-grado" class="display table table-striped table-hover align-middle tabla-alumnos-grado">
+          <thead><tr><th>Código</th><th>Alumno</th><th>CUI</th><th>Teléfono</th><th>Ciclo</th><th>Estado</th>{% if not is_gestor %}<th>Gafete</th>{% endif %}<th>Acciones</th></tr></thead>
           <tbody>
             {% for m in matriculas %}
             {% with m.id|stringformat:"s" as mid %}
@@ -283,6 +291,13 @@
               <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
               <td>{{ m.alumno.apellidos }}, {{ m.alumno.nombres }}</td>
               <td>{{ m.alumno.cui|default:'-' }}</td>
+              <td>
+                {% if m.alumno.tel and m.alumno.tel|cut:' ' %}
+                  <span class="badge badge-light-success"><i class="fa fa-phone me-1"></i>{{ m.alumno.tel }}</span>
+                {% else %}
+                  <span class="badge badge-light-warning text-dark"><i class="fa fa-exclamation-triangle me-1"></i>Sin teléfono</span>
+                {% endif %}
+              </td>
               <td>{{ m.ciclo_escolar.nombre|default:'-' }}</td>
               <td>{% if m.estado == 'activo' %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
               {% if not is_gestor %}
@@ -324,7 +339,28 @@
             </tr>
             {% endwith %}
             {% empty %}
-            <tr><td colspan="7">Sin matrículas para los filtros seleccionados.</td></tr>
+            <tr><td colspan="8">Sin matrículas para los filtros seleccionados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <hr class="my-4">
+      <h6 class="mb-3">Alumnos sin teléfono</h6>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>Código personal</th><th>Nombres</th><th>Apellidos</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {% for m in alumnos_sin_telefono %}
+            <tr>
+              <td>{{ m.alumno.codigo_personal|default:'-' }}</td>
+              <td>{{ m.alumno.nombres|default:'-' }}</td>
+              <td>{{ m.alumno.apellidos|default:'-' }}</td>
+              <td><span class="badge badge-light-warning">Sin teléfono</span></td>
+              <td><a class="btn btn-primary btn-sm" href="{% url 'empleados:editar_empleado' m.alumno.id %}">Editar</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted">Todos los alumnos tienen teléfono registrado.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -822,5 +858,29 @@ document.addEventListener('click', function(e){
 </script>
 
 {% endif %}
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  if (window.jQuery && $.fn.DataTable && !$.fn.DataTable.isDataTable("#tabla-alumnos-grado")) {
+    $("#tabla-alumnos-grado").DataTable({
+      pageLength: 10,
+      lengthMenu: [10, 25, 50, 100],
+      ordering: true,
+      searching: true,
+      responsive: true,
+      language: {
+        search: "Buscar:",
+        lengthMenu: "Mostrar _MENU_ registros",
+        info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+        infoEmpty: "Mostrando 0 a 0 de 0 registros",
+        infoFiltered: "(filtrado de _MAX_ registros totales)",
+        zeroRecords: "No se encontraron registros",
+        paginate: { first: "Primero", last: "Último", next: "Siguiente", previous: "Anterior" }
+      }
+    });
+  }
+});
+</script>
 <script src="{% static 'aulapro/js/matricula_modal.js' %}"></script>
 {% endblock %}
