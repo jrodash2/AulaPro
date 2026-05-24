@@ -1888,7 +1888,7 @@ def actualizacion_publica_alumnos(request, token):
     config = _obtener_config_publica_o_404(token)
     establecimiento = config.establecimiento
     q = (request.GET.get('q') or '').strip()
-    alumnos = Empleado.objects.none()
+    resultados = Matricula.objects.none()
     busqueda_habilitada = bool(q)
 
     if not config.esta_disponible():
@@ -1897,17 +1897,17 @@ def actualizacion_publica_alumnos(request, token):
             'establecimiento': establecimiento,
             'no_disponible': True,
             'q': q,
-            'alumnos': alumnos,
+            'resultados': resultados,
         })
 
     if q:
         exact_like = len(q) >= 3 or q.isdigit() or '-' in q
         if exact_like:
-            base = Empleado.objects.filter(
+            base_alumnos = Empleado.objects.filter(
                 matriculas__grado__carrera__ciclo_escolar__establecimiento=establecimiento
             ).distinct()
             ql = q.lower()
-            alumnos = base.annotate(
+            alumnos_filtrados = base_alumnos.annotate(
                 nombre_completo_1=Lower(Concat('nombres', Value(' '), 'apellidos', output_field=CharField())),
                 nombre_completo_2=Lower(Concat('apellidos', Value(' '), 'nombres', output_field=CharField())),
             ).filter(
@@ -1915,7 +1915,22 @@ def actualizacion_publica_alumnos(request, token):
                 Q(codigo_personal__iexact=q) |
                 Q(nombre_completo_1__icontains=ql) |
                 Q(nombre_completo_2__icontains=ql)
-            ).select_related('grado')[:50]
+            )
+            resultados_qs = Matricula.objects.filter(
+                alumno__in=alumnos_filtrados,
+                estado='activo',
+                grado__carrera__ciclo_escolar__establecimiento=establecimiento,
+            ).select_related('alumno', 'grado', 'grado__carrera', 'grado__carrera__ciclo_escolar').order_by('alumno_id', '-created_at')
+
+            resultados = []
+            seen = set()
+            for m in resultados_qs:
+                if m.alumno_id in seen:
+                    continue
+                seen.add(m.alumno_id)
+                resultados.append(m)
+                if len(resultados) >= 50:
+                    break
         else:
             messages.warning(request, 'Ingresa al menos 3 caracteres para buscar.')
 
@@ -1923,7 +1938,7 @@ def actualizacion_publica_alumnos(request, token):
         'config': config,
         'establecimiento': establecimiento,
         'q': q,
-        'alumnos': alumnos,
+        'resultados': resultados,
         'busqueda_habilitada': busqueda_habilitada,
     })
 
