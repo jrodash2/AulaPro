@@ -1,0 +1,89 @@
+{% extends 'empleados/base.html' %}
+
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6">
+          <h4>{{ titulo }}</h4>
+        </div>
+        <div class="col-6 text-end">
+          <a class="btn btn-outline-secondary" href="{% url 'empleados:usuarios_list' %}">Volver</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0">
+        <h5>Datos del usuario</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Usuario</label>
+              {{ form.username }}
+            </div>
+            <div class="col-md-6 d-flex align-items-center gap-2 mt-4">
+              {{ form.is_active }}
+              <label class="form-label mb-0">Activo</label>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nombres</label>
+              {{ form.first_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Apellidos</label>
+              {{ form.last_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Correo</label>
+              {{ form.email }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Grupos</label>
+              {{ form.groups }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Establecimiento para Gestor</label>
+              {{ form.establecimiento_gestionado }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Foto de perfil</label>
+              {{ form.foto }}
+              {% if perfil_foto_url %}
+                <div class="mt-2"><img src="{{ perfil_foto_url }}" alt="Foto actual" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;"></div>
+              {% endif %}
+            </div>
+
+            {% if form.password1 %}
+            <div class="col-md-6">
+              <label class="form-label">Contraseña</label>
+              {{ form.password1 }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Confirmar contraseña</label>
+              {{ form.password2 }}
+            </div>
+            {% endif %}
+          </div>
+
+          {% if form.errors %}
+          <div class="alert alert-danger mt-3 mb-0">
+            {{ form.errors }}
+          </div>
+          {% endif %}
+
+          <div class="text-end mt-3">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

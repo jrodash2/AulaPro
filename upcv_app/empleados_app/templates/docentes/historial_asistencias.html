@@ -1,0 +1,9 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Historial · {{ curso.nombre }}</h4></div><div class="col-6 text-end"><a class="btn btn-outline-secondary" href="{% url 'empleados:docente_curso_detail' curso_docente.id %}">Volver al curso</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Asistencias registradas</h5></div><div class="card-body"><div class="table-responsive custom-scrollbar"><table class="display" id="basic-9"><thead><tr><th>Fecha</th><th>Total alumnos</th><th>Presentes</th><th>Ausentes</th><th>Acciones</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.asistencia.fecha|date:'d/m/Y' }}</td><td>{{ row.total }}</td><td>{{ row.presentes }}</td><td>{{ row.ausentes }}</td><td><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:docente_asistencia_detail' row.asistencia.id %}">Ver detalle</a> <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:docente_asistencia_excel' row.asistencia.id %}">Descargar Excel</a></td></tr>{% empty %}<tr><td colspan="5">Sin asistencias.</td></tr>{% endfor %}</tbody></table></div></div></div></div></div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% load static %}
+<div class="card" style="width: 880px; height: 565px;">
+  <div class="card-body gafete-card" id="{{ preview_id|default:'gafete-preview' }}" style="width: 880px; height: 565px; background: url('{% if establecimiento and establecimiento.background_gafete and layout.background %}{{ establecimiento.background_gafete.url }}{% else %}{% static 'assets/svg/empleado.svg' %}{% endif %}') no-repeat center center;">
+    <div class="gafete-header">
+      <text x="150%" y="55" class="t3" font-size="29" font-weight="bold" fill="#182b55">{{ configuracion.nombre_institucion }}</text>
+      <text x="70%" y="50" class="t4" font-size="29" font-weight="bold" fill="#182b55">{{ configuracion.nombre_institucion2 }}</text>
+    </div>
+    <div><text x="70" y="20" class="{{ layout.layers.nombres.class|default:'t5' }}" font-size="30" fill="#182b55">{{ alumno.nombres|default:"Nombre no disponible" }}</text></div>
+    <div><text x="70" y="20" class="{{ layout.layers.apellidos.class|default:'t6' }}" font-size="39" font-weight="bold" fill="#182b55">{{ alumno.apellidos|default:"Apellidos no disponibles" }}</text></div>
+    <div><text x="70" y="20" class="{{ layout.layers.grado.class|default:'t7' }}" font-size="39" font-weight="bold" fill="#182b55">{{ grado|default:"No asignado" }}</text></div>
+    <div><text x="70" y="20" class="{{ layout.layers.grado_descripcion.class|default:'t8' }}" font-size="39" font-weight="bold" fill="#182b55">{{ grado.descripcion|default:"" }}</text></div>
+    <div><text x="570" y="20" class="{{ layout.layers.sitio_web.class|default:'t10' }}" font-size="39" font-weight="bold" fill="#182b55">{{ configuracion.sitio_web|slice:"8:" }}</text></div>
+    <div><text x="570" y="20" class="{{ layout.layers.telefono.class|default:'t11' }}" font-size="39" font-weight="bold" fill="#182b55">{{ alumno.tel }}</text></div>
+
+    {% if alumno.imagen %}
+      <img src="{{ alumno.imagen.url }}" alt="Imagen del alumno" width="150" height="auto" class="gafete-img">
+    {% else %}
+      <p>No hay imagen cargada</p>
+    {% endif %}
+
+    <div style="display: flex; justify-content: space-between; padding: 50px; flex-wrap: wrap;">
+      <svg width="880" height="565"></svg>
+      <div class="logotipos">
+        {% if configuracion.logotipo %}
+        <div class="logotipo"><img src="{{ configuracion.logotipo.url }}" alt="Logotipo" width="170" height="auto"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

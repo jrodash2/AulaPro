@@ -1,0 +1,151 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Descargando gafete {{ lado }}</title>
+  {% include 'empleados/partials_gafete_estilos.html' %}
+  <style>
+    body { margin: 0; padding: 24px; background: #f1f5f9; }
+    .download-wrap { display: flex; min-height: calc(100vh - 48px); align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+    .download-card { background: #fff; border-radius: 14px; box-shadow: 0 12px 24px rgba(15, 23, 42, .12); padding: 14px; }
+    .gafete-canvas-real { transform: none !important; }
+    .status { font-family: Arial, sans-serif; color: #334155; font-size: 14px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+  <div class="download-wrap">
+    <div class="download-card">
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face=face face_layout=face_layout preview_id='download-canvas' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+    </div>
+    <div id="download-status" class="status">Preparando descarga…</div>
+  </div>
+
+  <script>
+    (function () {
+      function waitForImage(img) {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          const done = () => resolve();
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        });
+      }
+
+      async function waitForImages(root) {
+        const imgs = Array.from(root.querySelectorAll('img'));
+        await Promise.all(imgs.map(waitForImage));
+      }
+
+      function computeExportScale(width, height) {
+        const deviceScale = Math.max(1, window.devicePixelRatio || 1);
+        const targetScale = Math.max(3, Math.min(4, deviceScale * 1.5));
+        const maxTexture = 8192;
+        const maxPixels = 20000000;
+        const maxByDimension = maxTexture / Math.max(width, height);
+        const maxByArea = Math.sqrt(maxPixels / (width * height));
+        return Math.max(2, Math.min(targetScale, maxByDimension, maxByArea));
+      }
+
+      async function captureWithScaleRetry(element, baseOptions, preferredScale) {
+        const attemptScales = [preferredScale, Math.max(2, preferredScale - 0.75), 2];
+        let lastError = null;
+        for (const scale of attemptScales) {
+          try {
+            return await html2canvas(element, { ...baseOptions, scale });
+          } catch (error) {
+            lastError = error;
+            console.warn('Fallo de exportación con scale', scale, error);
+          }
+        }
+        throw lastError || new Error('No se pudo capturar el gafete.');
+      }
+
+      function normalizeFilename(filename, extension) {
+        const base = String(filename || 'gafete').replace(/\.(jpg|jpeg|png)$/i, '');
+        return `${base}.${extension}`;
+      }
+
+      async function exportCanvasAsImage(canvas, filename) {
+        let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        let outputName = normalizeFilename(filename, 'png');
+        if (!blob) {
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+          outputName = normalizeFilename(filename, 'jpg');
+        }
+        if (!blob) {
+          throw new Error('No se pudo generar el archivo de descarga.');
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = outputName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      }
+
+      async function runExport() {
+        const status = document.getElementById('download-status');
+        const element = document.getElementById('download-canvas');
+        if (!element) {
+          status.textContent = 'No se encontró el lienzo para descargar.';
+          return;
+        }
+
+        try {
+          await document.fonts.ready;
+          await waitForImages(element);
+          const width = {{ canvas_width }};
+          const height = {{ canvas_height }};
+          const exportScale = computeExportScale(width, height);
+          const baseOptions = {
+            useCORS: true,
+            allowTaint: false,
+            imageTimeout: 0,
+            removeContainer: true,
+            backgroundColor: '#ffffff',
+            width,
+            height,
+            windowWidth: width,
+            windowHeight: height,
+            foreignObjectRendering: false,
+            onclone: (clonedDoc) => {
+              const clonedCanvas = clonedDoc.getElementById('download-canvas');
+              if (!clonedCanvas) return;
+              clonedCanvas.querySelectorAll('img.gafete-item[data-key="photo"]').forEach((photoImg) => {
+                const photoUrl = photoImg.currentSrc || photoImg.getAttribute('src') || '';
+                if (!photoUrl) return;
+                const photoBox = clonedDoc.createElement('div');
+                photoBox.className = photoImg.className;
+                photoBox.dataset.key = 'photo';
+                photoBox.style.cssText = photoImg.style.cssText;
+                photoBox.style.objectFit = '';
+                photoBox.style.objectPosition = '';
+                photoBox.style.backgroundImage = `url("${photoUrl}")`;
+                photoBox.style.backgroundSize = 'cover';
+                photoBox.style.backgroundPosition = 'center center';
+                photoBox.style.backgroundRepeat = 'no-repeat';
+                photoBox.style.overflow = 'hidden';
+                photoImg.replaceWith(photoBox);
+              });
+            },
+          };
+          const canvas = await captureWithScaleRetry(element, baseOptions, exportScale);
+
+          await exportCanvasAsImage(canvas, '{{ filename }}');
+          status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
+        } catch (error) {
+          console.error('Error exportando gafete', error);
+          status.textContent = 'No se pudo generar la descarga. Revise consola del navegador.';
+        }
+      }
+
+      window.addEventListener('load', runExport);
+    })();
+  </script>
+</body>
+</html>

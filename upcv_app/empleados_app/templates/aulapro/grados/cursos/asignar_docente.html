@@ -1,0 +1,119 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row align-items-center">
+        <div class="col-md-6"><h4>Asignar docente · {{ curso.nombre }}</h4></div>
+        <div class="col-md-6">
+          <ol class="breadcrumb justify-content-md-end">
+            <li class="breadcrumb-item">AulaPro</li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:establecimientos_list' %}">Establecimientos</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:establecimiento_detail' establecimiento.id %}">{{ establecimiento.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:carrera_detail' establecimiento.id ciclo.id carrera.id %}">{{ carrera.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:grado_detail' establecimiento.id ciclo.id carrera.id grado.id %}">{{ grado.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'empleados:cursos_list' establecimiento.id ciclo.id carrera.id grado.id %}">Cursos</a></li>
+            <li class="breadcrumb-item active">Asignar docente</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row g-3">
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Nueva asignación</h5></div>
+          <div class="card-body">
+            <form method="post" class="row g-3">
+              {% csrf_token %}
+              <div class="col-12">
+                <label class="form-label">Docente</label>
+                {{ form.docente }}
+              </div>
+              <div class="col-12 d-flex align-items-center gap-2">
+                {{ form.activo }}
+                <label class="form-label mb-0">Activo</label>
+              </div>
+              <div class="col-12"><button class="btn btn-primary" type="submit">Guardar</button></div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header card-no-border pb-0"><h5>Docentes asignados</h5></div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>Docente</th>
+                    <th>Usuario</th>
+                    <th>Estado</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for a in asignaciones %}
+                    <tr>
+                      <td>{{ a.docente.get_full_name|default:'-' }}</td>
+                      <td>{{ a.docente.username }}</td>
+                      <td>
+                        {% if a.activo %}
+                          <span class="badge badge-light-success">Activo</span>
+                        {% else %}
+                          <span class="badge badge-light-danger">Inactivo</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {% if a.activo %}
+                          <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#modalDesasignar{{ a.id }}">
+                            Desasignar
+                          </button>
+                        {% else %}
+                          <span class="text-muted small">Sin acciones</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted">Sin asignaciones.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% for a in asignaciones %}
+              {% if a.activo %}
+              <div class="modal fade" id="modalDesasignar{{ a.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Desasignar docente</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                      ¿Desea desasignar este docente del curso?
+                      <div class="mt-2 text-muted small">{{ a.docente.get_full_name|default:a.docente.username }}</div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                      <form method="post" action="{% url 'empleados:curso_desasignar_docente' establecimiento.id ciclo.id carrera.id grado.id curso.id a.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Sí, desasignar</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            {% endfor %}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

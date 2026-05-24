@@ -1,0 +1,66 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Mis cursos</h4></div>
+        {% if not is_docente_user %}
+        <div class="col-6 text-end">
+          <form method="get" class="d-inline-flex align-items-center gap-2">
+            <label class="mb-0" for="id_ciclo">Ciclo:</label>
+            <select name="ciclo" id="id_ciclo" class="form-select form-select-sm" style="min-width: 260px;">
+              {% for ciclo in ciclos_disponibles %}
+                <option value="{{ ciclo.id }}" {% if selected_ciclo and selected_ciclo.id == ciclo.id %}selected{% endif %}>
+                  {{ ciclo.nombre }} · {{ ciclo.establecimiento.nombre }}{% if ciclo.activo %} (Activo){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-primary btn-sm">Aplicar</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    {% if show_docente_empty_message %}
+    <div class="alert alert-info" role="alert">
+      <strong>Finalizó el ciclo anterior y en este nuevo ciclo aún no se le han asignado cursos.</strong>
+      <div>Comuníquese con el administrador si considera que esto es un error.</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header card-no-border pb-0"><h5>Cursos asignados</h5></div>
+      <div class="card-body">
+        <div class="table-responsive custom-scrollbar">
+          <table class="display" id="basic-9">
+            <thead>
+              <tr><th>Curso</th><th>Grado</th><th>Carrera</th><th>Establecimiento</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              {% for cd in cursos_docente %}
+              <tr>
+                <td>{{ cd.curso.nombre }}</td>
+                <td>{{ cd.curso.grado.nombre }}</td>
+                <td>{{ cd.curso.grado.carrera.nombre|default:'-' }}</td>
+                <td>{{ cd.curso.grado.carrera.ciclo_escolar.establecimiento.nombre|default:'-' }}</td>
+                <td><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:docente_curso_detail' cd.id %}">Abrir</a></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5">No hay cursos disponibles para el ciclo seleccionado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

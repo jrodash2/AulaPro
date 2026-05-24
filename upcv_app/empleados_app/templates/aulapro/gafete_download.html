@@ -1,0 +1,130 @@
+{% load static %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Descargar gafete</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  {% include 'empleados/partials_gafete_estilos.html' %}
+  <style>body{margin:0;padding:8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif} .download-status{margin:8px 0 0;color:#334155;font-size:.9rem} .download-actions{margin-top:10px} </style>
+</head>
+<body>
+  <div id="download-wrapper">
+    {% if lado|lower == 'reverso' %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+    {% else %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='download-canvas-front' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=False %}
+      {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='download-canvas-back' canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+    {% endif %}
+  </div>
+  <p id="download-status" class="download-status">Preparando descarga...</p>
+  <div class="download-actions">
+    <a id="manual-download" class="btn btn-primary btn-sm d-none" href="#" download>Descargar ahora</a>
+  </div>
+  <script>
+    (function () {
+      function waitForImage(img) {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          const done = () => resolve();
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        });
+      }
+
+      async function waitForImages(root) {
+        const imgs = Array.from(root.querySelectorAll('img'));
+        await Promise.all(imgs.map(waitForImage));
+      }
+
+      function computeExportScale(width, height) {
+        const deviceScale = Math.max(1, window.devicePixelRatio || 1);
+        const targetScale = Math.max(3, Math.min(4, deviceScale * 1.5));
+        const maxTexture = 8192;
+        const maxPixels = 20000000;
+        const maxByDimension = maxTexture / Math.max(width, height);
+        const maxByArea = Math.sqrt(maxPixels / (width * height));
+        return Math.max(2, Math.min(targetScale, maxByDimension, maxByArea));
+      }
+
+      async function captureWithScaleRetry(element, baseOptions, preferredScale) {
+        const attemptScales = [preferredScale, Math.max(2, preferredScale - 0.75), 2];
+        let lastError = null;
+        for (const scale of attemptScales) {
+          try {
+            return await html2canvas(element, { ...baseOptions, scale });
+          } catch (error) {
+            lastError = error;
+            console.warn('Fallo de exportación con scale', scale, error);
+          }
+        }
+        throw lastError || new Error('No se pudo capturar el gafete.');
+      }
+
+      function normalizeFilename(filename, extension) {
+        const base = String(filename || 'gafete').replace(/\.(jpg|jpeg|png)$/i, '');
+        return `${base}.${extension}`;
+      }
+
+      async function exportCanvasAsImage(canvas, filename) {
+        let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        let outputName = normalizeFilename(filename, 'png');
+        if (!blob) {
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+          outputName = normalizeFilename(filename, 'jpg');
+        }
+        if (!blob) throw new Error('No se pudo generar el archivo de descarga.');
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = outputName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      }
+
+      async function runExport() {
+        const status = document.getElementById('download-status');
+        const element = document.getElementById('{% if lado|lower == "reverso" %}download-canvas-back{% else %}download-canvas-front{% endif %}');
+        if (!element) {
+          status.textContent = 'No se encontró el lienzo para descargar.';
+          return;
+        }
+
+        try {
+          await document.fonts.ready;
+          await waitForImages(element);
+
+          const width = {{ canvas_width }};
+          const height = {{ canvas_height }};
+          const exportScale = computeExportScale(width, height);
+          const baseOptions = {
+            useCORS: true,
+            allowTaint: false,
+            imageTimeout: 0,
+            removeContainer: true,
+            backgroundColor: '#ffffff',
+            width,
+            height,
+            windowWidth: width,
+            windowHeight: height,
+            foreignObjectRendering: false,
+          };
+          const canvas = await captureWithScaleRetry(element, baseOptions, exportScale);
+
+          await exportCanvasAsImage(canvas, 'gafete_{{ alumno.codigo_personal|default:"alumno" }}.jpg');
+          status.textContent = 'Descarga generada. Puede cerrar esta pestaña.';
+          window.close();
+        } catch (error) {
+          console.error('Error exportando gafete', error);
+          status.textContent = 'No se pudo generar la descarga. Revise consola del navegador.';
+        }
+      }
+
+      window.addEventListener('load', runExport);
+    })();
+  </script>
+</body>
+</html>

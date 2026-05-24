@@ -1,0 +1,10 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<h4>Vista previa de gafete</h4>
+<div class="card card-body">
+  <p><strong>Alumno:</strong> {{ alumno }}</p>
+  <p><strong>Establecimiento:</strong> {{ establecimiento|default:'Sin asignar' }}</p>
+  <p><strong>Grado:</strong> {{ matricula.grado|default:alumno.grado }}</p>
+  {% if alumno.imagen %}<img src="{{ alumno.imagen.url }}" style="max-height:220px;object-fit:cover;">{% endif %}
+</div>
+{% endblock %}

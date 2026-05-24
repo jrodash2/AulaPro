@@ -1,0 +1,233 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+{% include 'empleados/partials_gafete_estilos.html' %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Editor de Gafete</h4></div>
+        <div class="col-6"><ol class="breadcrumb"><li class="breadcrumb-item">Académico</li><li class="breadcrumb-item">Establecimientos</li><li class="breadcrumb-item active">Editor</li></ol></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card mb-3 editor-topbar-card">
+      <div class="card-body py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <div class="d-flex flex-wrap gap-2">
+          <button form="editorForm" id="btnGuardarTop" class="btn btn-primary btn-sm" type="submit"><i class="fa fa-save me-1"></i>Guardar diseño</button>
+          <button id="reset-layout-top" class="btn btn-outline-secondary btn-sm" type="button"><i class="fa fa-refresh me-1"></i>Restablecer</button>
+          <a class="btn btn-outline-dark btn-sm" href="{% url 'empleados:establecimiento_detail' establecimiento.id %}"><i class="fa fa-arrow-left me-1"></i>Volver</a>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <small class="text-muted">Cara activa</small>
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary btn-sm active face-switch" data-face="front">Frente</button>
+            <button type="button" class="btn btn-outline-primary btn-sm face-switch" data-face="back">Reverso</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xl-9">
+        <div class="card editor-canvas-card">
+          <div class="card-header card-no-border pb-0 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Lienzo del gafete</h5>
+            <span class="badge badge-light-primary">Arrastra para mover elementos</span>
+          </div>
+          <div class="card-body">
+            <div class="gafete-editor-viewport">
+              <div id="gafete-scale-wrapper">
+                {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='editorCanvasFront' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h %}
+                {% include 'aulapro/partials/_gafete_canvas.html' with alumno=alumno grado=grado_demo establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='editorCanvasBack' is_editor=True canvas_width=canvas_width canvas_height=canvas_height gafete_w=gafete_w gafete_h=gafete_h hidden=True %}
+              </div>
+            </div>
+            <small id="coords-hint" class="text-muted d-block mt-2"></small>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-xl-3">
+        <form id="editorForm" method="post" action="{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}">
+          {% csrf_token %}
+          <input type="hidden" id="layout_json" name="layout_json" value="{{ layout_json|escape }}">
+
+          <div class="card editor-side-card">
+            <div class="card-header card-no-border pb-0">
+              <ul class="nav nav-tabs border-0 editor-tabs" role="tablist">
+                <li class="nav-item"><button type="button" class="nav-link active editor-tab-btn" data-tab="layers">Capas</button></li>
+                <li class="nav-item"><button type="button" class="nav-link editor-tab-btn" data-tab="props">Propiedades</button></li>
+              </ul>
+            </div>
+            <div class="card-body pt-2">
+              <div class="mb-2"><small id="active-key" class="text-muted">Elemento activo: ninguno</small></div>
+
+              <section id="tab-layers" class="editor-tab-panel">
+                <label class="form-label fw-semibold d-block mb-2">Capas del lado activo</label>
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" id="add-text-btn" class="btn btn-outline-primary btn-sm flex-fill"><i class="fa fa-font me-1"></i>Agregar texto</button>
+                  <button type="button" id="add-image-btn" class="btn btn-outline-secondary btn-sm flex-fill"><i class="fa fa-image me-1"></i>Agregar imagen</button>
+                </div>
+                <input id="add-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" class="d-none">
+                <div id="layers-list" class="layers-list"></div>
+                <small class="text-muted d-block mt-2">Usa el switch de cada fila para mostrar/ocultar capas.</small>
+              </section>
+
+              <section id="tab-props" class="editor-tab-panel d-none">
+                <div id="prop-empty-state" class="alert alert-light-info py-2 mb-3">Seleccione un elemento para editar sus propiedades.</div>
+                <div class="row g-2 mb-3">
+                  <div class="col-6"><label class="form-label mb-1">X</label><input id="prop-x" type="number" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Y</label><input id="prop-y" type="number" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Width</label><input id="prop-w" type="number" min="20" class="form-control form-control-sm prop-input"></div>
+                  <div class="col-6"><label class="form-label mb-1">Height</label><input id="prop-h" type="number" min="20" class="form-control form-control-sm prop-input"></div>
+                </div>
+
+                <div id="text-props">
+                <div class="mb-3">
+                  <label class="form-label">Contenido</label>
+                  <input id="prop-text-content" type="text" class="form-control prop-input" placeholder="Texto fijo o placeholder">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Color</label>
+                  <div class="d-flex gap-2">
+                    <input id="prop-color" type="color" class="form-control form-control-color prop-input" style="width: 64px;">
+                    <input id="prop-color-text" type="text" class="form-control prop-input" placeholder="#111111">
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Tamaño</label>
+                  <input id="prop-size" type="number" min="10" max="120" class="form-control prop-input">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Peso</label>
+                  <select id="prop-weight" class="form-control prop-input">
+                    <option value="400">Normal (400)</option>
+                    <option value="700">Negrita (700)</option>
+                  </select>
+                </div>
+                  <div class="mb-3">
+                    <label class="form-label">Alineación</label>
+                    <select id="prop-align" class="form-control prop-input">
+                      <option value="left">Izquierda</option>
+                      <option value="center">Centro</option>
+                      <option value="right">Derecha</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div id="image-props" class="d-none">
+                  <div class="mb-3">
+                    <label class="form-label">Ajuste imagen</label>
+                    <select id="image-fit" class="form-control prop-input">
+                      <option value="contain">Contain</option>
+                      <option value="cover">Cover</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Archivo actual</label>
+                    <input id="image-src" type="text" class="form-control prop-input" readonly>
+                  </div>
+                </div>
+
+                <div id="photo-props" class="d-none">
+                <div class="mb-3">
+                  <label class="form-label d-block">Forma</label>
+                  <div class="d-flex gap-3">
+                    <div class="form-check"><input class="form-check-input prop-input" type="radio" name="photo-shape" id="shape-rounded" value="rounded"><label class="form-check-label" for="shape-rounded">Cuadro</label></div>
+                    <div class="form-check"><input class="form-check-input prop-input" type="radio" name="photo-shape" id="shape-circle" value="circle"><label class="form-check-label" for="shape-circle">Círculo</label></div>
+                  </div>
+                </div>
+                <div class="mb-3 form-check"><input id="photo-border" type="checkbox" class="form-check-input prop-input"><label for="photo-border" class="form-check-label">Borde</label></div>
+                <div class="mb-3"><label class="form-label">Ancho borde</label><input id="photo-border-width" type="number" min="0" max="20" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Color borde</label><input id="photo-border-color" type="color" class="form-control form-control-color prop-input"></div>
+                <div class="mb-3"><label class="form-label">Width</label><input id="photo-w" type="number" min="40" max="500" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Height</label><input id="photo-h" type="number" min="40" max="500" class="form-control prop-input"></div>
+                <div class="mb-3"><label class="form-label">Radius (solo cuadro)</label><input id="photo-radius" type="number" min="0" max="200" class="form-control prop-input"></div>
+                </div>
+              </section>
+
+              <button id="refresh-size" class="btn btn-light w-100 mb-2" type="button">Actualizar tamaño</button>
+              <button id="btnGuardar" class="btn btn-primary w-100" type="submit">Guardar</button>
+              <button id="reset-layout" class="btn btn-outline-secondary w-100 mt-2" type="button">Restablecer</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .editor-topbar-card,
+  .editor-canvas-card,
+  .editor-side-card { border: 0; border-radius: 14px; box-shadow: 0 12px 24px rgba(15,23,42,.08); }
+  .editor-tabs .nav-link { border: 0; color: #64748b; font-weight: 600; padding: .45rem .7rem; border-radius: 10px; }
+  .editor-tabs .nav-link.active { background: #7366ff; color: #fff; }
+  .layers-list { max-height: 260px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: .35rem; background:#f8fafc; }
+  .layer-item { display:flex; align-items:center; justify-content:space-between; gap:.45rem; border:1px solid transparent; border-radius:8px; padding:.35rem .4rem; margin-bottom:.25rem; background:#fff; cursor:pointer; }
+  .layer-item:hover { border-color:#cbd5e1; }
+  .layer-item.is-active { border-color:#7366ff; background:#eef2ff; }
+  .layer-item.is-hidden { opacity: .65; background: #f8fafc; }
+  .layer-name { font-size:.82rem; font-weight:600; color:#1e293b; display:flex; align-items:center; gap:.35rem; }
+  .layer-meta { font-size:.72rem; color:#64748b; }
+  .gafete-editor-viewport { overflow:auto; max-width:100%; border:1px solid #e2e8f0; border-radius:14px; background:radial-gradient(circle at top, #f8fafc, #eef2ff); padding:14px; }
+  #gafete-scale-wrapper { transform-origin: top left; width: fit-content; }
+  .gafete-canvas-real .gafete-bg { pointer-events:none; z-index:1; }
+  .gafete-canvas-real .gafete-item { position:absolute; user-select:none; cursor:move; z-index:5; pointer-events:auto; touch-action:none; border:1px dashed transparent; }
+  .gafete-canvas-real .gafete-item:hover { border-color: rgba(115, 102, 255, .6); }
+  .gafete-canvas-real .gafete-item.is-active { outline: 2px solid rgba(115, 102, 255, .95); box-shadow: 0 0 0 4px rgba(115, 102, 255, .16); }
+  .gafete-canvas-real .gafete-item.free-text { white-space: normal; overflow-wrap: break-word; line-height: 1.2; display: block; }
+  .gafete-canvas-real .gafete-item.free-image { object-fit: contain; }
+  .gafete-canvas-real .gafete-item.dragging { opacity: .9; }
+  .gafete-canvas-real .resize-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    right: -7px;
+    bottom: -7px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #7366ff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    cursor: nwse-resize;
+    z-index: 100;
+  }
+
+  .gafete-canvas-real .grado-gafete {
+    text-align: center;
+    line-height: 1.15;
+    white-space: normal !important;
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+  }
+
+  .gafete-canvas-real .grado-gafete .grado-texto {
+    width: 100%;
+    text-align: center;
+    display: block;
+  }
+  .gafete-canvas-real .canvas-overlay { pointer-events:none; }
+</style>
+
+
+<script id="layout-data" type="application/json">{{ layout_json|safe }}</script>
+<script id="default-layout-data" type="application/json">{{ default_layout_json|safe }}</script>
+<script>
+window.gafeteEditorSimple = {
+  saveUrl: "{% url 'empleados:guardar_diseno_gafete' establecimiento.id %}",
+  uploadUrl: "{% url 'empleados:subir_imagen_gafete' establecimiento.id %}",
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'aulapro/js/gafete_editor_v3.js' %}"></script>
+
+
+{% endblock %}

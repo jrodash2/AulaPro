@@ -1,0 +1,126 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<link href="https://fonts.googleapis.com/css2?family=Mordato:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+{% include 'empleados/partials_gafete_estilos.html' %}
+
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="row mb-3">
+      <div class="col-12 d-flex justify-content-end flex-wrap gap-2">
+        <a class="btn btn-outline-primary" href="#resumen-academico">
+          Historial académico
+        </a>
+        <a class="btn btn-outline-info" href="#observaciones-alumno">
+          Observaciones
+        </a>
+        <a class="btn btn-primary" href="{% url 'empleados:empleado_boleta_asistencia' id=empleado.id %}">
+          Resumen de asistencia
+        </a>
+      </div>
+    </div>
+
+    <div class="row mb-4" id="resumen-academico">
+      <div class="col-md-3">
+        <div class="card">
+          <div class="card-body">
+            <h6>Total registros</h6>
+            <h3>{{ asistencia_resumen.total }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card">
+          <div class="card-body">
+            <h6>Asistencias</h6>
+            <h3 class="text-success">{{ asistencia_resumen.presentes }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card">
+          <div class="card-body">
+            <h6>Ausencias</h6>
+            <h3 class="text-danger">{{ asistencia_resumen.ausentes }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card">
+          <div class="card-body">
+            <h6>% Asistencia</h6>
+            <h3>{{ asistencia_resumen.porcentaje }}%</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-profile">
+      <div class="row">
+        <div class="gafetes-container">
+          <div class="col-xl-12 gafete">
+            <div class='btn-group mb-2'><button class='btn btn-outline-primary btn-sm active detalle-face' data-face='front' type='button'>Frente</button><button class='btn btn-outline-primary btn-sm detalle-face' data-face='back' type='button'>Reverso</button></div>
+            {% include 'aulapro/partials/_gafete_canvas.html' with alumno=empleado grado=grado_gafete establecimiento=establecimiento layout_json=layout face='front' face_layout=layout.front preview_id='gafete-front' canvas_width=canvas_width canvas_height=canvas_height %}
+            {% include 'aulapro/partials/_gafete_canvas.html' with alumno=empleado grado=grado_gafete establecimiento=establecimiento layout_json=layout face='back' face_layout=layout.back preview_id='gafete-back' canvas_width=canvas_width canvas_height=canvas_height hidden=True %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-4" id="observaciones-alumno">
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-header">
+            <h5>Nueva observación</h5>
+          </div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="crear_observacion">
+              {{ observacion_form.as_p }}
+              <button type="submit" class="btn btn-success">Guardar observación</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header">
+            <h5>Historial de observaciones</h5>
+          </div>
+          <div class="card-body">
+            {% for obs in observaciones %}
+              <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between flex-wrap mb-2">
+                  <strong>{{ obs.fecha|date:"d/m/Y" }} · {{ obs.get_tipo_display }}</strong>
+                  <span class="badge badge-light-info">{{ obs.get_estado_display }}</span>
+                </div>
+                <p class="mb-1">{{ obs.observacion }}</p>
+                <small class="text-muted">Registró: {{ obs.creado_por.get_full_name|default:obs.creado_por.username }} · Prioridad: {{ obs.get_prioridad_display }}</small>
+              </div>
+            {% empty %}
+              <p class="text-muted mb-0">No hay observaciones registradas para este alumno.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if user.is_authenticated %}
+<div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+  {% if matricula_activa %}
+    <a href="{% url 'empleados:descargar_gafete_frente_jpg' matricula_activa.id %}" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Descargar frente</a>
+    <a href="{% url 'empleados:descargar_gafete_reverso_jpg' matricula_activa.id %}" class="btn btn-outline-primary" target="_blank" rel="noopener noreferrer">Descargar reverso</a>
+  {% else %}
+    <button type="button" class="btn btn-secondary" disabled>Sin matrícula activa para descargar gafete</button>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+document.querySelectorAll('.detalle-face').forEach(function(btn){btn.addEventListener('click',function(){var face=this.dataset.face;document.querySelectorAll('.detalle-face').forEach(function(b){b.classList.toggle('active',b===btn);});document.getElementById('gafete-front').style.display=face==='front'?'':'none';document.getElementById('gafete-back').style.display=face==='back'?'':'none';});});
+</script>
+{% endblock %}

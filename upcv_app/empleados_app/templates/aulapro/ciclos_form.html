@@ -1,0 +1,40 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <h4>{{ titulo }}</h4>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" class="row g-3">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="col-12">
+              <div class="alert alert-danger mb-0">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="col-md-6"><label class="form-label" for="{{ form.nombre.id_for_label }}">Nombre</label>{{ form.nombre }}{% for error in form.nombre.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
+          <div class="col-md-3"><label class="form-label" for="{{ form.anio.id_for_label }}">Año</label>{{ form.anio }}{% for error in form.anio.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
+          <div class="col-md-3"><label class="form-label" for="{{ form.fecha_inicio.id_for_label }}">Fecha inicio</label>{{ form.fecha_inicio }}{% for error in form.fecha_inicio.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
+          <div class="col-md-3"><label class="form-label" for="{{ form.fecha_fin.id_for_label }}">Fecha fin</label>{{ form.fecha_fin }}{% for error in form.fecha_fin.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
+
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="form-check mt-4">{{ form.activo }}<label class="form-check-label ms-2" for="{{ form.activo.id_for_label }}">Marcar como ciclo activo</label></div>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">{{ accion|default:'Guardar' }}</button>
+            <a class="btn btn-outline-secondary" href="{% if ciclo %}{% url 'empleados:ciclo_detail' establecimiento.id ciclo.id %}{% else %}{% url 'empleados:ciclos_list' establecimiento.id %}{% endif %}">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

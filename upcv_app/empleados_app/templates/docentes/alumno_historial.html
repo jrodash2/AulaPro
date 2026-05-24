@@ -1,0 +1,9 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Historial alumno</h4></div><div class="col-6 text-end"><a class="btn btn-outline-success" href="{% url 'empleados:docente_alumno_historial_excel' curso_docente.id alumno.id %}">Excel historial alumno</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>{{ alumno.apellidos }}, {{ alumno.nombres }}</h5><p class="mb-0">Presentes: {{ presentes }} · Ausentes: {{ ausentes }}</p></div><div class="card-body"><div class="table-responsive custom-scrollbar"><table class="display" id="basic-9"><thead><tr><th>Fecha</th><th>Periodo</th><th>Estado</th></tr></thead><tbody>{% for d in detalles %}<tr><td>{{ d.asistencia.fecha|date:'d/m/Y' }}</td><td>{{ d.asistencia.periodo.nombre|default:'Sin periodo' }}</td><td>{% if d.presente %}<span class="badge badge-light-success">Presente</span>{% else %}<span class="badge badge-light-danger">Ausente</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="3">Sin historial.</td></tr>{% endfor %}</tbody></table></div><div class="mt-3"><h6>Resumen por periodo</h6><ul>{% for k,v in resumen_periodos.items %}<li>{{ k }}: Presentes {{ v.presentes }} / Ausentes {{ v.ausentes }}</li>{% empty %}<li>Sin datos.</li>{% endfor %}</ul></div></div></div></div></div>
+{% endblock %}

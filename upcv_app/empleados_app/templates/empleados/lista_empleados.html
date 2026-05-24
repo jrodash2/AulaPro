@@ -1,0 +1,67 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Lista de Alumnos</h4></div>
+        <div class="col-6">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'empleados:dahsboard' %}"><svg class="stroke-icon"><use href="../assets/svg/icon-sprite.svg#stroke-home"></use></svg></a></li>
+            <li class="breadcrumb-item">Alumnos</li>
+            <li class="breadcrumb-item active">Listado</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0 d-flex justify-content-between">
+        <h5>Control de alumnos</h5>
+        {% if is_admin_total or is_gestor %}
+        <a href="{% url 'empleados:matricula_masiva' %}" class="btn btn-primary btn-sm">Matrícula masiva</a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="table-responsive custom-scrollbar">
+          <table class="display" id="basic-9">
+            <thead>
+              <tr>
+                <th>Código</th><th>Nombres</th><th>Apellidos</th><th>Fecha Nac.</th><th>CUI</th><th>Establecimiento</th><th>Grado</th><th>Activo</th><th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for empleado in empleados %}
+              <tr>
+                <td>{{ empleado.codigo_personal|default:'-' }}</td>
+                <td>{{ empleado.nombres }}</td>
+                <td>{{ empleado.apellidos }}</td>
+                <td>{{ empleado.fecha_nacimiento|default:'-' }}</td>
+                <td>{{ empleado.cui|default:'-' }}</td>
+                <td>{{ empleado.establecimiento|default:'-' }}</td>
+                <td>{{ empleado.grado|default:'-' }}</td>
+                <td>{% if empleado.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    <a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:empleado_detalle' empleado.id %}">Historial</a>
+                    <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:empleado_boleta_asistencia' id=empleado.id %}">Asistencia</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'empleados:editar_empleado' empleado.id %}">Editar</a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

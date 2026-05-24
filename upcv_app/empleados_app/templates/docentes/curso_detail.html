@@ -1,0 +1,10 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ curso.nombre }}</h4></div><div class="col-6 text-end d-flex justify-content-end gap-2"><a class="btn btn-primary" href="{% url 'empleados:docente_asistencia_home' curso_docente.id %}">Asistencia</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Alumnos del grado {{ grado.nombre }}</h5></div><div class="card-body"><div class="table-responsive custom-scrollbar"><table class="display" id="basic-9"><thead><tr><th>Código</th><th>Nombres</th><th>Apellidos</th><th>CUI</th><th>Tel</th><th>Activo</th><th>Acciones</th></tr></thead><tbody>{% for a in alumnos %}<tr><td>{{ a.codigo_personal|default:'-' }}</td><td>{{ a.nombres|default:'-' }}</td><td>{{ a.apellidos|default:'-' }}</td><td>{{ a.cui|default:'-' }}</td><td>{{ a.tel|default:'-' }}</td><td>{% if a.activo %}<span class="badge badge-light-success">Activo</span>{% else %}<span class="badge badge-light-danger">Inactivo</span>{% endif %}</td><td><a class="btn btn-outline-info btn-sm" href="{% url 'empleados:docente_alumno_historial' curso_docente.id a.id %}">Historial alumno</a></td></tr>{% empty %}<tr><td colspan="7">No hay alumnos para este curso.</td></tr>{% endfor %}</tbody></table></div></div></div></div></div>
+{% endblock %}

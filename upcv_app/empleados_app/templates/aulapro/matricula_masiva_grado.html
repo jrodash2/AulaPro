@@ -1,0 +1,180 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-8">
+          <h4>Matricular varios alumnos</h4>
+          <p class="mb-0 text-muted">Grado: <strong>{{ grado.nombre }}</strong> · Ciclo escolar: <strong>{{ ciclo_escolar_contexto.nombre }}</strong> · Establecimiento: <strong>{{ establecimiento.nombre }}</strong></p>
+        </div>
+        <div class="col-4 text-end">
+          <a class="btn btn-outline-secondary" href="{% url 'empleados:grado_detail' establecimiento.id ciclo.id carrera.id grado.id %}">Volver al grado</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0">
+        <h5>Buscar alumno</h5>
+      </div>
+      <div class="card-body">
+        <form method="get" class="row g-3 align-items-end" id="form-busqueda-alumnos">
+          <div class="col-md-8">
+            <label class="form-label">Código / nombre / apellido</label>
+            <input id="input-busqueda-alumnos" name="q" type="text" class="form-control" placeholder="Ej. H072YNH, Cristian, Rodríguez" value="{{ q }}">
+          </div>
+          <div class="col-md-4 text-md-end">
+            <a href="{% url 'empleados:matricula_masiva_grado' establecimiento.id ciclo.id carrera.id grado.id %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+          </div>
+        </form>
+
+        <div class="table-responsive tabla-matricula-responsive mt-3">
+          <table class="table table-striped table-sm align-middle">
+            <thead>
+              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Establecimiento</th><th class="text-nowrap">Acción</th></tr>
+            </thead>
+            <tbody>
+              {% if q|length < 2 %}
+                <tr><td colspan="5" class="text-muted">Escriba al menos 2 caracteres para buscar.</td></tr>
+              {% elif alumnos_resultado %}
+                {% for a in alumnos_resultado %}
+                  <tr>
+                    <td>{{ a.codigo_personal|default:'-' }}</td>
+                    <td>{{ a.nombres }} {{ a.apellidos }}</td>
+                    <td>{{ a.grado|default:'-' }}</td>
+                    <td>{{ a.establecimiento|default:'-' }}</td>
+                    <td class="text-nowrap">
+                      <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="alumno_id" value="{{ a.id }}">
+                        <input type="hidden" name="q" value="{{ q }}">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Agregar</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="5" class="text-muted">Sin resultados.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header card-no-border pb-0 d-flex justify-content-between align-items-center">
+        <h5>Alumnos seleccionados</h5>
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="clear">
+          <input type="hidden" name="q" value="{{ q }}">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Limpiar lista</button>
+        </form>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive tabla-matricula-responsive">
+          <table class="table table-striped table-sm align-middle">
+            <thead>
+              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th class="text-nowrap">Acción</th></tr>
+            </thead>
+            <tbody>
+              {% for a in alumnos_seleccionados %}
+                <tr>
+                  <td>{{ a.codigo_personal|default:'-' }}</td>
+                  <td>{{ a.nombres }} {{ a.apellidos }}</td>
+                  <td>{{ a.grado|default:'-' }}</td>
+                  <td class="text-nowrap">
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="remove">
+                      <input type="hidden" name="alumno_id" value="{{ a.id }}">
+                      <input type="hidden" name="q" value="{{ q }}">
+                      <button type="submit" class="btn btn-outline-danger btn-sm">Quitar</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No hay alumnos seleccionados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <form method="post" id="form-masiva">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="enroll">
+          <input type="hidden" name="q" value="{{ q }}">
+          <div class="row g-3 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">Estado</label>
+              <select name="estado" class="form-control">
+                {% for valor, etiqueta in estados %}
+                <option value="{{ valor }}" {% if valor == estado_default %}selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+              <div class="alert alert-light-info w-100 mb-0">Las matrículas se crearán automáticamente en <strong>{{ grado.nombre }}</strong> y ciclo <strong>{{ ciclo_escolar_contexto.nombre }}</strong>.</div>
+            </div>
+          </div>
+
+          <div class="text-end mt-3">
+            <button class="btn btn-primary" type="submit">Matricular alumnos</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .tabla-matricula-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabla-matricula-responsive table {
+    min-width: 760px;
+  }
+
+  .tabla-matricula-responsive th:last-child,
+  .tabla-matricula-responsive td:last-child {
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+(function () {
+  const formBusqueda = document.getElementById('form-busqueda-alumnos');
+  const inputBusqueda = document.getElementById('input-busqueda-alumnos');
+
+  if (!formBusqueda || !inputBusqueda) {
+    return;
+  }
+
+  let debounceTimer = null;
+  let ultimoValorEnviado = (inputBusqueda.value || '').trim();
+
+  inputBusqueda.addEventListener('input', function () {
+    const valorActual = (inputBusqueda.value || '').trim();
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () {
+      if (valorActual === ultimoValorEnviado) {
+        return;
+      }
+
+      if (valorActual.length >= 2 || valorActual.length === 0) {
+        ultimoValorEnviado = valorActual;
+        formBusqueda.submit();
+      }
+    }, 500);
+  });
+})();
+</script>
+{% endblock %}

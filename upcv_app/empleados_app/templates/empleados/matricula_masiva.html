@@ -1,0 +1,171 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid">
+    <div class="page-title">
+      <div class="row">
+        <div class="col-6"><h4>Matrícula masiva</h4></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header card-no-border pb-0">
+        <h5>Buscar alumno por código</h5>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-8">
+            <label class="form-label">Código / nombre / apellido</label>
+            <input id="buscar-codigo" type="text" class="form-control" placeholder="Ej. 2024001">
+          </div>
+          <div class="col-md-4">
+            <small class="text-muted">Escriba al menos 2 caracteres para buscar.</small>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-striped">
+            <thead>
+              <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Establecimiento</th><th></th></tr>
+            </thead>
+            <tbody id="resultados-body">
+              <tr><td colspan="5" class="text-muted">Sin búsqueda.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header card-no-border pb-0 d-flex justify-content-between align-items-center">
+        <h5>Alumnos seleccionados</h5>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="limpiar-lista">Limpiar lista</button>
+      </div>
+      <div class="card-body">
+        <form method="post" id="form-masiva">
+          {% csrf_token %}
+          <input type="hidden" name="alumnos_ids" id="alumnos_ids">
+
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr><th>Código</th><th>Nombre</th><th>Grado actual</th><th>Acción</th></tr>
+              </thead>
+              <tbody id="seleccionados-body">
+                <tr><td colspan="4" class="text-muted">No hay alumnos seleccionados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="row g-3 mt-1">
+            <div class="col-md-4"><label class="form-label">Grado</label>{{ form.grado }}</div>
+            <div class="col-md-4"><label class="form-label">Ciclo escolar</label>{{ form.ciclo_escolar }}</div>
+            <div class="col-md-4"><label class="form-label">Estado</label>{{ form.estado }}</div>
+          </div>
+
+          {% if form.errors %}
+          <div class="alert alert-danger mt-3 mb-0">{{ form.errors }}</div>
+          {% endif %}
+
+          <div class="text-end mt-3">
+            <button class="btn btn-primary" type="submit">Matricular alumnos</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const urlBuscar = "{% url 'empleados:matricula_masiva_buscar_alumnos' %}";
+  const inputBuscar = document.getElementById('buscar-codigo');
+  const resultadosBody = document.getElementById('resultados-body');
+  const seleccionadosBody = document.getElementById('seleccionados-body');
+  const alumnosIdsInput = document.getElementById('alumnos_ids');
+  const limpiarBtn = document.getElementById('limpiar-lista');
+
+  const seleccionados = new Map();
+
+  function renderSeleccionados() {
+    if (!seleccionados.size) {
+      seleccionadosBody.innerHTML = '<tr><td colspan="4" class="text-muted">No hay alumnos seleccionados.</td></tr>';
+      alumnosIdsInput.value = '';
+      return;
+    }
+
+    let html = '';
+    const ids = [];
+    seleccionados.forEach((a) => {
+      ids.push(a.id);
+      html += `<tr>
+        <td>${a.codigo_personal}</td>
+        <td>${a.nombre}</td>
+        <td>${a.grado_actual}</td>
+        <td><button type="button" class="btn btn-outline-danger btn-sm" data-remove-id="${a.id}">Quitar</button></td>
+      </tr>`;
+    });
+    seleccionadosBody.innerHTML = html;
+    alumnosIdsInput.value = ids.join(',');
+  }
+
+  function renderResultados(items) {
+    if (!items.length) {
+      resultadosBody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin resultados.</td></tr>';
+      return;
+    }
+
+    resultadosBody.innerHTML = items.map((a) => `
+      <tr>
+        <td>${a.codigo_personal}</td>
+        <td>${a.nombre}</td>
+        <td>${a.grado_actual}</td>
+        <td>${a.establecimiento}</td>
+        <td><button type="button" class="btn btn-outline-primary btn-sm" data-add-id="${a.id}">Agregar</button></td>
+      </tr>
+    `).join('');
+
+    resultadosBody.querySelectorAll('[data-add-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.addId);
+        const alumno = items.find((x) => x.id === id);
+        if (alumno) {
+          seleccionados.set(id, alumno);
+          renderSeleccionados();
+        }
+      });
+    });
+  }
+
+  let timer = null;
+  inputBuscar.addEventListener('input', () => {
+    const q = inputBuscar.value.trim();
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (q.length < 2) {
+        resultadosBody.innerHTML = '<tr><td colspan="5" class="text-muted">Escriba al menos 2 caracteres.</td></tr>';
+        return;
+      }
+      const resp = await fetch(`${urlBuscar}?q=${encodeURIComponent(q)}`);
+      const data = await resp.json();
+      renderResultados(data.results || []);
+    }, 250);
+  });
+
+  seleccionadosBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-id]');
+    if (!btn) return;
+    const id = Number(btn.dataset.removeId);
+    seleccionados.delete(id);
+    renderSeleccionados();
+  });
+
+  limpiarBtn.addEventListener('click', () => {
+    seleccionados.clear();
+    renderSeleccionados();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'empleados/base.html' %}
+{% load static %}
+{% block content %}
+<script src="{% static 'assets/js/jquery.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'assets/js/datatable/datatables/datatable.custom.js' %}"></script>
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>Historial · {{ periodo.nombre }}</h4></div><div class="col-6 text-end"><a class="btn btn-outline-success me-2" href="{% url 'empleados:docente_periodo_historial_excel' periodo.id %}">Excel consolidado</a><a class="btn btn-outline-secondary" href="{% url 'empleados:docente_periodo_detail' periodo.id %}">Volver</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>Asistencias registradas</h5></div><div class="card-body"><div class="table-responsive custom-scrollbar"><table class="display" id="basic-9"><thead><tr><th>Fecha</th><th>Total</th><th>Presentes</th><th>Ausentes</th><th>Acciones</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.asistencia.fecha|date:'d/m/Y' }}</td><td>{{ row.total }}</td><td>{{ row.presentes }}</td><td>{{ row.ausentes }}</td><td><a class="btn btn-outline-primary btn-sm" href="{% url 'empleados:docente_asistencia_detail' row.asistencia.id %}">Ver detalle</a> <a class="btn btn-outline-success btn-sm" href="{% url 'empleados:docente_asistencia_excel' row.asistencia.id %}">Excel</a></td></tr>{% empty %}<tr><td colspan="5">Sin asistencias.</td></tr>{% endfor %}</tbody></table></div></div></div></div></div>
+{% endblock %}

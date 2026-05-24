@@ -1,0 +1,5 @@
+{% extends 'empleados/base.html' %}
+{% block content %}
+<div class="page-body"><div class="container-fluid"><div class="page-title"><div class="row"><div class="col-6"><h4>{{ periodo.nombre }}</h4></div><div class="col-6 text-end d-flex justify-content-end gap-2"><a class="btn btn-primary" href="{% url 'empleados:tomar_asistencia' periodo.id %}">Tomar asistencia</a><a class="btn btn-outline-primary" href="{% url 'empleados:docente_historial_asistencias' periodo.id %}">Historial de asistencias</a></div></div></div></div>
+<div class="container-fluid"><div class="card"><div class="card-header card-no-border pb-0"><h5>{{ curso.nombre }}</h5></div><div class="card-body"><p><strong>Docente:</strong> {{ curso_docente.docente.get_full_name|default:curso_docente.docente.username }}</p><p><strong>Periodo:</strong> {{ periodo.nombre }}{% if periodo.fecha_inicio or periodo.fecha_fin %} ({{ periodo.fecha_inicio|date:'d/m/Y'|default:'-' }} - {{ periodo.fecha_fin|date:'d/m/Y'|default:'-' }}){% endif %}</p></div></div></div></div>
+{% endblock %}
