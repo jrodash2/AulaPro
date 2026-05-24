@@ -1,6 +1,6 @@
 from django import template
 
-from ..gafete_utils import is_item_visible_in_face
+from empleados_app.gafete_utils import is_item_visible_in_face
 
 register = template.Library()
 
